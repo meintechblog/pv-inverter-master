@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 1 of 4 (Protocol Research & Validation)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-17 -- Roadmap created
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-18 -- Completed 01-01-PLAN.md
 
-Progress: [..........] 0%
+Progress: [#.........] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 5min
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 - Protocol Research | 1/2 | 5min | 5min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 01-01 (5min)
+- Trend: N/A (first plan)
 
 *Updated after each plan completion*
 
@@ -45,6 +45,8 @@ Recent decisions affecting current work:
 - Roadmap: Coarse granularity -- 4 phases derived from 26 requirements
 - Roadmap: ARCH requirements grouped with Phase 2 (plugin interface shapes proxy code)
 - Roadmap: DEPL requirements grouped with Phase 3 (control + hardening = production-capable)
+- 01-01: Model chain addresses recalculated from actual SunSpec model lengths (Model 120=26, Model 123=24), Controls at 40149, End at 40175
+- 01-01: Standard SunSpec Model 123 field ordering: WMaxLimPct at 40154, WMaxLim_Ena at 40158
 
 ### Pending Todos
 
@@ -57,6 +59,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Roadmap created, ready to plan Phase 1
+Last session: 2026-03-18
+Stopped at: Completed 01-01-PLAN.md
 Resume file: None

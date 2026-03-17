@@ -7,9 +7,9 @@
 
 ### Protocol Research & Validation
 
-- [ ] **PROTO-01**: dbus-fronius Source Code analysiert -- exakte Fronius-Erwartungen (Discovery, Manufacturer-String, SunSpec Models) dokumentiert
+- [x] **PROTO-01**: dbus-fronius Source Code analysiert -- exakte Fronius-Erwartungen (Discovery, Manufacturer-String, SunSpec Models) dokumentiert
 - [ ] **PROTO-02**: SolarEdge SE30K Register-Map per Modbus TCP live ausgelesen und validiert
-- [ ] **PROTO-03**: Register-Mapping-Spezifikation erstellt (SolarEdge -> Fronius SunSpec Translation Table)
+- [x] **PROTO-03**: Register-Mapping-Spezifikation erstellt (SolarEdge -> Fronius SunSpec Translation Table)
 
 ### Modbus Proxy Core
 
@@ -81,9 +81,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROTO-01 | Phase 1 | Pending |
+| PROTO-01 | Phase 1 | Complete |
 | PROTO-02 | Phase 1 | Pending |
-| PROTO-03 | Phase 1 | Pending |
+| PROTO-03 | Phase 1 | Complete |
 | PROXY-01 | Phase 2 | Pending |
 | PROXY-02 | Phase 2 | Pending |
 | PROXY-03 | Phase 2 | Pending |
