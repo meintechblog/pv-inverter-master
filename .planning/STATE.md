@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 1 of 4 (Protocol Research & Validation)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-03-18 -- Completed 01-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: Executing — all plans complete, pending verification
+Last activity: 2026-03-18 -- Completed 01-02-PLAN.md
 
-Progress: [#.........] 10%
+Progress: [##........] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 5min
-- Total execution time: 0.08 hours
+- Total execution time: 0.17 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 - Protocol Research | 1/2 | 5min | 5min |
+| 1 - Protocol Research | 2/2 | 10min | 5min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (5min)
-- Trend: N/A (first plan)
+- Last 5 plans: 01-01 (5min), 01-02 (5min)
+- Trend: Stable
 
 *Updated after each plan completion*
 
@@ -47,6 +47,9 @@ Recent decisions affecting current work:
 - Roadmap: DEPL requirements grouped with Phase 3 (control + hardening = production-capable)
 - 01-01: Model chain addresses recalculated from actual SunSpec model lengths (Model 120=26, Model 123=24), Controls at 40149, End at 40175
 - 01-01: Standard SunSpec Model 123 field ordering: WMaxLimPct at 40154, WMaxLim_Ena at 40158
+- 01-02: Model 120 and 123 confirmed absent from SE30K — proxy must synthesize both
+- 01-02: Model 704 (DER Controls) discovered at address 40521 — potential alternative to proprietary registers
+- 01-02: Second Common Model at 40121 — proxy must not pass this through
 
 ### Pending Todos
 
