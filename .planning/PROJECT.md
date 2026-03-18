@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Ein Modbus-TCP-Proxy-Dienst, der einen SolarEdge-Wechselrichter (zunächst SE30K) gegenüber Venus OS (Victron) als Fronius-Inverter erscheinen lässt. Venus OS kann den Inverter dann nativ erkennen, monitoren und steuern — ohne Modifikationen am Venus OS selbst. Der Proxy läuft als Dienst in einem LXC-Container auf Proxmox und wird über eine einfache Webapp konfiguriert.
+Ein Modbus-TCP-Proxy-Dienst, der einen SolarEdge SE30K gegenüber Venus OS (Victron) als Fronius-Inverter erscheinen lässt. Venus OS erkennt, monitort und steuert den Inverter nativ — inkl. Live-Leistungsdaten, Einspeiseregelung und Power Limiting. Der Proxy läuft als systemd-Service auf einem LXC-Container und bietet eine Dark-Themed Web-Dashboard zur Konfiguration und Überwachung.
 
 ## Core Value
 
@@ -12,17 +12,17 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern können wie ei
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Modbus-Proxy übersetzt SolarEdge-Register auf Fronius-kompatibles SunSpec-Profil — v1.0
+- ✓ Venus OS erkennt den Proxy als Fronius-Inverter — v1.0
+- ✓ Live-Daten (Leistung, Ertrag, Status) werden korrekt durchgereicht — v1.0
+- ✓ Steuerungsbefehle (Leistungsbegrenzung) von Venus OS werden an SolarEdge weitergeleitet — v1.0
+- ✓ Webapp zur Konfiguration (SolarEdge IP/Port, Verbindungsstatus, Register-Viewer) — v1.0
+- ✓ Läuft als systemd-Service mit Auto-Start und Restart-on-Failure — v1.0
+- ✓ Architektur ermöglicht weitere Inverter-Marken als Plugins — v1.0
 
 ### Active
 
-- [ ] Modbus-Proxy übersetzt SolarEdge-Register auf Fronius-kompatibles Sunspec-Profil
-- [ ] Venus OS erkennt den Proxy als Fronius-Inverter
-- [ ] Live-Daten (Leistung, Ertrag, Status) werden korrekt durchgereicht
-- [ ] Steuerungsbefehle (Leistungsbegrenzung) von Venus OS werden an SolarEdge weitergeleitet
-- [ ] Webapp zur Konfiguration (SolarEdge IP/Port, Verbindungsstatus, Mapping-Übersicht)
-- [ ] Läuft als Systemdienst im LXC-Container
-- [ ] Architektur ermöglicht künftig weitere Inverter-Marken als Plugins
+(Defined in next milestone)
 
 ### Out of Scope
 
@@ -33,25 +33,37 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern können wie ei
 
 ## Context
 
-- **SolarEdge SE30K**: Modbus TCP aktiv auf 192.168.3.18:1502. Register-Dokumentation muss recherchiert werden (SolarEdge nutzt Sunspec-kompatibles Modbus-Profil mit eigenen Erweiterungen).
-- **Venus OS**: Fresh Install auf 192.168.3.146. Victron unterstützt Fronius-Inverter nativ — der Proxy muss das Fronius-Sunspec-Profil exakt nachbilden, damit Venus OS den Proxy als echten Fronius erkennt.
-- **LXC-Container**: Debian 13 (Trixie) auf Proxmox, erreichbar unter 192.168.3.191 (root SSH).
-- **Fronius-Integration in Venus OS**: Muss recherchiert werden — vermutlich Sunspec Modbus TCP, aber exaktes Discovery-Protokoll und erwartete Register müssen ermittelt werden.
+**Shipped v1.0** with 1,851 LOC Python (source) + 2,676 LOC tests.
+
+Tech stack: Python 3.12, pymodbus 3.8+, aiohttp, structlog, PyYAML.
+
+**Infrastructure:**
+- SolarEdge SE30K: 192.168.3.18:1502 (Modbus TCP)
+- Venus OS (Victron Cerbo/RPi5): 192.168.3.146 (v3.71)
+- LXC Container: 192.168.3.191 (Debian 13, Proxmox)
+- Proxy: Port 502 (Modbus) + Port 80 (Webapp)
+
+**Live verified:** Venus OS shows "Fronius SE30K-RW00IBNM4" with ~10-14 kW live power, 3-phase data, 20+ MWh total energy. Power control via Model 123 → SE proprietary EDPC translation confirmed.
 
 ## Constraints
 
 - **Deployment**: LXC-Container auf Proxmox (Debian 13) — kein Docker, kein K8s
-- **Netzwerk**: Alle Geräte im selben LAN (192.168.3.0/24), keine besonderen Sicherheitsanforderungen
+- **Netzwerk**: Alle Geräte im selben LAN (192.168.3.0/24)
 - **Protokoll**: Modbus TCP in beide Richtungen (SolarEdge ↔ Proxy ↔ Venus OS)
-- **Kompatibilität**: Muss sich exakt wie ein Fronius-Inverter verhalten, damit Venus OS es nativ akzeptiert
+- **Kompatibilität**: Muss sich exakt wie ein Fronius-Inverter verhalten
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Plugin-Architektur für Inverter-Marken | User will künftig andere Marken anbinden | — Pending |
-| Tech Stack | Noch offen — Research soll empfehlen | — Pending |
-| Kein Sicherheits-Overhead | Alles im selben LAN, User will es einfach | — Pending |
+| Plugin-Architektur für Inverter-Marken | User will künftig andere Marken anbinden | ✓ Good — InverterPlugin ABC mit 6 Methoden |
+| Python + pymodbus + asyncio | Stabile Modbus-Bibliothek, async server+client | ✓ Good — clean dual-task pattern |
+| Manufacturer "Fronius" statt "SolarEdge" | Auto Power Limit in Venus OS | ✓ Good — auto-enabled ohne User-Config |
+| SunSpec Model 120+123 synthetisiert | SE30K hat diese nicht nativ | ✓ Good — Venus OS braucht beide |
+| Cache-basiertes Proxy-Modell | Poller + Server async entkoppelt | ✓ Good — keine Pass-through-Latenz |
+| Night Mode State Machine | Inverter nachts offline | ✓ Good — kein Crash, synthetic registers |
+| Kein Sicherheits-Overhead | Alles im selben LAN | ✓ Good — einfach, wie gewünscht |
+| Single-file HTML Frontend | Kein Build-Tooling nötig | ✓ Good — importlib.resources serving |
 
 ---
-*Last updated: 2026-03-17 after initialization*
+*Last updated: 2026-03-18 after v1.0 milestone*
