@@ -59,7 +59,7 @@ Plans:
   3. The proxy runs as a systemd service that auto-starts on boot and restarts on failure
   4. The proxy reconnects automatically when the SolarEdge connection drops, and handles inverter-offline periods (night/maintenance) without crashing
   5. Structured JSON logs are written to the systemd journal
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Control path: Model 123 write interception, validation, SunSpec-to-SE translation, write-through
@@ -90,5 +90,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Protocol Research & Validation | 0/2 | Planning complete | - |
 | 2. Core Proxy (Read Path) | 2/2 | Complete   | 2026-03-18 |
-| 3. Control Path & Production Hardening | 0/3 | Planning complete | - |
+| 3. Control Path & Production Hardening | 2/3 | In Progress|  |
 | 4. Configuration Webapp | 0/? | Not started | - |
