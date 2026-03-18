@@ -275,3 +275,131 @@ def test_daily_energy_reset_new_instance():
     snapshot = collector.collect(cache)
 
     assert snapshot["inverter"]["daily_energy_wh"] == 0
+
+
+# --- Peak stats tests ---
+
+
+def test_peak_power_tracking():
+    """peak_power_w tracks max ac_power_w across multiple collect() calls."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+
+    # First: 5000W (sf=0)
+    overrides[40083] = 5000
+    overrides[40084] = 0
+    cache = _make_cache_with_values(overrides)
+    snap1 = collector.collect(cache)
+    assert snap1["inverter"]["peak_power_w"] == 5000
+
+    # Second: 8000W -- new peak
+    overrides[40083] = 8000
+    cache = _make_cache_with_values(overrides)
+    snap2 = collector.collect(cache)
+    assert snap2["inverter"]["peak_power_w"] == 8000
+
+    # Third: 3000W -- peak stays at 8000
+    overrides[40083] = 3000
+    cache = _make_cache_with_values(overrides)
+    snap3 = collector.collect(cache)
+    assert snap3["inverter"]["peak_power_w"] == 8000
+
+
+def test_operating_hours_mppt_only(monkeypatch):
+    """operating_hours increments only when status is MPPT."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 1000
+    overrides[40084] = 0
+
+    mono_time = [100.0]
+
+    def fake_monotonic():
+        return mono_time[0]
+
+    import venus_os_fronius_proxy.dashboard as dash_mod
+    monkeypatch.setattr(dash_mod.time, "monotonic", fake_monotonic)
+
+    # First collect: MPPT (code 4) -- baseline, no delta yet
+    overrides[40107] = 4
+    cache = _make_cache_with_values(overrides)
+    snap1 = collector.collect(cache)
+    assert snap1["inverter"]["operating_hours"] == 0.0
+
+    # Second collect: still MPPT, 5 seconds later
+    mono_time[0] = 105.0
+    cache = _make_cache_with_values(overrides)
+    snap2 = collector.collect(cache)
+    assert snap2["inverter"]["operating_hours"] == pytest.approx(5.0 / 3600, abs=0.001)
+
+    # Third collect: SLEEPING (code 2), 5 seconds later -- no increment
+    mono_time[0] = 110.0
+    overrides[40107] = 2
+    cache = _make_cache_with_values(overrides)
+    snap3 = collector.collect(cache)
+    # Should still be 5 seconds
+    assert snap3["inverter"]["operating_hours"] == pytest.approx(5.0 / 3600, abs=0.001)
+
+
+def test_efficiency_calculation():
+    """efficiency_pct = current_ac_power / peak_power * 100."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+
+    # First collect: 10000W -- sets peak
+    overrides[40083] = 10000
+    overrides[40084] = 0
+    cache = _make_cache_with_values(overrides)
+    snap1 = collector.collect(cache)
+    assert snap1["inverter"]["efficiency_pct"] == 100.0
+
+    # Second collect: 5000W -- 50% efficiency
+    overrides[40083] = 5000
+    cache = _make_cache_with_values(overrides)
+    snap2 = collector.collect(cache)
+    assert snap2["inverter"]["efficiency_pct"] == 50.0
+
+
+def test_peak_stats_in_snapshot():
+    """All three peak stat fields appear in snapshot['inverter']."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 1000
+    overrides[40084] = 0
+
+    cache = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache)
+    inv = snapshot["inverter"]
+
+    assert "peak_power_w" in inv
+    assert "operating_hours" in inv
+    assert "efficiency_pct" in inv
+
+
+def test_peak_stats_reset_new_instance():
+    """New DashboardCollector instance starts with peak stats at zero."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 5000
+    overrides[40084] = 0
+
+    cache = _make_cache_with_values(overrides)
+    snap1 = collector.collect(cache)
+    assert snap1["inverter"]["peak_power_w"] == 5000
+
+    # New instance -- peak resets
+    collector2 = DashboardCollector()
+    overrides[40083] = 1000
+    cache = _make_cache_with_values(overrides)
+    snap2 = collector2.collect(cache)
+    assert snap2["inverter"]["peak_power_w"] == 1000
