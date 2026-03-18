@@ -44,6 +44,10 @@ body {
     min-height: 100vh;
 }
 
+.sidebar-overlay {
+    display: none;
+}
+
 /* ===== Sidebar ===== */
 .sidebar {
     background: var(--ve-bg-surface);

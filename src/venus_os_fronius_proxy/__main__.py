@@ -122,9 +122,9 @@ def main():
             )
         )
 
-        # Wait briefly for run_proxy to populate shared_ctx
-        for _ in range(50):  # up to 0.5s
-            if shared_ctx:
+        # Wait briefly for run_proxy to populate shared_ctx with cache, conn_mgr, etc.
+        for _ in range(100):  # up to 1s
+            if "cache" in shared_ctx:
                 break
             await asyncio.sleep(0.01)
 
