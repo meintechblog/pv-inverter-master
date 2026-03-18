@@ -101,6 +101,10 @@ class DashboardCollector:
         }
         self._last_snapshot: dict | None = None
         self._energy_at_start: int | None = None
+        # Peak stats (in-memory, reset on restart)
+        self._peak_power_w: float = 0.0
+        self._operating_seconds: float = 0.0
+        self._last_collect_ts: float | None = None
 
     @property
     def last_snapshot(self) -> dict | None:
@@ -147,6 +151,28 @@ class DashboardCollector:
         # Compute daily energy delta from startup baseline
         daily_wh = energy_wh - self._energy_at_start if self._energy_at_start is not None else 0
         inverter["daily_energy_wh"] = max(0, daily_wh)
+
+        # Peak stats tracking
+        ac_power = inverter.get("ac_power_w", 0) or 0
+        if ac_power > self._peak_power_w:
+            self._peak_power_w = ac_power
+
+        # Operating hours (only count time in MPPT)
+        now_mono = time.monotonic()
+        if self._last_collect_ts is not None and inverter.get("status") == "MPPT":
+            delta = now_mono - self._last_collect_ts
+            if 0 < delta < 10:  # guard against large gaps
+                self._operating_seconds += delta
+        self._last_collect_ts = now_mono
+
+        # Efficiency calculation
+        efficiency_pct = 0.0
+        if self._peak_power_w > 0:
+            efficiency_pct = round(ac_power / self._peak_power_w * 100, 1)
+
+        inverter["peak_power_w"] = self._peak_power_w
+        inverter["operating_hours"] = round(self._operating_seconds / 3600, 4)
+        inverter["efficiency_pct"] = efficiency_pct
 
         # Build control section
         control: dict = {}
