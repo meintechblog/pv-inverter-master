@@ -28,10 +28,10 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 
 ### Animations (ANIM)
 
-- [ ] **ANIM-01**: Power Gauge hat smooth animierte Arc-Transition bei Wertaenderungen
-- [ ] **ANIM-02**: Dashboard-Widgets haben staggered Entrance-Animations beim Laden
-- [ ] **ANIM-03**: Wertaenderungen in Cards haben subtle Highlight/Flash-Animation
-- [ ] **ANIM-04**: Alle Animationen respektieren prefers-reduced-motion und nutzen nur GPU-accelerated Properties (transform, opacity)
+- [x] **ANIM-01**: Power Gauge hat smooth animierte Arc-Transition bei Wertaenderungen
+- [x] **ANIM-02**: Dashboard-Widgets haben staggered Entrance-Animations beim Laden
+- [x] **ANIM-03**: Wertaenderungen in Cards haben subtle Highlight/Flash-Animation
+- [x] **ANIM-04**: Alle Animationen respektieren prefers-reduced-motion und nutzen nur GPU-accelerated Properties (transform, opacity)
 
 ### Notifications (NOTIF)
 
@@ -84,10 +84,10 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 | STATS-01 | Phase 10 | Pending |
 | STATS-02 | Phase 10 | Pending |
 | STATS-03 | Phase 10 | Pending |
-| ANIM-01 | Phase 9 | Pending |
-| ANIM-02 | Phase 9 | Pending |
-| ANIM-03 | Phase 9 | Pending |
-| ANIM-04 | Phase 9 | Pending |
+| ANIM-01 | Phase 9 | Complete |
+| ANIM-02 | Phase 9 | Complete |
+| ANIM-03 | Phase 9 | Complete |
+| ANIM-04 | Phase 9 | Complete |
 | NOTIF-01 | Phase 9 | Pending |
 | NOTIF-02 | Phase 10 | Pending |
 | NOTIF-03 | Phase 10 | Pending |
