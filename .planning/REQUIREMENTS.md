@@ -66,30 +66,30 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DASH-01 | TBD | Pending |
-| DASH-02 | TBD | Pending |
-| DASH-03 | TBD | Pending |
-| DASH-04 | TBD | Pending |
-| DASH-05 | TBD | Pending |
-| DASH-06 | TBD | Pending |
-| CTRL-04 | TBD | Pending |
-| CTRL-05 | TBD | Pending |
-| CTRL-06 | TBD | Pending |
-| CTRL-07 | TBD | Pending |
-| CTRL-08 | TBD | Pending |
-| CTRL-09 | TBD | Pending |
-| CTRL-10 | TBD | Pending |
-| INFRA-01 | TBD | Pending |
-| INFRA-02 | TBD | Pending |
-| INFRA-03 | TBD | Pending |
-| INFRA-04 | TBD | Pending |
-| INFRA-05 | TBD | Pending |
+| DASH-01 | Phase 5 | Pending |
+| DASH-02 | Phase 6 | Pending |
+| DASH-03 | Phase 6 | Pending |
+| DASH-04 | Phase 8 | Pending |
+| DASH-05 | Phase 8 | Pending |
+| DASH-06 | Phase 6 | Pending |
+| CTRL-04 | Phase 7 | Pending |
+| CTRL-05 | Phase 7 | Pending |
+| CTRL-06 | Phase 7 | Pending |
+| CTRL-07 | Phase 7 | Pending |
+| CTRL-08 | Phase 7 | Pending |
+| CTRL-09 | Phase 7 | Pending |
+| CTRL-10 | Phase 7 | Pending |
+| INFRA-01 | Phase 6 | Pending |
+| INFRA-02 | Phase 5 | Pending |
+| INFRA-03 | Phase 5 | Pending |
+| INFRA-04 | Phase 5 | Pending |
+| INFRA-05 | Phase 6 | Pending |
 
 **Coverage:**
 - v2 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️
+- Mapped to phases: 18
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after v2.0 milestone start*
+*Last updated: 2026-03-18 after v2.0 roadmap creation*
