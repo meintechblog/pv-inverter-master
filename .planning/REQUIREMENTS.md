@@ -39,10 +39,10 @@
 
 ### Deployment & Betrieb
 
-- [ ] **DEPL-01**: Laeuft als systemd Service mit Auto-Start und Restart-on-Failure
+- [x] **DEPL-01**: Laeuft als systemd Service mit Auto-Start und Restart-on-Failure
 - [x] **DEPL-02**: Automatische Reconnection bei Verbindungsabbruch zum SolarEdge
 - [x] **DEPL-03**: Graceful Handling wenn Inverter offline (Nacht/Wartung) -- keine Crash-Loops
-- [ ] **DEPL-04**: Strukturiertes Logging (JSON) fuer systemd Journal
+- [x] **DEPL-04**: Strukturiertes Logging (JSON) fuer systemd Journal
 
 ### Architektur
 
@@ -101,10 +101,10 @@
 | WEB-03 | Phase 4 | Pending |
 | WEB-04 | Phase 4 | Pending |
 | WEB-05 | Phase 4 | Pending |
-| DEPL-01 | Phase 3 | Pending |
+| DEPL-01 | Phase 3 | Complete |
 | DEPL-02 | Phase 3 | Complete |
 | DEPL-03 | Phase 3 | Complete |
-| DEPL-04 | Phase 3 | Pending |
+| DEPL-04 | Phase 3 | Complete |
 | ARCH-01 | Phase 2 | Complete |
 | ARCH-02 | Phase 2 | Complete |
 
