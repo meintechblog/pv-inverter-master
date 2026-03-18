@@ -53,11 +53,11 @@ Plans:
   3. L1/L2/L3 section shows per-phase voltage, current, and power values updating in real-time
   4. Mini sparkline chart renders the last 60 minutes of power history as an SVG polyline, growing with each update
   5. Config and Register Viewer from v1.0 are accessible as tabs/sections within the new dashboard layout
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md — Backend WebSocket infrastructure: /ws endpoint, broadcast from poll loop, client tracking with WeakSet
+- [ ] 06-02-PLAN.md — Frontend dashboard widgets: SVG power gauge, 3-phase cards, sparkline, WebSocket-driven updates
 
 ### Phase 7: Power Control
 **Goal**: Users can view and test power limiting from the webapp with safety confirmations, and see who currently controls the inverter
@@ -98,6 +98,6 @@ Plans:
 | 3. Control Path & Production Hardening | v1.0 | 3/3 | Complete | 2026-03-18 |
 | 4. Configuration Webapp | v1.0 | 2/2 | Complete | 2026-03-18 |
 | 5. Data Pipeline & Theme Foundation | v2.0 | 2/2 | Complete | 2026-03-18 |
-| 6. Live Dashboard | v2.0 | 0/? | Not started | - |
+| 6. Live Dashboard | v2.0 | 0/2 | Not started | - |
 | 7. Power Control | v2.0 | 0/? | Not started | - |
 | 8. Inverter Details & Polish | v2.0 | 0/? | Not started | - |
