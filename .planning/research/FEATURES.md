@@ -1,258 +1,92 @@
-# Feature Landscape: Venus OS Dashboard & Power Control UI (v2.0)
+# Feature Landscape
 
-**Domain:** Solar inverter monitoring dashboard with power control, Venus OS visual identity
+**Domain:** Industrial solar inverter monitoring dashboard (v2.1 redesign & polish)
 **Researched:** 2026-03-18
-**Confidence:** HIGH (Venus OS gui-v2 source inspected, existing codebase analyzed)
-
-**Scope note:** This research covers NEW features for the v2.0 milestone only. Already shipped in v1.0: config editor, connection status dots, health metrics, register viewer (side-by-side SE30K/Fronius). Those are not repeated here.
-
-## Venus OS Visual Identity Reference
-
-Extracted from `victronenergy/gui-v2` repository `themes/color/Dark.json` and `themes/color/ColorDesign.json` (HIGH confidence -- direct source).
-
-### Core Color Palette
-
-| Token | Hex | Purpose |
-|-------|-----|---------|
-| `color_blue` (primary) | `#387DC5` | Buttons, active states, "OK" status |
-| `color_blue_light` | `#73A2D3` | Hover states, secondary emphasis |
-| `color_blue_dim` | `#27588A` | Pressed/down states |
-| `color_orange` | `#F0962E` | Warnings, caution states |
-| `color_green` | `#72B84C` | Positive indicators (regen, boat page) |
-| `color_red` | `#F35C58` | Critical/error states |
-| `color_black` (background primary) | `#000000` | Main background |
-| `color_gray1` | `#141414` | Widget/card backgrounds |
-| `color_gray2` | `#272622` | Surface/panel backgrounds |
-| `color_gray9` (font primary) | `#FAF9F5` | Primary text |
-| `color_gray5` (font secondary) | `#969591` | Secondary/dimmed text |
-| `color_gray4` (font disabled) | `#64635F` | Disabled elements, borders |
-| `color_darkBlue` | `#11263B` | Widget backgrounds on overview page |
-| `color_darkishBlue` | `#1B3B5C` | Button pressed state |
-| `color_critical_background` | `#AA403E` | Error backgrounds |
-| `color_dimRed` | `#592220` | Dimmed red indicator |
-| `color_dimGreen` | `#508135` | Dimmed green indicator |
-
-### Design Principles (from gui-v2 architecture)
-
-- **Layout:** Generation left, conversion/storage center, consumption right (flow diagram)
-- **Technology:** Qt6/QML natively, WebAssembly for browser -- we replicate look only
-- **Widget style:** Dark blue cards (`#11263B`) on black background, rounded corners
-- **Typography:** Custom Victron fonts (we approximate with system sans-serif)
-- **Animations:** Multi-dot flow animations between components (Venus OS signature)
-- **Gauges:** Vertical fill gauges with wave animation effect
-
-### Mapping to Our CSS Variables
-
-The existing webapp uses `--bg: #1a1a2e` and `--surface: #16213e` which are already close to Venus OS's dark blue palette. Recommended changes:
-
-| Current | Venus OS Equivalent | New Value |
-|---------|---------------------|-----------|
-| `--bg: #1a1a2e` | `color_black` | `#000000` or `#0D1117` (slightly softer) |
-| `--surface: #16213e` | `color_darkBlue` | `#11263B` |
-| `--border: #0f3460` | `color_darkishBlue` | `#1B3B5C` |
-| `--accent: #e94560` | `color_blue` | `#387DC5` |
-| `--green: #00c853` | `color_green` | `#72B84C` |
-| `--red: #ff1744` | `color_red` | `#F35C58` |
-| `--yellow: #ffab00` | `color_orange` | `#F0962E` |
-
----
+**Confidence:** HIGH (existing codebase thoroughly analyzed, patterns well-established in monitoring UX)
 
 ## Table Stakes
 
-Features users expect from a solar monitoring dashboard. Missing = feels like a toy.
+Features users expect from a polished v2.1 monitoring dashboard. Missing = product feels half-finished after the v2.0 foundation.
 
 | Feature | Why Expected | Complexity | Dependencies | Notes |
 |---------|--------------|------------|--------------|-------|
-| **Live power display (total + per-phase)** | Core purpose of a monitoring dashboard. Every solar app shows current W. | LOW | API endpoint exposing parsed Model 103 data | Large number (e.g. "12,450 W"), prominent placement. Update every 1s via WebSocket. |
-| **Per-phase breakdown (L1/L2/L3)** | SE30K is 3-phase. Users need to see balance across phases. | LOW | Model 103 registers already cached (offsets 3-5 for current, 10-12 for voltage) | Three columns or bars showing W/A/V per phase. |
-| **Operating status indicator** | Users need to know: producing, sleeping, throttled, error. | LOW | Status register already mapped (offset 38 in Model 103) | Text + color badge. Map Sunspec states: 4=MPPT (green), 5=Throttled (orange), 7=Fault (red), 2/6/8=Standby (dim). |
-| **Daily energy production** | "How much did I make today?" is the most common user question. | MEDIUM | Needs delta tracking -- Model 103 only has lifetime total (WH at offset 24). Must track midnight reset in-memory. | Store WH at midnight (or service start), show delta. Resets on service restart -- acceptable for in-memory. |
-| **Total energy (lifetime)** | Context for daily number. Already available from registers. | LOW | Model 103 WH field (offset 24-25, uint32 + scale) | Display as MWh with one decimal. |
-| **Venus OS color scheme** | User explicitly requested "exakte Venus OS Optik." | LOW | CSS variable changes only | Apply the color mapping table above. Biggest visual impact for least effort. |
-| **Dark theme** | Venus OS is dark-themed. Current webapp already dark. Matches. | DONE | Already implemented | Just align colors more precisely to Venus OS palette. |
+| **Unified Dashboard (inline Power Control)** | Users already navigate between Dashboard and Power Control pages; merging eliminates context-switching. Every serious monitoring tool (SolarEdge app, Victron VRM, Grafana) puts controls near the data they affect. | Medium | Existing Power Control page HTML/JS, dashboard grid layout, `updatePowerControl()` in app.js | Must be compact -- slider + enable/disable + status in a collapsible card section below the gauge. Keep the separate Power Control nav item as an anchor/scroll-to, or remove it entirely. Override banner and revert countdown must work inline. |
+| **Connection/System Info Widget** | v2.0 already has a Connection card and Service Health card in dashboard-bottom grid. Consolidating SolarEdge + Venus OS + WebSocket status into one coherent "System" widget is expected polish. | Low | Existing `#status-panel`, `#health-panel` HTML, `updateConnectionStatus()`, `pollHealth()` | Merge connection dots + uptime + poll rate + cache into a single "System Status" card. Venus OS IP and last-contact timestamp are new data points the backend must expose. |
+| **Toast Notification Stacking** | v2.0 already has a `showToast()` function but toasts overlap (no stacking), no max-count, no pause-on-hover. Users expect non-overlapping stacked toasts in any notification-enabled UI. | Low | Existing `.ve-toast` CSS, `showToast()` function in app.js | Replace current single-toast implementation with a toast container (fixed top-right), vertical stacking with gap, max 3 visible, FIFO dismissal, slide-in/slide-out animations. Keep it vanilla JS -- no library needed. |
+| **Smooth Gauge Animation** | v2.0 gauge already has `transition: stroke-dashoffset 0.8s ease-out` on `#gauge-fill`. But no entrance animation, no pulsing on high power, no color transition smoothing. Users expect fluid gauge motion in 2026. | Low | Existing SVG gauge, `updateGauge()` function, CSS transition on `#gauge-fill` | Add: initial draw-in animation on page load, smoother color transitions (CSS transition on stroke), subtle pulse glow at >80% capacity. All CSS -- no JS animation library. |
 
 ## Differentiators
 
-Features that set this dashboard apart. Not expected, but specifically requested or high-value.
+Features that elevate the dashboard from "functional" to "polished industrial tool." Not strictly expected, but create delight and trust.
 
 | Feature | Value Proposition | Complexity | Dependencies | Notes |
 |---------|-------------------|------------|--------------|-------|
-| **Power Control Slider (0-100%)** | Direct power limiting from webapp without Venus OS menu navigation. The whole point of v2.0. | HIGH | Backend: write to ControlState, translate to SE EDPC registers. Frontend: slider + feedback loop. | See "Power Control Safety Design" section below. |
-| **Power Control Enable/Disable Toggle** | Must be able to enable/disable power limiting independently of percentage. Maps to WMaxLim_Ena register. | MEDIUM | ControlState.update_wmaxlim_ena() already exists | Toggle switch. When disabled, slider should be visually dimmed. |
-| **Venus OS Override Detection** | Show WHEN Venus OS is actively controlling power limit (vs. user manual control). "Who is throttling?" | HIGH | Must detect writes from Venus OS to Model 123 registers vs. writes from webapp API. Need write-source tracking in ControlState. | Key differentiator: no other tool shows this. Display: "Venus OS: 70%" or "Manual: 50%" or "No limit active". |
-| **Mini-sparklines (60-min power history)** | Visual trend without leaving the page. Requested in PROJECT.md. | MEDIUM | In-memory ring buffer (backend). SVG sparkline rendering (frontend). WebSocket initial history message. | 3,600 samples (1/sec, downsampled to 360 for display) in a deque. Render as inline SVG polyline (~15 lines JS). |
-| **Inverter detail panel (V/A/Hz/Temp)** | Full electrical picture: voltage, current, frequency, temperature per phase. Beyond just power. | LOW | All data already in Model 103 cache (offsets 6-13 for V/A, offset 14-15 for Hz, offsets 32-36 for temp) | Grid layout. Mono font. Update via WebSocket. |
-| **Live power limit feedback** | After sending a power limit command, show what the inverter actually accepted. Closed-loop confirmation. | MEDIUM | Read back EDPC registers from SolarEdge after write. Compare commanded vs. actual. | Essential for trust. Show: "Commanded: 70% | Actual: 71.2% | Applied: 0.8s ago". |
-| **Power limit revert timeout display** | SunSpec Model 123 has WMaxLimPct_RvrtTms (revert timeout). Show countdown. | LOW | Already in register map at offset 40156. | "Reverts in: 45s" countdown. Important for safety -- users know the limit is temporary. |
+| **Venus OS Lock Toggle (Apple-style)** | Unique to this proxy: ability to lock/unlock Venus OS control from the webapp. The iOS-style toggle communicates "this is a serious on/off decision" better than a checkbox. No competing product has this because this proxy concept is unique. | Medium | Backend: new API endpoint or WS command to toggle Venus OS lock state. Frontend: pure CSS toggle with hidden checkbox + styled label. Must integrate with existing override detection logic (`isVenusOverride` in `updatePowerControl()`). | Pure CSS implementation: hidden `<input type="checkbox">` + `<label>` with `::after` pseudo-element for the thumb. Track color: `--ve-green` (unlocked) / `--ve-red` (locked). Smooth 0.3s transition. Must preserve keyboard accessibility (opacity:0, not display:none). Backend needs a lock/unlock state persisted in memory with WS broadcast. |
+| **Peak Statistics (Today's Peak kW, Operating Hours, Efficiency)** | Solar monitoring apps universally show daily peak power. SolarEdge monitoring shows peak power, weighted efficiency, lifetime stats. This data exists in-memory already (sparkline buffer has all power readings). Displaying it proves the dashboard is a real monitoring tool, not just a live readout. | Low-Medium | Backend: new fields in DashboardCollector snapshot (`peak_power_w`, `operating_hours`, `efficiency_pct`). `peak_power_w` = max of all `ac_power_w` since midnight. `operating_hours` = count of seconds where power > 0 / 3600. Efficiency = `ac_power_w / dc_power_w * 100` (already have both values). Frontend: new stat row or card. | Display as a compact stats bar: `Peak: 14.2 kW | Hours: 8.3h | Eff: 97.2%`. Position below sparkline or in the gauge card. In-memory only (resets on restart, consistent with project's no-database constraint). |
+| **CSS Micro-Interactions (value flash, card hover, transitions)** | Polished industrial UIs use subtle animations to convey liveness. v2.0 has `ve-value-flash` and `ve-changed` animations already. Extending to card hover effects, smooth page transitions, and status-dot pulsing creates a cohesive "alive" feeling. | Low | Existing CSS animation infrastructure (`@keyframes ve-flash`, `.ve-value-flash`, transition properties). | Add: card hover lift (`transform: translateY(-2px)` + subtle box-shadow), status dot pulse animation for active states (`@keyframes pulse`), smooth opacity transitions when panels appear. Use only `transform` and `opacity` for GPU-accelerated performance. Avoid animating `width`, `height`, `margin`, `padding`. |
+| **Smart Notifications (contextual toasts)** | Beyond basic "action succeeded" toasts: notify on Venus OS override start/end, inverter fault, high temperature warning, night mode transition. v2.0 already handles `override_event` via WS. Extending to fault/temp/night creates situational awareness. | Medium | Backend: must emit new WS event types for fault, temperature threshold, night mode change. Frontend: extend `ws.onmessage` handler, add toast types with icons, add notification deduplication (don't spam same event). | Define thresholds: temp warning at >70C (cabinet) or >85C (heatsink). Fault = any non-MPPT/SLEEPING/OFF status that persists >2 polls. Night mode = status transitions to SLEEPING/OFF after sunset. Use distinct toast colors: orange for warnings, red for faults, blue for info (night mode). |
+| **Venus OS Info Widget** | Dedicated sub-section showing Venus OS instance details: IP address, firmware version (if available), last Modbus contact timestamp, current control mode (manual/Venus OS/none). Differentiates from generic "Connection: Active" dot. | Low-Medium | Backend: track Venus OS client IP from Modbus server connections, last-contact timestamp. Some data may not be available (Venus OS version requires additional Modbus reads -- may be out of scope). Frontend: new section in unified System Status card. | Venus OS connects as a Modbus TCP client. The proxy's Modbus server can log the client IP and timestamp of last request. Display: `Venus OS: 192.168.3.146 | Last contact: 3s ago | Control: Active`. Version detection is stretch -- flag as optional. |
 
 ## Anti-Features
 
-Features to explicitly NOT build in v2.0.
+Features to explicitly NOT build. Tempting but wrong for this project.
 
-| Anti-Feature | Why Tempting | Why Avoid | What to Do Instead |
-|--------------|-------------|-----------|-------------------|
-| **Historical database / persistent logging** | "Show me yesterday's production" | PROJECT.md explicitly out of scope. Venus OS + VRM already handles this. In-memory 60-min ring buffer is the right scope. Storage in LXC adds complexity and maintenance. | 60-min in-memory sparklines only. Link to VRM for history. |
-| **Full Venus OS flow diagram replica** | Looks impressive, matches Venus OS exactly | gui-v2 flow diagram requires complex SVG path animations, multi-component layout (battery, grid, loads, PV). Our proxy only knows about PV -- no battery, no grid, no loads data. Building half a flow diagram looks worse than a focused power dashboard. | Focused power-centric dashboard with Venus OS colors/widgets, not a flow replica. |
-| **Multi-inverter dashboard** | Future-proofing | v2.0 is single SE30K. Multi-inverter adds tab/grid UI complexity, backend routing, data multiplexing. Architecture supports plugins but UI should not prematurely abstract. | Single inverter view. Design CSS grid to not preclude future expansion. |
-| **Battery/grid/load monitoring** | "Complete energy picture" | Proxy only has PV inverter data via Modbus. No access to battery BMS, grid meter, or load data. Would require separate D-Bus or MQTT connections to Venus OS itself. | Show only what we have: PV inverter data. Label clearly as "PV Inverter Dashboard". |
-| **Configurable dashboard widgets** | "Let users arrange their view" | Massive frontend complexity for a single-file HTML app. Drag-and-drop, layout persistence, responsive breakpoints for custom layouts. | Fixed layout, well-designed. One good layout beats infinite bad ones. |
-| **Power scheduling / automation** | "Limit power at peak hours" | Turns a monitoring tool into an automation platform. Venus OS + Node-RED already handles scheduling. Proxy should be a manual override / testing tool. | Manual slider only. Point users to Venus OS for automation. |
-| **Export/CSV download** | "Download my data" | In-memory only, 60 minutes max. CSV of 60 data points is trivial but sets wrong expectations about data retention. | If asked, a simple "copy to clipboard" for current values. No file downloads. |
-| **External charting library** | "Use Chart.js for prettier graphs" | Breaks single-file HTML constraint. CDN not available on LAN. 200KB+ for sparklines achievable in 15 LOC. | Inline SVG polyline sparklines. ~15 lines of vanilla JS. |
-| **CSS framework (Tailwind/Bootstrap)** | "Faster styling" | Requires CDN (no internet on LAN) or build tooling. Overkill for a focused dashboard. | CSS custom properties with Venus OS palette. Already the existing pattern. |
-
-## Power Control Safety Design
-
-**This is the most critical UX feature in v2.0.** Sending wrong power limits to a 30kW inverter has real consequences (grid violations, revenue loss, equipment stress).
-
-### Safety Principles
-
-1. **Confirmation before action** -- Never apply power limit on slider drag. Require explicit "Apply" button press.
-2. **Visual feedback loop** -- Show commanded value, actual inverter response, and any discrepancy.
-3. **Timeout-based revert** -- Always send WMaxLimPct_RvrtTms with power limit. If webapp crashes or user forgets, inverter reverts to 100% after timeout.
-4. **Enable/disable separation** -- Toggle to enable limiting is separate from percentage slider. Prevents accidental limit application.
-5. **Clear state indication** -- Always show who is currently controlling: Venus OS, manual, or nobody.
-
-### Recommended UI Flow
-
-```
-+--------------------------------------------------+
-|  POWER CONTROL                                    |
-|                                                   |
-|  Status: [Venus OS controlling: 85%]  (blue)      |
-|     -or- [Manual limit: 70%]          (orange)    |
-|     -or- [No limit active]            (green)     |
-|                                                   |
-|  [x] Enable Power Limiting                        |
-|                                                   |
-|  Power Limit: [=====>-----------] 50%             |
-|               0%              100%                |
-|                                                   |
-|  Revert Timeout: [300] seconds                    |
-|                                                   |
-|  [ Apply ]  [ Reset to 100% ]                     |
-|                                                   |
-|  Last command: 70% -> Applied (71.2% actual)      |
-|  Reverts in: 4:32                                 |
-+--------------------------------------------------+
-```
-
-### Safety Constraints
-
-| Constraint | Implementation | Rationale |
-|------------|----------------|-----------|
-| Minimum revert timeout | 60 seconds floor | Prevents "permanent" limits from manual UI. Venus OS can set its own timeouts. |
-| Maximum revert timeout | 3600 seconds (1 hour) | Prevents forgotten limits running overnight. |
-| Default revert timeout | 300 seconds (5 minutes) | Reasonable test window. |
-| Slider step size | 5% increments | Prevents accidental micro-adjustments. Fine control via number input. |
-| Confirmation dialog for < 20% | "Are you sure? This limits a 30kW inverter to < 6kW." | Unusually low limits likely unintentional. |
-| Confirmation dialog for 0% | "This will STOP power production entirely." | Zero-power is effectively an off switch. |
-| Reset button always visible | Single click to restore 100% | Panic button. No confirmation needed for restoring full power. |
-| Disable on disconnect | If SolarEdge connection drops, grey out controls | Cannot verify command delivery. |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Drag-and-drop widget customization** | Overkill for a single-purpose proxy dashboard with 1-2 users. Adds massive JS complexity (drag library, layout persistence, responsive recalculation). | Fixed layout designed for the specific data this proxy provides. The grid is already responsive via CSS Grid media queries. |
+| **Historical data persistence / charting** | Explicitly out of scope (PROJECT.md). Venus OS and SolarEdge portal handle long-term data. Adding SQLite/InfluxDB contradicts the "60-min in-memory" design decision. | Keep the 60-min sparkline ring buffer. Peak stats reset on restart. Link to Venus OS VRM for history. |
+| **Sound alerts / browser notifications** | Intrusive for an always-on LAN dashboard. Browser notification permission prompts are hostile UX. Sound in an industrial setting is wrong. | Visual-only toast notifications with color severity coding. |
+| **Multi-inverter support in the UI** | The proxy is 1:1 (one SolarEdge, one Fronius identity). UI multi-inverter adds routing complexity for zero benefit. | Single-inverter dashboard. Plugin architecture handles backend flexibility if needed later. |
+| **Dark/light theme toggle** | Venus OS IS dark theme. The entire UI identity is built on the `#141414` / `#11263B` / `#387DC5` palette. A light theme undermines the brand promise of "looks like Venus OS." | Keep dark-only. It's a feature, not a limitation. |
+| **Animated SVG energy flow diagram** | PROJECT.md explicitly lists "Vollstaendiger Energy Flow Diagram" as out of scope. Proxy only has PV data, not grid/battery/load. A partial flow diagram is worse than none. | The gauge + phase cards + sparkline already convey power flow direction (PV production only). |
+| **Complex notification preferences / settings** | One or two users on a LAN. A settings page for notification types, durations, and sounds is over-engineering. | Hardcoded sensible defaults: 3s auto-dismiss, max 3 visible, fixed thresholds for warnings. |
 
 ## Feature Dependencies
 
 ```
-[Venus OS Color Scheme]  (CSS only, no backend)
-    +--independent
+Unified Dashboard ─── requires ──> Existing Power Control JS/HTML (refactor, not rewrite)
+                  └── requires ──> Toast stacking (inline control feedback needs reliable toasts)
 
-[Live Power Display]
-    +--requires--> [DashboardCollector + WebSocket endpoint]
-    +--enhances--> [Per-Phase Breakdown] (same data, different view)
-    +--enhances--> [Operating Status] (same snapshot)
+Venus OS Lock Toggle ── requires ──> Backend lock/unlock API endpoint
+                    └── requires ──> Venus OS Info Widget (toggle lives in this widget)
 
-[Inverter Detail Panel]
-    +--requires--> [DashboardCollector]
-    +--same-data--> [Live Power Display]
+Peak Statistics ── requires ──> Backend DashboardCollector changes (new snapshot fields)
+               └── requires ──> Sparkline data (already exists for peak calculation)
 
-[Daily Energy]
-    +--requires--> [Ring Buffer Backend] (midnight delta tracking)
-    +--requires--> [DashboardCollector]
+Smart Notifications ── requires ──> Toast stacking (must handle multiple simultaneous events)
+                   └── requires ──> Backend WS event types for fault/temp/night
 
-[Mini-Sparklines]
-    +--requires--> [TimeSeriesBuffer Backend]
-    +--requires--> [WebSocket history message on connect]
+CSS Micro-Interactions ── independent (pure CSS, no backend changes)
 
-[Power Control Slider]
-    +--requires--> [WebSocket command handler]
-    +--requires--> [ControlState backend] (already exists)
-    +--requires--> [SolarEdge EDPC write path] (already exists)
-    +--enhances--> [Power Limit Feedback] (read-back loop)
-    +--enhances--> [Revert Timeout Display]
-
-[Venus OS Override Detection]
-    +--requires--> [Write-source tracking in ControlState]
-    +--requires--> [WebSocket snapshot includes control.source]
-
-[Power Limit Feedback]
-    +--requires--> [EDPC register read-back from SolarEdge]
-    +--requires--> [WebSocket power_ack message]
+Toast Stacking ── independent (refactor existing showToast(), no backend changes)
 ```
 
-### Dependency Notes
+## MVP Recommendation
 
-- **DashboardCollector:** Central new component. Decodes raw registers into physical values (applying scale factors). Called every poll cycle. Feeds TimeSeriesBuffers and WebSocket broadcast. Foundation for all dashboard widgets.
-- **TimeSeriesBuffer:** `collections.deque(maxlen=3600)` per metric. 6 buffers total. ~1.3 MB total memory.
-- **ControlState already exists:** `control.py` has `ControlState` class with `update_wmaxlimpct()` and `update_wmaxlim_ena()`. Power control UI is wiring these to WebSocket commands and frontend.
-- **EDPC write path exists:** `wmaxlimpct_to_se_registers()` translates SunSpec to SolarEdge Float32. Backend plumbing largely done.
+**Phase 1 -- Layout unification (do first, enables everything else):**
+1. Toast notification stacking (refactor existing `showToast()` -- foundation for all feedback)
+2. Unified Dashboard with inline Power Control (biggest UX win, eliminates page navigation)
+3. CSS micro-interactions (low effort, immediate polish)
 
-## MVP Recommendation for v2.0
+**Phase 2 -- Data enrichment (backend + frontend):**
+4. Peak statistics display (backend: new snapshot fields, frontend: stat bar)
+5. Venus OS Info Widget with Lock Toggle (backend: lock API + client tracking, frontend: toggle + info display)
 
-### Phase 1: Foundation (must ship together)
+**Phase 3 -- Situational awareness:**
+6. Smart notifications for faults, temperature, night mode (backend: new WS events, frontend: toast types)
 
-1. **Venus OS color scheme** -- CSS variable swap, biggest visual impact, zero backend work
-2. **DashboardCollector + TimeSeriesBuffer** -- Foundation for all dashboard widgets
-3. **WebSocket endpoint** -- Real-time data push + initial history
-4. **Live power display + per-phase breakdown** -- Core dashboard purpose
-5. **Operating status indicator** -- Essential context for power data
+**Rationale:** Phase 1 is pure frontend refactoring with zero backend changes. Phase 2 requires backend DashboardCollector and API changes. Phase 3 requires backend event detection logic. This ordering minimizes risk -- if Phase 1 ships alone, the dashboard is already significantly better.
 
-### Phase 2: Power Control (core v2.0 value)
-
-6. **Power control WebSocket command handler** -- Backend for slider
-7. **Power control slider + toggle** -- The main v2.0 feature
-8. **Power limit feedback** -- Closed-loop confirmation
-9. **Venus OS override detection** -- Key differentiator
-
-### Phase 3: Polish
-
-10. **Mini-sparklines** -- Visual trend, 60-min history
-11. **Daily energy tracking** -- Most-asked metric
-12. **Inverter detail panel** -- Complete electrical picture
-13. **Revert timeout countdown** -- Safety visibility
-
-### Defer to v2.x
-
-- Venus OS flow-style layout (complex, diminishing returns without full system data)
-- Power scheduling / automation
-
-## Sparkline Implementation Notes
-
-For the single-file HTML constraint, use inline SVG sparklines. No library needed -- a sparkline is ~15 lines of vanilla JS:
-
-```javascript
-function drawSparkline(svgEl, data, color) {
-    const w = svgEl.clientWidth, h = svgEl.clientHeight;
-    const max = Math.max(...data), min = Math.min(...data);
-    const range = max - min || 1;
-    const points = data.map((v, i) =>
-        `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`
-    ).join(' ');
-    svgEl.innerHTML = `<polyline points="${points}" fill="none"
-        stroke="${color}" stroke-width="1.5"/>`;
-}
-```
-
-History sent once on WebSocket connect. Frontend appends each snapshot's value to its local array and redraws the SVG polyline.
+**Defer:** Venus OS firmware version detection (requires reverse-engineering Modbus register reads from Venus OS, uncertain feasibility).
 
 ## Sources
 
-- [Victron gui-v2 repository](https://github.com/victronenergy/gui-v2) -- Theme colors from `themes/color/Dark.json` and `themes/color/ColorDesign.json` (HIGH confidence, direct source)
-- [Venus OS gui-v2 ColorDesign.json](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/ColorDesign.json) -- HIGH confidence
-- [Venus OS gui-v2 Dark.json](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/Dark.json) -- HIGH confidence
-- [fnando/sparkline](https://github.com/fnando/sparkline) -- Zero-dependency SVG sparkline pattern reference (evaluated, not used)
-- [aiohttp WebSocket docs](https://docs.aiohttp.org/en/stable/web_quickstart.html) -- WebSocket handler pattern
-- Existing codebase analysis: `control.py`, `webapp.py`, `static/index.html` (HIGH confidence, direct source)
-
----
-*Feature research for: Venus OS Fronius Proxy v2.0 Dashboard & Power Control UI*
-*Researched: 2026-03-18*
+- Existing codebase analysis: `index.html`, `style.css`, `app.js` (v2.0 shipped code)
+- [UXPin - Dashboard Design Principles 2025](https://www.uxpin.com/studio/blog/dashboard-design-principles/) -- unified layout, visual hierarchy
+- [Smashing Magazine - UX Strategies for Real-Time Dashboards](https://www.smashingmagazine.com/2025/09/ux-strategies-real-time-dashboards/) -- inline controls, real-time feedback patterns
+- [Pure CSS iOS Toggle Switch](https://codepen.io/designcouch/pen/BaJOJg) -- checkbox hack pattern for Apple-style toggle
+- [CSS Toggle Switch Best Practices](https://nikitahl.com/toggle-switch-button-css) -- accessibility (opacity:0 vs display:none)
+- [Pixel Free Studio - Micro-Interaction Best Practices](https://blog.pixelfreestudio.com/best-practices-for-animating-micro-interactions-with-css/) -- GPU-accelerated properties, performance
+- [SolarEdge Monitoring Platform](https://www.solaredge.com/en/products/software-tools/monitoring-platform) -- peak power, efficiency display patterns
+- [SolarAssistant](https://solar-assistant.io/) -- Raspberry Pi solar monitoring reference design
+- PROJECT.md -- out-of-scope constraints, design decisions

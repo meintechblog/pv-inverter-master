@@ -1,91 +1,72 @@
-# Research Summary: Venus OS Fronius Proxy v2.0 Dashboard & Power Control
+# Research Summary: v2.1 Dashboard Redesign & Polish
 
-**Domain:** Solar inverter monitoring dashboard with power control, Venus OS visual identity
-**Researched:** 2026-03-18 (v2.0 milestone research, updating v1.0 research from 2026-03-17)
-**Overall confidence:** HIGH
+**Domain:** Embedded IoT dashboard, CSS animations, Venus OS Modbus integration
+**Researched:** 2026-03-18
+**Overall confidence:** MEDIUM-HIGH
 
 ## Executive Summary
 
-The v2.0 milestone adds a Venus OS styled dashboard, live sparkline charts, and power control sliders to the existing Modbus proxy webapp. The critical finding is that **zero new dependencies are needed** -- every capability required (WebSocket, SVG sparklines, ring buffers, styled sliders) is achievable with the existing aiohttp stack plus stdlib modules and vanilla JavaScript.
+The v2.1 milestone requires zero new dependencies. All five feature areas (CSS animations, toast notifications, Venus OS info, Apple-style toggles, peak statistics) are implementable with the existing stack of vanilla JS, CSS3, and Python/pymodbus.
 
-The Venus OS gui-v2 color palette has been extracted directly from the official Victron repository (`victronenergy/gui-v2/themes/color/`), providing HIGH confidence color tokens: Victron blue `#387DC5`, dark backgrounds `#141414`/`#272622`, warm gray text `#FAF9F5`/`#969591`, and accent colors for status indicators. This replaces the current generic dark theme with an authentic Victron look.
+CSS animations should use exclusively GPU-accelerated properties (`transform` and `opacity`) to maintain smooth 60fps rendering even on low-power devices like the Raspberry Pi that runs the Venus OS GUI. The existing codebase already has partial animation support (gauge arc transitions, value flash effects) which provides a solid foundation.
 
-For real-time communication, WebSocket (built into aiohttp) is recommended over SSE. While the v1.0 architecture research recommended SSE for its simplicity, v2.0's power control slider requires bidirectional communication (slider values client-to-server, live feedback server-to-client). Using WebSocket for both directions in a single connection is cleaner than SSE + separate POST endpoints.
+The toast notification system already exists in basic form (single toast, no stacking, no exit animation). Enhancement to support stacking, click-to-dismiss, and exit animations is straightforward vanilla JS work. The Venus OS info widget is the most complex addition because it requires a new Modbus TCP client connection to Venus OS at 192.168.3.146:502, reading system registers on Unit ID 100. However, much of the "Venus OS info" (override status, last contact, control state) is already tracked internally.
 
-Sparkline charts are trivially implementable as inline SVG polylines (~15 lines of JavaScript), backed by `collections.deque` ring buffers on the server side. No charting library is needed or appropriate for the single-file HTML constraint.
+Peak statistics is the simplest feature -- a Python dataclass tracking daily peaks in-memory, integrated into the existing DashboardCollector snapshot pipeline.
 
 ## Key Findings
 
-**Stack:** Zero new dependencies. aiohttp WebSocket (built-in) + inline SVG sparklines + Venus OS CSS custom properties + native HTML range/checkbox. All self-contained in single-file HTML.
-
-**Architecture:** WebSocket endpoint added to existing aiohttp webapp. DashboardCollector decodes registers once per poll cycle. TimeSeriesBuffer stores 60-min history via `collections.deque`. Broadcast to all WebSocket clients after each poll.
-
-**Critical pitfall:** Power control slider UX must have explicit "Apply" confirmation and revert timeouts. Accidental slider drags on a 30kW inverter have real consequences. Debouncing and safety constraints are mandatory.
+**Stack:** Zero new dependencies. CSS3 animations + vanilla JS patterns + pymodbus client for Venus OS reads.
+**Architecture:** Venus OS client is the only new backend component. Frontend changes are CSS + JS enhancements to existing files.
+**Critical pitfall:** Venus OS Modbus TCP must be enabled manually in Venus OS settings, and should be polled at max 5-10s intervals (not 1s like the SE30K).
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure for v2.0:
+Based on research, suggested phase structure:
 
-1. **Phase 1: Venus OS Theme + Dashboard Data Layer** - CSS swap + backend data pipeline
-   - Addresses: Venus OS color scheme (CSS only), parsed inverter API endpoint, TimeSeriesBuffer + DashboardCollector
-   - Avoids: Building frontend before data pipeline is solid
-   - Rationale: Theme is purely visual (zero risk), data layer is testable without frontend
+1. **CSS Foundation & Toggle** - Add animation variables, Apple-style toggle CSS, `prefers-reduced-motion` support
+   - Addresses: Animation timing variables, toggle switch component
+   - Avoids: Premature animation of elements not yet refactored
 
-2. **Phase 2: WebSocket + Live Dashboard UI** - Real-time push + frontend widgets
-   - Addresses: WebSocket endpoint, live power display, per-phase breakdown, status indicator, sparklines
-   - Avoids: Polling overhead of current approach
-   - Rationale: WebSocket infrastructure enables all live features; build widgets on verified data pipeline
+2. **Toast System Enhancement** - Upgrade existing toast to stacking, exit animation, warning variant
+   - Addresses: Smart notifications infrastructure
+   - Avoids: Building notification triggers before the notification system is solid
 
-3. **Phase 3: Power Control UI** - Slider, toggle, override detection
-   - Addresses: Power control slider + toggle, override detection, revert timeout display, feedback loop
-   - Avoids: Shipping power control without safety constraints
-   - Rationale: Most dangerous feature -- needs safety design, confirmation UX, and thorough testing
+3. **Peak Statistics** - Add PeakStats dataclass, integrate into DashboardCollector
+   - Addresses: Peak kW, operating hours, efficiency tracking
+   - Avoids: Frontend display before backend data is available
 
-4. **Phase 4: Polish** - Detail panel, daily energy, edge cases
-   - Addresses: Inverter detail panel (V/A/Hz/Temp), daily energy tracking, empty states, error handling
-   - Rationale: Nice-to-have features that round out the dashboard
+4. **Venus OS Info Widget** - Optional Venus OS Modbus client, display in dashboard
+   - Addresses: Battery SOC, grid power, system state from Venus OS
+   - Avoids: Coupling to Venus OS before core dashboard is polished
+
+5. **Unified Dashboard Layout** - Merge power control inline, add animations to all widgets
+   - Addresses: Single-page dashboard, page transition animations, staggered widget entrance
+   - Avoids: Layout refactor before all components exist
 
 **Phase ordering rationale:**
-- Theme first because it is zero-risk CSS changes with maximum visual impact
-- Data pipeline before frontend because it is testable independently (curl, unit tests)
-- WebSocket before power control because power control feedback depends on the WebSocket infrastructure
-- Power control last among core features because it requires the most safety validation
+- CSS foundation first because other features depend on animation variables
+- Toast before other features because override/fault events need notifications
+- Peak stats before Venus OS client because it is simpler and exercises the snapshot pipeline
+- Venus OS client last because it is optional and the most complex new backend addition
 
 **Research flags for phases:**
-- Phase 1: Standard patterns, no additional research needed
-- Phase 2: Standard patterns, aiohttp WebSocket docs sufficient
-- Phase 3: Needs careful safety design for slider UX. Review SolarEdge EDPC timeout behavior.
-- Phase 4: Standard patterns, unlikely to need research
+- Phase 4 (Venus OS Client): Needs validation that Modbus TCP is enabled on the Venus OS instance and that register addresses match the v3.71 firmware
+- Phase 5 (Unified Layout): Standard CSS grid refactoring, unlikely to need research
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Zero new dependencies. All capabilities verified against official docs. |
-| Features | HIGH | Requirements clear from PROJECT.md. Venus OS colors from official repository. |
-| Architecture | HIGH | Additive changes to existing v1.0 architecture. WebSocket pattern well-documented. |
-| Pitfalls | MEDIUM | Power control safety is well-understood in principle but UX details need iteration. |
-
-## SSE vs WebSocket Decision Update
-
-The v1.0 architecture research recommended SSE. For v2.0, WebSocket is recommended instead because:
-- Power control slider sends values client-to-server (bidirectional need)
-- Single connection handles both directions (simpler than SSE + POST endpoints)
-- aiohttp has equally first-class support for both
-- No additional dependencies either way
-
-The ARCHITECTURE.md SSE recommendation was correct for a monitoring-only dashboard. v2.0's power control changes the calculus.
+| CSS Animations | HIGH | Well-documented browser standards, multiple 2025/2026 guides verified |
+| Toast System | HIGH | Existing implementation to enhance, standard vanilla JS pattern |
+| Apple Toggle | HIGH | Pure CSS technique, widely documented |
+| Venus OS Registers | MEDIUM | Register addresses verified via community sources, not from official Excel sheet directly |
+| Peak Statistics | HIGH | Simple in-memory pattern, no external dependencies |
+| DVCC Status | LOW | Could not verify specific register address; recommend using existing override detection instead |
 
 ## Gaps to Address
 
-- Power control slider debounce strategy (200ms recommended, needs UX testing)
-- SolarEdge EDPC revert behavior when proxy restarts mid-timeout
-- Venus OS flow-style layout deferred to v2.x (complex, diminishing returns without full system data)
-
-## Sources
-
-- [aiohttp WebSocket docs (v3.13.3)](https://docs.aiohttp.org/en/stable/web_quickstart.html)
-- [Venus OS gui-v2 theme colors](https://github.com/victronenergy/gui-v2/tree/main/themes/color)
-- [Venus OS gui-v2 ColorDesign.json](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/ColorDesign.json)
-- [Venus OS gui-v2 Dark.json](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/Dark.json)
-- Existing codebase: `webapp.py`, `proxy.py`, `control.py`, `static/index.html`
+- Venus OS register addresses need validation against the actual running Venus OS v3.71 instance (read a few registers and compare to expected values)
+- DVCC status register address unknown -- recommend inferring DVCC from existing Venus OS write detection rather than reading a DVCC register
+- The official CCGX-Modbus-TCP-register-list-3.70.xlsx should be downloaded and checked for accuracy of the register addresses listed in STACK.md

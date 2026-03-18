@@ -1,257 +1,511 @@
-# Technology Stack: v2.0 Dashboard & Power Control
+# Technology Stack
 
-**Project:** Venus OS Fronius Proxy
+**Project:** Venus OS Fronius Proxy v2.1 Dashboard Redesign & Polish
 **Researched:** 2026-03-18
-**Focus:** Stack additions for Venus OS styled dashboard, real-time charts, power control UI
-**Overall Confidence:** HIGH
+**Scope:** Stack additions for CSS animations, toast notifications, Venus OS info widget, Apple-style toggles, peak statistics. Zero new dependencies.
 
-## Existing Stack (DO NOT CHANGE)
+## Recommended Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Python 3.12 | 3.12 | Runtime |
-| pymodbus | 3.8+ | Modbus TCP client/server |
-| aiohttp | 3.x | HTTP server + WebSocket support (built-in) |
-| structlog | latest | Structured logging |
-| PyYAML | latest | Configuration |
+### No New Dependencies Required
 
-The v1.0 stack is validated and shipped. The entire v2.0 dashboard requires **zero new Python or JavaScript dependencies**.
+The entire v2.1 feature set is implementable with the existing stack. No new Python packages, no new JS libraries, no build tools. This section documents the **patterns and techniques** to use within the existing stack.
 
-## New Stack Additions
+### Existing Stack (Unchanged)
 
-### Real-Time Updates: aiohttp WebSocket (ZERO new dependencies)
+| Technology | Version | Purpose | Status |
+|------------|---------|---------|--------|
+| Python | 3.12 | Backend runtime | Keep |
+| pymodbus | 3.8+ | Modbus TCP client/server | Keep |
+| aiohttp | latest | HTTP + WebSocket server | Keep |
+| structlog | latest | Structured logging | Keep |
+| PyYAML | latest | Config file parsing | Keep |
+| Vanilla JS | ES6+ | Frontend (zero deps) | Keep |
+| CSS3 | Modern | Styling + animations | **Extend** |
 
-**Decision:** Use aiohttp's built-in `WebSocketResponse`. No new Python packages needed.
+## CSS Animations & Transitions
 
-**Why WebSocket over SSE (Server-Sent Events):**
-- Bidirectional: Power control commands (slider changes, enable/disable) go client-to-server; live data goes server-to-client. SSE is unidirectional (server-to-client only), so you would still need separate POST endpoints for commands. WebSocket handles both in one connection.
-- aiohttp has first-class WebSocket support via `web.WebSocketResponse()`. SSE requires manual `StreamResponse` with keep-alive hacks.
-- Lower overhead: single TCP connection vs HTTP polling or SSE + separate POST requests.
+**Confidence: HIGH** (well-documented browser standards, verified with MDN and multiple 2025/2026 guides)
 
-**Why WebSocket over current HTTP polling:**
-- Current frontend polls `/api/status`, `/api/health`, `/api/registers` every 2 seconds -- three HTTP requests per cycle. WebSocket replaces all three with a single pushed JSON message.
-- Slider feedback needs sub-200ms round trips. HTTP polling at 2s intervals cannot provide responsive power control UX.
-- Server pushes only when data changes, reducing unnecessary traffic.
+### GPU-Accelerated Properties Only
 
-**Pattern:** Server-push broadcast from poller loop to all connected WebSocket clients.
+Animate ONLY these properties for 60fps performance -- they run on the GPU compositor thread without triggering layout or paint:
 
-```python
-# In webapp.py -- no new imports beyond aiohttp.web
-import weakref
+| Property | Use Case | Why GPU-Safe |
+|----------|----------|--------------|
+| `transform` | Gauge needle rotation, slide-in/out, scale effects | Compositor-only, no reflow |
+| `opacity` | Fade in/out toasts, page transitions, pulse effects | Compositor-only, no repaint |
+| `filter` | Blur effects (sparingly) | GPU-accelerated in modern browsers |
 
-# On app startup:
-app["ws_clients"] = weakref.WeakSet()
+**NEVER animate:** `width`, `height`, `top`, `left`, `margin`, `padding`, `border-width`, `font-size`. These trigger layout recalculation and are slow.
 
-# WebSocket handler:
-async def ws_handler(request):
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    request.app["ws_clients"].add(ws)
-    async for msg in ws:
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            # Handle power control commands from UI
-            data = json.loads(msg.data)
-            await handle_ws_command(request.app, data)
-    return ws
+### CSS Custom Properties for Animation Control
 
-# Broadcast from poller (called every poll cycle):
-async def broadcast_state(app, state_dict):
-    payload = json.dumps(state_dict)
-    for ws in set(app["ws_clients"]):
-        try:
-            await ws.send_str(payload)
-        except Exception:
-            pass  # dead connections auto-removed by WeakSet
-```
-
-**Confidence:** HIGH -- verified against [aiohttp 3.13.3 official docs](https://docs.aiohttp.org/en/stable/web_quickstart.html). WebSocket support is stable, well-documented, and already a dependency.
-
-### Charting: Inline SVG Sparklines (ZERO new dependencies)
-
-**Decision:** Hand-rolled SVG sparklines in vanilla JavaScript. No charting library.
-
-**Why no library at all:**
-- The requirement is 60-minute mini-sparklines for power/voltage/frequency. This is a polyline in an SVG element -- roughly 15 lines of JavaScript.
-- Adding even a tiny library (fnando/sparkline at ~1KB gzipped, or mitjafelicijan/sparklines via CDN) creates an external dependency for a single-file HTML app served from `importlib.resources`. CDN means internet dependency on a LAN-only device. Bundling means build tooling or inlining third-party code.
-- The existing frontend already uses vanilla JS with zero external dependencies. Keep it that way.
-
-**Implementation approach:**
-```javascript
-function drawSparkline(svgEl, data, color) {
-    const w = svgEl.clientWidth, h = svgEl.clientHeight;
-    const max = Math.max(...data), min = Math.min(...data);
-    const range = max - min || 1;
-    const points = data.map((v, i) =>
-        `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`
-    ).join(' ');
-    svgEl.innerHTML = `<polyline points="${points}" fill="none"
-        stroke="${color}" stroke-width="1.5"/>`;
-}
-```
-
-That is the entire charting "library." It renders a smooth sparkline that updates every poll cycle by rewriting the SVG polyline. No canvas, no library, no build step.
-
-**Ring buffer (Python side):** `collections.deque(maxlen=3600)` at 1 sample/second = 60 minutes. One deque per metric (AC Power, Phase A/B/C current, voltage, frequency, temperature). Serialized as a JSON array in the WebSocket broadcast -- send only every 10th sample or on initial connect to avoid bloating every message.
-
-**Confidence:** HIGH -- pure SVG/JS, no external verification needed. The pattern is well-established.
-
-### Venus OS Theme: CSS Custom Properties (ZERO new dependencies)
-
-**Decision:** Extract Venus OS gui-v2 color palette into CSS custom properties. No CSS framework.
-
-**Why not Tailwind/Bootstrap/etc:**
-- Single-file HTML frontend constraint. CSS frameworks require build tooling or massive CDN includes.
-- The existing CSS is already clean custom properties. Just swap the color values to match Venus OS.
-- Venus OS gui-v2 uses QML, not CSS. We translate the color tokens, not import a framework.
-
-**Official Venus OS gui-v2 Dark Theme Colors** (extracted from `victronenergy/gui-v2/themes/color/ColorDesign.json` and `Dark.json`):
+Use existing CSS custom properties (`--ve-*`) to parameterize animations. Add new animation-specific variables:
 
 ```css
 :root {
-    /* Venus OS Core Palette */
-    --ve-blue: #387DC5;
-    --ve-blue-light: #73A2D3;
-    --ve-blue-dim: #27588A;
-    --ve-orange: #F0962E;
-    --ve-red: #F35C58;
-    --ve-green: #72B84C;
-
-    /* Venus OS Dark Theme Backgrounds */
-    --ve-bg-primary: #141414;      /* Gray 1 - deepest background */
-    --ve-bg-surface: #272622;      /* Gray 2 - card/panel background */
-    --ve-bg-elevated: #504F4B;     /* Gray 3 - elevated elements */
-    --ve-border: #64635F;          /* Gray 4 - borders */
-
-    /* Venus OS Text */
-    --ve-text: #FAF9F5;            /* Gray 9 - primary text */
-    --ve-text-secondary: #DCDBD7;  /* Gray 6 - secondary text */
-    --ve-text-dim: #969591;         /* Gray 5 - dim/muted text */
-
-    /* Venus OS Specific UI */
-    --ve-settings-bg: #11253B;     /* Settings breadcrumb background */
-    --ve-toast-info: #295C91;      /* Informative toast */
-    --ve-toast-warning: #BD7624;   /* Warning toast */
-    --ve-toast-error: #BF4845;     /* Error toast */
-    --ve-critical-bg: #AA403E;     /* Critical background */
-    --ve-slider-handle: #1D1D1B;   /* Slider handle background */
-    --ve-slider-handle-border: #FAF9F5; /* Slider handle border */
-    --ve-slider-separator: #C3D8EE; /* Slider track separator */
+    /* Animation timing */
+    --ve-duration-fast: 150ms;
+    --ve-duration-normal: 300ms;
+    --ve-duration-slow: 600ms;
+    --ve-easing-default: cubic-bezier(0.4, 0, 0.2, 1);  /* Material ease */
+    --ve-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* Overshoot */
+    --ve-easing-out: cubic-bezier(0, 0, 0.2, 1);
 }
 ```
 
-**Migration from current theme:** The existing `index.html` uses `--bg: #1a1a2e` (dark blue-purple) and `--accent: #e94560` (pinkish red). These shift to Venus OS's warm grays (`#141414`, `#272622`) and Victron blue (`#387DC5`). The overall feel changes from "generic dark tech" to "authentic Victron dashboard."
+### Specific Animation Techniques
 
-**Confidence:** HIGH -- colors extracted directly from the official `victronenergy/gui-v2` repository.
+#### 1. Gauge Arc Animation (Already Partially Done)
 
-### Power Control UI: Native HTML Range + Toggle (ZERO new dependencies)
+The existing `#gauge-fill` uses `transition: stroke-dashoffset 0.8s ease-out, stroke 0.5s ease` which is correct. Enhance with:
 
-**Decision:** Use native HTML `<input type="range">` for the power limit slider, styled with CSS to match Venus OS. Use a CSS-only toggle switch for enable/disable.
+```css
+#gauge-fill {
+    transition: stroke-dashoffset 0.8s var(--ve-easing-default),
+                stroke 0.5s ease;
+    will-change: stroke-dashoffset;  /* Hint to browser for GPU layer */
+}
+```
 
-**Why not a UI component library:**
-- Single-file HTML constraint. No React, no Web Components library.
-- Native range inputs are styleable with `-webkit-slider-*` and `::-moz-range-*` pseudo-elements. The Venus OS slider style (dark handle, light track) is achievable with ~20 lines of CSS.
-- The toggle is a `<label>` wrapping a hidden checkbox with CSS pseudo-elements.
+`will-change` promotes the element to its own compositor layer. Use sparingly (only on elements that actually animate frequently).
 
-**Implementation sketch:**
+#### 2. Page/Section Transitions
+
+Current page switching is `display: none/block` (instant). For smooth transitions:
+
+```css
+.page {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity var(--ve-duration-normal) var(--ve-easing-out),
+                transform var(--ve-duration-normal) var(--ve-easing-out);
+    pointer-events: none;
+}
+.page.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+```
+
+**Caveat:** Cannot use `display: none` with transitions. Must switch to `visibility: hidden` + `position: absolute` or use a class-based approach where inactive pages are off-screen. Alternative: use a simple fade with JS controlling `requestAnimationFrame`.
+
+#### 3. Widget Entrance Animations (Staggered)
+
+```css
+@keyframes ve-slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ve-card {
+    animation: ve-slide-up var(--ve-duration-normal) var(--ve-easing-out) both;
+}
+
+/* Stagger with nth-child or custom property */
+.ve-dashboard-grid .ve-card:nth-child(1) { animation-delay: 0ms; }
+.ve-dashboard-grid .ve-card:nth-child(2) { animation-delay: 50ms; }
+.ve-dashboard-grid .ve-card:nth-child(3) { animation-delay: 100ms; }
+.ve-dashboard-grid .ve-card:nth-child(4) { animation-delay: 150ms; }
+```
+
+#### 4. Value Change Flash (Already Done, Enhance)
+
+The existing `flashValue()` JS function adds/removes `ve-value-flash` class. The existing `ve-flash` keyframe animation is correct. No changes needed -- this pattern works well.
+
+#### 5. `prefers-reduced-motion` Respect
+
+```css
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+```
+
+**Always include this.** Accessibility requirement.
+
+### Performance Notes
+
+- `will-change` should be applied via JS just before animation starts, removed after. Or applied statically only to elements that animate constantly (gauge).
+- `transform: translateZ(0)` or `translate3d(0,0,0)` forces GPU layer -- use as fallback if `will-change` is insufficient.
+- Avoid animating more than ~5 elements simultaneously on low-power devices (Raspberry Pi browser).
+
+## Toast Notification System
+
+**Confidence: HIGH** (vanilla JS pattern, well-established, existing basic implementation already in codebase)
+
+### Current State
+
+The codebase already has a basic `showToast(message, type)` function (app.js line 670-678) and CSS styling (style.css line 957-990). It works but is minimal:
+- Single toast at a time (new one replaces old)
+- No stacking
+- No dismiss button
+- No exit animation
+- Fixed 3-second timeout
+
+### Enhanced Pattern (Vanilla JS, No Dependencies)
+
+```javascript
+// Toast container for stacking
+const toastContainer = document.createElement('div');
+toastContainer.className = 've-toast-container';
+document.body.appendChild(toastContainer);
+
+function showToast(message, type, duration) {
+    duration = duration || 4000;
+    const toast = document.createElement('div');
+    toast.className = 've-toast ve-toast--' + (type || 'info');
+    toast.textContent = message;
+
+    // Insert at top for newest-first stacking
+    toastContainer.prepend(toast);
+
+    // Auto-dismiss with exit animation
+    const timer = setTimeout(function() { dismissToast(toast); }, duration);
+
+    // Click to dismiss
+    toast.addEventListener('click', function() {
+        clearTimeout(timer);
+        dismissToast(toast);
+    });
+}
+
+function dismissToast(toast) {
+    toast.classList.add('ve-toast--exiting');
+    toast.addEventListener('animationend', function() {
+        toast.remove();
+    });
+}
+```
+
+### Toast CSS
+
+```css
+.ve-toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    max-width: 380px;
+}
+
+.ve-toast {
+    pointer-events: auto;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    animation: ve-toast-in 0.3s var(--ve-easing-out) forwards;
+}
+
+.ve-toast--exiting {
+    animation: ve-toast-out 0.25s var(--ve-easing-default) forwards;
+}
+
+@keyframes ve-toast-in {
+    from { opacity: 0; transform: translateX(100%); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ve-toast-out {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(100%); }
+}
+
+/* Warning variant for temperature/night mode */
+.ve-toast--warning {
+    background: rgba(240, 150, 46, 0.95);
+    color: #000;
+}
+```
+
+### Toast Types for v2.1
+
+| Type | Color | Trigger |
+|------|-------|---------|
+| `success` | Green (`--ve-green`) | Power limit applied, config saved |
+| `error` | Red (`--ve-red`) | Venus OS override, connection lost, fault |
+| `warning` | Orange (`--ve-orange`) | Temperature warning, night mode transition |
+| `info` | Blue (`--ve-blue`) | Override event, status change |
+
+## Apple-Style Toggle Switch
+
+**Confidence: HIGH** (pure CSS technique, well-documented, no JS needed for the toggle itself)
+
+### CSS-Only Implementation
+
+Uses a hidden checkbox + styled label with `::before` pseudo-element as the sliding dot:
+
+```css
+/* Toggle switch container */
+.ve-toggle {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.ve-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.ve-toggle-track {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--ve-border);
+    border-radius: 28px;
+    transition: background var(--ve-duration-normal) var(--ve-easing-default);
+}
+
+.ve-toggle-track::before {
+    content: '';
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: var(--ve-text);
+    border-radius: 50%;
+    transition: transform var(--ve-duration-normal) var(--ve-easing-spring);
+    /* Spring easing gives the Apple bounce feel */
+}
+
+.ve-toggle input:checked + .ve-toggle-track {
+    background: var(--ve-blue);
+}
+
+.ve-toggle input:checked + .ve-toggle-track::before {
+    transform: translateX(24px);
+}
+
+.ve-toggle input:disabled + .ve-toggle-track {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+```
+
+### HTML Pattern
+
 ```html
-<!-- Power limit slider -->
-<input type="range" id="power-limit" min="0" max="100" step="1"
-    class="ve-slider" value="100">
-<span id="power-limit-value">100%</span>
-
-<!-- Enable/disable toggle -->
 <label class="ve-toggle">
-    <input type="checkbox" id="power-enable">
+    <input type="checkbox" id="venus-lock-toggle">
     <span class="ve-toggle-track"></span>
 </label>
 ```
 
-Commands sent via WebSocket (not REST POST), so the slider can send updates as the user drags (debounced at ~200ms) with immediate visual feedback. The WebSocket message format:
+### Integration with Venus OS Lock
 
-```json
-{"cmd": "set_power_limit", "value": 75}
-{"cmd": "set_power_enable", "value": true}
+The toggle JS handler sends a WebSocket command or REST API call. The toggle is purely visual; actual lock state is managed server-side. The `checked` state reflects whether Venus OS control is allowed (checked = allowed, unchecked = locked out).
+
+## Venus OS Info Widget -- Modbus Register Addresses
+
+**Confidence: MEDIUM** (registers verified via community implementations and partial official docs, but not from the official Excel spreadsheet directly)
+
+### Architecture Decision: Read from Venus OS via Modbus TCP
+
+The proxy currently only communicates with the SolarEdge inverter. To show Venus OS system info, the proxy needs a **new Modbus TCP client** connection to Venus OS at `192.168.3.146:502`.
+
+**Important:** Venus OS must have Modbus TCP enabled: Settings -> Services -> Modbus TCP -> Enabled.
+
+### Venus OS System Registers (Unit ID 100)
+
+| Register | Description | D-Bus Path | Type | Scale | Unit |
+|----------|-------------|------------|------|-------|------|
+| 840 | Battery Voltage | /Dc/Battery/Voltage | uint16 | 10 | V DC |
+| 841 | Battery Current | /Dc/Battery/Current | int16 | 10 | A DC |
+| 842 | Battery Power | /Dc/Battery/Power | int16 | 1 | W |
+| 843 | Battery SOC | /Dc/Battery/Soc | uint16 | 1 | % |
+| 844 | Battery State | /Dc/Battery/State | uint16 | 1 | 0=idle, 1=charging, 2=discharging |
+| 817 | AC Consumption L1 | /Ac/Consumption/L1/Power | uint16 | 1 | W |
+| 818 | AC Consumption L2 | /Ac/Consumption/L2/Power | uint16 | 1 | W |
+| 819 | AC Consumption L3 | /Ac/Consumption/L3/Power | uint16 | 1 | W |
+| 820 | Grid Power L1 | /Ac/Grid/L1/Power | int16 | 1 | W |
+| 821 | Grid Power L2 | /Ac/Grid/L2/Power | int16 | 1 | W |
+| 822 | Grid Power L3 | /Ac/Grid/L3/Power | int16 | 1 | W |
+| 850 | PV on DC (MPPT) | /Dc/Pv/Power | uint16 | 1 | W |
+| 806 | Relay 0 State | /Relay/0/State | uint16 | 1 | 0=open, 1=closed |
+| 807 | Relay 1 State | /Relay/1/State | uint16 | 1 | 0=open, 1=closed |
+
+**Sources:**
+- [Victron Community: Home Assistant Modbus Tutorial](https://communityarchive.victronenergy.com/questions/78971/home-assistant-modbus-integration-tutorial.html) (register addresses verified)
+- [Victron GX Modbus-TCP Manual](https://www.victronenergy.com/live/ccgx:modbustcp_faq) (Unit ID 100 documentation)
+- [victron-system-monitor GitHub](https://github.com/rbritton/victron-system-monitor/blob/master/app/ModbusRegister.php) (PHP implementation with register maps)
+- [php-victron-cerbogx-modbus-tcp GitHub](https://github.com/datjan/php-victron-cerbogx-modbus-tcp) (register 843 SOC, 844 state confirmed)
+
+### DVCC Status
+
+**Confidence: LOW** -- DVCC enable/disable is a settings register, not a system register. The CCGX register list Excel file would have the exact address. The proxy can detect DVCC indirectly: if Venus OS writes WMaxLimPct to the proxy's Model 123, DVCC with "Limit charge power" or ESS is active. This is already tracked via `control_state.last_source == "venus_os"`.
+
+**Recommendation:** Do NOT try to read DVCC settings registers. Instead, display whether Venus OS is actively controlling the inverter (already tracked) and show connection status to Venus OS (already tracked via the Modbus server's client connections).
+
+### Implementation: Venus OS Client
+
+Use the existing `pymodbus.client.AsyncModbusTcpClient` (already a dependency) to read from Venus OS:
+
+```python
+from pymodbus.client import AsyncModbusTcpClient
+
+class VenusOSClient:
+    """Read system registers from Venus OS GX device."""
+
+    UNIT_ID = 100
+    SYSTEM_REGISTERS = {
+        'battery_voltage': (840, 'uint16', 10),   # V
+        'battery_current': (841, 'int16', 10),     # A
+        'battery_power':   (842, 'int16', 1),      # W
+        'battery_soc':     (843, 'uint16', 1),     # %
+        'battery_state':   (844, 'uint16', 1),     # enum
+        'grid_l1':         (820, 'int16', 1),       # W
+        'grid_l2':         (821, 'int16', 1),       # W
+        'grid_l3':         (822, 'int16', 1),       # W
+        'pv_power':        (850, 'uint16', 1),      # W
+    }
+
+    def __init__(self, host: str, port: int = 502):
+        self._client = AsyncModbusTcpClient(host, port=port, timeout=5)
+
+    async def poll(self) -> dict | None:
+        """Read system registers, return decoded dict or None on failure."""
+        ...
 ```
 
-**Confidence:** HIGH -- standard HTML/CSS patterns.
+**Polling:** Every 5-10 seconds (system data changes slowly). Do NOT poll every 1s like the SE30K -- Venus OS Modbus TCP service is not designed for high-frequency reads.
 
-## What NOT To Add
+### Venus OS Connection Info (No Modbus Needed)
 
-| Temptation | Why Not |
-|------------|---------|
-| Chart.js / D3.js / Plotly | Overkill for sparklines. 200KB+ for what 15 lines of SVG code does. Breaks single-file constraint. |
-| Socket.io (python-socketio) | aiohttp has native WebSocket support. Socket.io adds protocol overhead, client library dependency, and complexity for zero benefit. |
-| Tailwind CSS / Bootstrap | Requires CDN (no internet on LAN) or build tooling. Existing CSS custom properties work fine. |
-| React / Vue / Svelte | Single-file HTML constraint. Vanilla JS is sufficient for this UI complexity. Would require build tooling. |
-| Flask-SocketIO | Wrong framework. Already using aiohttp. |
-| Any Python dashboard library (Dash, Streamlit, Panel) | These replace the entire web stack. We have a working aiohttp server. |
-| External CDN for anything | LXC container is on a LAN. No guaranteed internet access. All assets must be self-contained. |
-| SSE (Server-Sent Events) | Unidirectional. Would still need POST endpoints for power control commands. WebSocket is cleaner for bidirectional. |
-| websockets package | aiohttp already includes WebSocket support. Adding `websockets` package would be redundant. |
-| fnando/sparkline | ~1KB gzipped, nice API, but adds a dependency for something trivially implementable in 15 LOC. |
-| mitjafelicijan/sparklines | Zero-dep library with CDN at `cdn.jsdelivr.net`, but CDN is unreliable on LAN-only device. |
+Some Venus OS info is available WITHOUT reading from Venus OS:
+
+| Info | Source | Already Available |
+|------|--------|-------------------|
+| Venus OS IP | Config file | Yes (hardcoded 192.168.3.146) |
+| Last Venus OS contact | Modbus server write detection | Yes (control_state.last_change_ts) |
+| Venus OS override active | control_state.last_source | Yes |
+| Venus OS firmware version | Would need Modbus read from Venus OS | No |
+
+**Recommendation for MVP:** Start with the already-available data (override status, last contact time). Add Venus OS Modbus client as a separate optional feature that can be enabled in config.
+
+## Peak Statistics Tracking
+
+**Confidence: HIGH** (simple in-memory data structure, no external deps needed)
+
+### Implementation Pattern
+
+Track peaks in-memory, reset daily (or on restart). No persistence needed (PROJECT.md explicitly scopes out persistent DB).
+
+```python
+import time
+from dataclasses import dataclass, field
+
+@dataclass
+class PeakStats:
+    """Track daily peak statistics in-memory."""
+    peak_power_w: float = 0.0
+    peak_power_ts: float = 0.0
+    first_production_ts: float | None = None
+    last_production_ts: float | None = None
+    _last_reset_day: int = field(default=0, repr=False)
+
+    def update(self, power_w: float) -> None:
+        now = time.time()
+        today = time.localtime(now).tm_yday
+
+        # Auto-reset on day change
+        if today != self._last_reset_day:
+            self.peak_power_w = 0.0
+            self.peak_power_ts = 0.0
+            self.first_production_ts = None
+            self.last_production_ts = None
+            self._last_reset_day = today
+
+        if power_w > self.peak_power_w:
+            self.peak_power_w = power_w
+            self.peak_power_ts = now
+
+        if power_w > 50:  # Threshold for "producing"
+            if self.first_production_ts is None:
+                self.first_production_ts = now
+            self.last_production_ts = now
+
+    @property
+    def operating_hours(self) -> float:
+        """Hours of production today."""
+        if self.first_production_ts and self.last_production_ts:
+            return (self.last_production_ts - self.first_production_ts) / 3600
+        return 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            'peak_power_w': self.peak_power_w,
+            'peak_power_ts': self.peak_power_ts,
+            'operating_hours': round(self.operating_hours, 1),
+        }
+```
+
+Integrate into `DashboardCollector.collect()` -- call `peak_stats.update(power_w)` and include `peak_stats.to_dict()` in the snapshot.
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Real-time transport | aiohttp WebSocket (built-in) | SSE via StreamResponse | SSE is unidirectional; power control needs bidirectional |
-| Real-time transport | aiohttp WebSocket (built-in) | HTTP polling (current) | 2s polling is too slow for slider feedback; wastes bandwidth with 3 requests per cycle |
-| Charting | Inline SVG polyline (15 LOC) | @fnando/sparkline (~1KB) | External dependency for trivial functionality; CDN not available on LAN |
-| Charting | Inline SVG polyline (15 LOC) | mitjafelicijan/sparklines (CDN) | CDN dependency on LAN-only device |
-| CSS theme | Venus OS custom properties | Tailwind CSS | Build tooling required; overkill for single-file HTML |
-| UI controls | Native HTML range/checkbox | shoelace Web Components | Dependency; build tooling; overkill |
+| Animations | CSS `transform` + `opacity` | GSAP / anime.js | Zero-dependency constraint. CSS is sufficient for these effects. |
+| Toast system | Vanilla JS (enhance existing) | Toastify / notyf | Zero-dependency constraint. Existing pattern just needs stacking + exit animation. |
+| Toggle switch | CSS-only checkbox hack | JS toggle component | CSS-only is simpler, more performant, accessible by default. |
+| Venus OS data | pymodbus AsyncModbusTcpClient | MQTT / D-Bus | Modbus TCP is simpler (already using pymodbus), MQTT requires mosquitto setup, D-Bus requires local access to Venus OS. |
+| Peak tracking | In-memory dataclass | SQLite / Redis | Out-of-scope per PROJECT.md. In-memory is sufficient for daily peaks. |
+
+## Anti-Patterns to Avoid
+
+| Anti-Pattern | Why Bad | Do This Instead |
+|--------------|---------|-----------------|
+| `will-change` on everything | Creates too many compositor layers, wastes GPU memory | Only on elements that animate frequently (gauge arc) |
+| Animating `height`/`width` | Triggers layout recalc every frame, janky on RPi | Use `transform: scaleY()` or `max-height` with fixed value |
+| JS-driven animations via `setInterval` | Misses frames, fights with browser scheduler | Use CSS transitions/animations or `requestAnimationFrame` |
+| Toast notifications via `alert()` | Blocks thread, terrible UX | DOM-based toasts with CSS animations |
+| Reading Venus OS registers every 1s | Overloads Venus OS Modbus TCP service | Poll every 5-10s, system data is slow-changing |
+| Storing peaks in file/DB | Over-engineering, adds failure modes | In-memory with daily auto-reset |
 
 ## Installation
 
+No changes to installation. Zero new dependencies.
+
 ```bash
-# No new packages needed. Zero additions to requirements.
-# Everything is built with existing aiohttp + vanilla JS/CSS/SVG.
+# Existing installation is sufficient
+pip install -e .
+
+# No additional packages needed for v2.1
 ```
-
-## Python-Side Additions (no new packages)
-
-| Component | Implementation | Module |
-|-----------|---------------|--------|
-| Ring buffer for sparkline data | `collections.deque(maxlen=3600)` | `collections` (stdlib) |
-| WebSocket broadcast | `aiohttp.web.WebSocketResponse` | already installed |
-| JSON serialization of state | `json.dumps()` | `json` (stdlib) |
-| Timestamp tracking | `time.monotonic()` | `time` (stdlib) |
-| Client tracking | `weakref.WeakSet()` | `weakref` (stdlib) |
-
-## Integration with Existing Architecture
-
-The existing `webapp.py` creates an `aiohttp.web.Application` with REST endpoints. The WebSocket additions integrate cleanly:
-
-1. **Add route:** `app.router.add_get("/ws", ws_handler)` alongside existing REST routes
-2. **Store clients:** `app["ws_clients"] = weakref.WeakSet()` in `create_webapp()`
-3. **Broadcast hook:** The existing poller loop in `proxy.py` calls `broadcast_state()` after each successful poll, pushing fresh data to all connected WebSocket clients
-4. **Fallback:** Keep existing REST endpoints (`/api/status`, `/api/health`, `/api/registers`) for backward compatibility and initial page load. WebSocket takes over for live updates after connection.
-5. **Ring buffers:** Add to `shared_ctx` dict alongside existing `cache` and `poll_counter`
-
-The single-process asyncio architecture means WebSocket broadcast happens in the same event loop as Modbus polling -- no IPC, no threads, no race conditions.
-
-## Summary
-
-**Zero new Python dependencies. Zero new JavaScript dependencies. Zero CDN includes. Zero build tooling.**
-
-The entire v2.0 dashboard is achievable by:
-1. Adding a WebSocket endpoint to the existing aiohttp webapp (built-in capability)
-2. Adding CSS custom properties with Venus OS official color palette
-3. Writing ~15 lines of SVG sparkline code in JavaScript
-4. Styling native HTML range/checkbox inputs to match Venus OS
-5. Using `collections.deque` for 60-minute ring buffers
-
-This keeps the single-file HTML architecture, zero-dependency philosophy, and LAN-only deployment constraint fully intact.
 
 ## Sources
 
-- [aiohttp WebSocket docs (v3.13.3)](https://docs.aiohttp.org/en/stable/web_quickstart.html) -- HIGH confidence
-- [aiohttp Web Server Advanced -- WebSocket broadcast pattern](https://docs.aiohttp.org/en/stable/web_advanced.html) -- HIGH confidence
-- [aiohttp multiple WebSocket clients (Issue #2940)](https://github.com/aio-libs/aiohttp/issues/2940) -- HIGH confidence
-- [Venus OS gui-v2 theme directory](https://github.com/victronenergy/gui-v2/tree/main/themes/color) -- HIGH confidence
-- [Venus OS gui-v2 ColorDesign.json (raw)](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/ColorDesign.json) -- HIGH confidence, direct source
-- [Venus OS gui-v2 Dark.json (raw)](https://raw.githubusercontent.com/victronenergy/gui-v2/main/themes/color/Dark.json) -- HIGH confidence, direct source
-- [Victron blue color (RAL5012 / ~#00539B)](https://communityarchive.victronenergy.com/questions/75079/victron-blue-color-code.html) -- MEDIUM confidence, community source
-- [fnando/sparkline (evaluated, rejected)](https://github.com/fnando/sparkline) -- ~1KB gzipped, MIT license
-- [mitjafelicijan/sparklines (evaluated, rejected)](https://github.com/mitjafelicijan/sparklines) -- CDN at jsdelivr, BSD license
+### CSS Animations
+- [CSS GPU Acceleration Guide (2025)](https://www.lexo.ch/blog/2025/01/boost-css-performance-with-will-change-and-transform-translate3d-why-gpu-acceleration-matters/) -- will-change and GPU layer promotion
+- [CSS Animation Performance (2025)](https://www.usefulfunctions.co.uk/2025/11/08/css-animation-performance-gpu-acceleration-techniques/) -- GPU acceleration techniques
+- [CSS Animations Complete Guide (2026)](https://devtoolbox.dedyn.io/blog/css-animations-complete-guide) -- individual transform properties
+- [CSS Transforms & Transitions Guide (2026)](https://devtoolbox.dedyn.io/blog/css-transforms-transitions-guide) -- comprehensive transform reference
+- [Smashing Magazine: GPU Animation](https://www.smashingmagazine.com/2016/12/gpu-animation-doing-it-right/) -- foundational GPU compositor concepts
+
+### Venus OS Modbus TCP
+- [Victron GX Modbus-TCP Manual](https://www.victronenergy.com/live/ccgx:modbustcp_faq) -- official documentation, Unit ID 100
+- [CCGX-Modbus-TCP-register-list.xlsx (GitHub)](https://github.com/victronenergy/dbus_modbustcp/blob/master/CCGX-Modbus-TCP-register-list.xlsx) -- official register list (Excel)
+- [CCGX-Modbus-TCP-register-list-3.70.xlsx](https://www.victronenergy.com/upload/documents/CCGX-Modbus-TCP-register-list-3.70.xlsx) -- latest version for Venus OS 3.70
+- [Victron Community: HA Modbus Tutorial](https://communityarchive.victronenergy.com/questions/78971/home-assistant-modbus-integration-tutorial.html) -- practical register usage examples
+- [victron-system-monitor (GitHub)](https://github.com/rbritton/victron-system-monitor/blob/master/app/ModbusRegister.php) -- comprehensive register mapping in PHP
+- [php-victron-cerbogx-modbus-tcp (GitHub)](https://github.com/datjan/php-victron-cerbogx-modbus-tcp) -- register 843/844 confirmed
+- [Victron Modbus TCP Examples (GitHub)](https://github.com/optio50/Victron_Modbus_TCP) -- Python examples
+
+### Toggle Switch
+- [Apple-style toggle implementations](https://freefrontend.com/css-theme-switches/) -- CSS-only patterns
+- [Josh W. Comeau: CSS Transitions](https://www.joshwcomeau.com/animation/css-transitions/) -- spring easing, transition best practices

@@ -1,503 +1,338 @@
-# Architecture: Dashboard & Power Control Integration
+# Architecture Patterns: v2.1 Dashboard Redesign & Polish
 
-**Domain:** Real-time dashboard features for existing aiohttp+asyncio Modbus proxy
-**Researched:** 2026-03-18 (updated for v2.0 WebSocket decision)
-**Overall confidence:** HIGH (based on existing codebase analysis + verified aiohttp patterns)
+**Domain:** Embedded web dashboard for Modbus proxy (vanilla JS, aiohttp backend)
+**Researched:** 2026-03-18
 
-## Executive Summary
-
-The existing v1.0 architecture is well-suited for dashboard integration. The `shared_ctx` dict pattern already exposes `cache`, `conn_mgr`, `control_state`, and `poll_counter` to the webapp. The poll loop updates the cache every 1 second. New features -- WebSocket push, ring buffer history, power control API, and dashboard data endpoints -- integrate cleanly as additive changes with no modifications to proxy.py's core loop.
-
-**Key decision: Use WebSocket over SSE.** While the initial architecture research recommended SSE (unidirectional server-to-client), v2.0's power control slider requires bidirectional communication: slider values flow client-to-server while live feedback flows server-to-client. WebSocket handles both in a single connection. aiohttp has first-class WebSocket support via `web.WebSocketResponse()` -- zero new dependencies.
-
-## Existing Architecture (What We Have)
+## Current Architecture Summary
 
 ```
-                    __main__.py
-                   /          \
-            run_proxy()    create_webapp()
-            (proxy.py)      (webapp.py)
-               |                |
-     +---------+---------+     +-- 7 REST endpoints
-     |                   |     +-- single-file HTML
-  _poll_loop()    ModbusTcpServer
-     |                   |
-  SolarEdgePlugin   StalenessAwareSlaveContext
-     |                   |
-  SE30K:1502        RegisterCache + ControlState
+proxy.py (_poll_loop) --> dashboard.py (DashboardCollector.collect)
+                      --> webapp.py (broadcast_to_clients) --> WebSocket --> app.js
+
+app.js: handleSnapshot(data) updates all dashboard widgets
+        handleHistory(data) populates sparklines on connect
+
+index.html: 4 "pages" (show/hide sections):
+  - page-dashboard (gauge, phases, sparkline, inverter status, connection, health)
+  - page-config (SolarEdge IP/port form)
+  - page-registers (register viewer)
+  - page-power (power control: slider, toggle, override log)
 ```
 
-**shared_ctx** dict (populated by `run_proxy`, consumed by webapp):
-- `cache` -- RegisterCache (datablock + staleness)
-- `conn_mgr` -- ConnectionManager (state machine)
-- `control_state` -- ControlState (WMaxLimPct, WMaxLim_Ena)
-- `poll_counter` -- {"success": N, "total": N}
-- `last_se_poll` -- raw SE30K register data (common + inverter)
-
-**Poll cycle:** 1 second. Cache updates on every successful poll. Webapp reads cache on HTTP request.
-
-## New Components Needed
-
-### 1. TimeSeriesBuffer (new module: `timeseries.py`)
-
-In-memory ring buffer for 60-minute power history. One buffer per metric.
-
-```python
-import time
-from collections import deque
-from dataclasses import dataclass
-
-@dataclass(slots=True)
-class Sample:
-    timestamp: float  # time.monotonic()
-    value: float
-
-class TimeSeriesBuffer:
-    """Fixed-duration ring buffer for a single metric.
-
-    Uses collections.deque(maxlen=N) for automatic eviction.
-    At 1 sample/second for 60 minutes = 3,600 entries.
-    Memory: ~60 bytes/Sample * 3,600 = ~210 KB per buffer.
-    """
-
-    def __init__(self, max_seconds: int = 3600):
-        self._max_seconds = max_seconds
-        self._buf: deque[Sample] = deque(maxlen=max_seconds + 60)
-
-    def append(self, value: float, ts: float | None = None) -> None:
-        self._buf.append(Sample(ts or time.monotonic(), value))
-
-    def get_since(self, since_ts: float) -> list[Sample]:
-        """Return samples newer than since_ts. O(n) scan from right."""
-        result = []
-        for s in reversed(self._buf):
-            if s.timestamp <= since_ts:
-                break
-            result.append(s)
-        result.reverse()
-        return result
-
-    def get_all(self) -> list[Sample]:
-        return list(self._buf)
-
-    def latest(self) -> Sample | None:
-        return self._buf[-1] if self._buf else None
-```
-
-**Why `collections.deque`:** Thread-safe, O(1) append, automatic eviction via `maxlen`, zero dependencies. The 60-minute window is tiny (3,600 entries). No need for numpy ring buffers or external libraries.
-
-**Metrics to buffer (6 buffers total):**
-
-| Buffer | Source | Register offset in Model 103 |
-|--------|--------|------------------------------|
-| `ac_power_w` | inverter_registers[14] + SF[15] | AC Power + AC Power SF |
-| `ac_current_a` | inverter_registers[2] + SF[6] | AC Current + SF |
-| `ac_voltage_avg` | computed from AN/BN/CN | Phase voltages |
-| `ac_frequency_hz` | inverter_registers[16] + SF[17] | AC Freq + SF |
-| `dc_power_w` | inverter_registers[31] + SF[32] | DC Power + SF |
-| `temperature_c` | inverter_registers[33] + SF[37] | Cab Temp + SF |
-
-### 2. DashboardCollector (new module: `dashboard.py`)
-
-Extracts dashboard-ready values from shared_ctx on each poll cycle. Feeds both TimeSeriesBuffers and WebSocket clients.
-
-```python
-class DashboardCollector:
-    """Extracts decoded inverter values from RegisterCache.
-
-    Called after each successful poll to:
-    1. Decode raw registers into physical values (applying scale factors)
-    2. Append to TimeSeriesBuffers
-    3. Build snapshot dict for WebSocket broadcast
-    """
-
-    def __init__(self):
-        self.buffers: dict[str, TimeSeriesBuffer] = {
-            "ac_power_w": TimeSeriesBuffer(),
-            "ac_current_a": TimeSeriesBuffer(),
-            "ac_voltage_avg": TimeSeriesBuffer(),
-            "ac_frequency_hz": TimeSeriesBuffer(),
-            "dc_power_w": TimeSeriesBuffer(),
-            "temperature_c": TimeSeriesBuffer(),
-        }
-        self._last_snapshot: dict | None = None
-
-    def collect(self, cache: RegisterCache) -> dict:
-        """Decode registers, update buffers, return snapshot."""
-        # Read from cache.datablock (same as registers_handler does)
-        # Apply scale factors to get physical values
-        # Append to buffers
-        # Return snapshot dict
-        ...
-
-    @property
-    def snapshot(self) -> dict | None:
-        return self._last_snapshot
-```
-
-**Integration point:** The DashboardCollector is called from the poll loop callback, NOT from an HTTP handler. This ensures data is collected regardless of whether any browser is connected.
-
-### 3. WebSocket Handler (additions to `webapp.py`)
-
-Manages bidirectional communication: server pushes live data, client sends power control commands.
-
-```python
-import weakref
-import json
-from aiohttp import web
-
-# In create_webapp():
-app["ws_clients"] = weakref.WeakSet()
-
-async def ws_handler(request: web.Request) -> web.WebSocketResponse:
-    """WebSocket endpoint for live data push + power control commands."""
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    request.app["ws_clients"].add(ws)
-
-    # Send initial state on connect
-    collector = request.app["shared_ctx"].get("dashboard_collector")
-    if collector and collector.snapshot:
-        await ws.send_str(json.dumps({
-            "type": "snapshot",
-            "data": collector.snapshot
-        }))
-    # Send history for sparkline initialization
-    if collector:
-        history = {k: [[s.timestamp, s.value] for s in buf.get_all()]
-                   for k, buf in collector.buffers.items()}
-        await ws.send_str(json.dumps({
-            "type": "history",
-            "data": history
-        }))
-
-    async for msg in ws:
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            data = json.loads(msg.data)
-            await handle_ws_command(request.app, data)
-        elif msg.type == aiohttp.WSMsgType.ERROR:
-            break
-
-    request.app["ws_clients"].discard(ws)
-    return ws
-
-async def broadcast_to_clients(app: web.Application, snapshot: dict) -> None:
-    """Broadcast snapshot to all connected WebSocket clients."""
-    if not app["ws_clients"]:
-        return
-    payload = json.dumps({"type": "snapshot", "data": snapshot})
-    dead = set()
-    for ws in set(app["ws_clients"]):
-        try:
-            await ws.send_str(payload)
-        except Exception:
-            dead.add(ws)
-    for ws in dead:
-        app["ws_clients"].discard(ws)
-```
-
-**Why WebSocket instead of SSE (updated from initial research):**
-
-| Criterion | WebSocket | SSE |
-|-----------|-----------|-----|
-| Data direction | Bidirectional (needed for power control) | Server-to-client only |
-| Power control writes | Same connection as live data | Needs separate POST endpoints |
-| Dependencies | Zero (aiohttp built-in) | Zero (aiohttp StreamResponse) |
-| Auto-reconnect | Must implement in JS | Built into EventSource API |
-| Slider feedback latency | Sub-100ms round trip | POST latency + SSE push latency |
-| Protocol complexity | ~60 lines Python | ~40 lines Python + POST handlers |
-| Frontend complexity | `new WebSocket(...)` + reconnect | `new EventSource(...)` + separate fetch() for commands |
-
-**The v2.0 power control slider tips the balance.** Slider drag events need sub-200ms round trips for responsive UX. WebSocket provides this in a single connection. With SSE, each slider change would be a separate POST request, and feedback arrives via a different channel (the SSE stream). WebSocket keeps command+response in one connection with lower latency.
-
-### 4. Power Control API (hybrid: WebSocket commands + REST fallback)
-
-Primary: Power control commands via WebSocket messages.
-Fallback: REST endpoints for non-WebSocket clients (curl, testing).
-
-**WebSocket message protocol:**
-
-```json
-// Client -> Server
-{"cmd": "set_power_limit", "percent": 75, "timeout": 300}
-{"cmd": "set_power_enable", "enabled": true}
-{"cmd": "reset_power"}
-
-// Server -> Client (after command)
-{"type": "power_ack", "success": true, "actual_pct": 75.2, "source": "webapp"}
-{"type": "power_ack", "success": false, "error": "Inverter disconnected"}
-```
-
-**REST fallback endpoints** (kept for backward compatibility and testing):
-
-```
-POST /api/power/limit    -- Set power limit percentage
-POST /api/power/enable   -- Enable/disable power limiting
-POST /api/power/reset    -- Reset to 100%
-GET  /api/power/status   -- Current control state + override detection
-GET  /api/dashboard      -- Current snapshot (initial page load)
-GET  /api/dashboard/history  -- 60-min history (initial sparkline data)
-```
-
-### 5. Override Detection Logic
-
-Venus OS writes to Model 123 via Modbus. The webapp user writes via WebSocket. Need to detect WHO is controlling.
-
-```python
-@dataclass
-class PowerControlStatus:
-    enabled: bool
-    limit_pct: float
-    source: str  # "webapp" | "venus_os" | "none"
-    last_change_ts: float
-    venus_os_active: bool  # True if Venus OS wrote recently
-```
-
-**Implementation:** Extend `ControlState` (or wrap it) to track the source of the last write:
-- Modbus write path (`StalenessAwareSlaveContext.async_setValues`) = "venus_os"
-- WebSocket/HTTP path (`/api/power/limit` or WebSocket cmd) = "webapp"
-
-## Data Flow: How New Features Integrate
-
-### Real-Time Push Flow (WebSocket)
-
-```
-_poll_loop (every 1s)
-    |
-    v
-plugin.poll() -> PollResult
-    |
-    v
-cache.update() [existing]
-    |
-    v
-dashboard_collector.collect(cache) [NEW -- called in poll loop]
-    |
-    +---> TimeSeriesBuffers.append() [NEW]
-    |
-    +---> broadcast_to_clients(app, snapshot) [NEW]
-              |
-              v
-         All connected WebSocket clients in browser
-```
-
-### Integration with existing poll loop
-
-The cleanest integration point is a **callback hook** in `_poll_loop`. After `cache.update()` succeeds, call the dashboard collector. This requires a small modification to `_poll_loop` in proxy.py:
-
-```python
-# In _poll_loop, after cache.update() calls:
-if shared_ctx is not None and "dashboard_collector" in shared_ctx:
-    collector = shared_ctx["dashboard_collector"]
-    snapshot = collector.collect(cache)
-    if "webapp" in shared_ctx:
-        await broadcast_to_clients(shared_ctx["webapp"], snapshot)
-```
-
-**This is the ONLY change to proxy.py.** Everything else is additive.
-
-### Power Control Write-Back Flow (via WebSocket)
-
-```
-Browser: slider change (debounced 200ms)
-    |
-    v
-WebSocket: {"cmd": "set_power_limit", "percent": 75, "timeout": 300}
-    |
-    v
-handle_ws_command (webapp.py) [NEW]
-    |
-    +-- validate (0-100%, timeout 60-3600s)
-    +-- control_state.update_wmaxlimpct(raw_value) [existing]
-    +-- control_state.update_wmaxlim_ena(1) [existing]
-    +-- plugin.write_power_limit(True, 75.0) [existing]
-    +-- mark source = "webapp" [NEW]
-    +-- ws.send_str({"type": "power_ack", ...}) [NEW]
-```
-
-### Dashboard Initial Load Flow
-
-```
-Browser opens dashboard page
-    |
-    +-- GET / -> Venus OS styled HTML (single file)
-    |
-    +-- new WebSocket("/ws")
-         |
-         +-- Server sends {"type": "snapshot", ...} (current state)
-         +-- Server sends {"type": "history", ...} (60-min sparkline data)
-         |
-         v
-    WebSocket stays open for:
-      - Server pushes {"type": "snapshot"} every 1 second
-      - Client sends power control commands
-```
-
-## Component Boundaries (New + Modified)
-
-| Component | Status | Responsibility | File |
-|-----------|--------|---------------|------|
-| TimeSeriesBuffer | **NEW** | Ring buffer for 60-min metric history | `timeseries.py` |
-| DashboardCollector | **NEW** | Decode registers, feed buffers + broadcast | `dashboard.py` |
-| WebSocket handler | **NEW** | Bidirectional: push data + receive commands | Added to `webapp.py` |
-| PowerControlAPI | **NEW** | REST fallback for power control | Added to `webapp.py` |
-| OverrideDetector | **NEW** | Track who last wrote power limit | Added to `control.py` |
-| _poll_loop | **MODIFIED** | Add callback after cache.update() | `proxy.py` (3-4 lines) |
-| create_webapp | **MODIFIED** | Register WebSocket route + collector in app | `webapp.py` |
-| __main__.py | **MODIFIED** | Create DashboardCollector, add to shared_ctx | `__main__.py` |
-| ControlState | **MODIFIED** | Add `last_source` and `last_change_ts` tracking | `control.py` |
-| index.html | **REPLACED** | Full Venus OS styled dashboard | `static/index.html` |
-
-## Register Decoding Strategy
-
-The dashboard needs physical values (watts, amps, volts), not raw register integers. Decoding requires applying SunSpec scale factors.
-
-### Current state
-`registers_handler` returns raw register values without scale factor application. The frontend displays raw integers.
-
-### New approach for dashboard
-`DashboardCollector.collect()` reads directly from `cache.datablock` (same access pattern as `registers_handler`) and applies scale factors:
-
-```python
-def _decode_power(self, datablock) -> float:
-    """Decode AC Power from Model 103 registers."""
-    # AC Power at 40083 (offset 14 in Model 103)
-    # AC Power SF at 40084 (offset 15)
-    raw = datablock.getValues(40083 + 1, 1)[0]  # +1 for pymodbus offset
-    sf = datablock.getValues(40084 + 1, 1)[0]
-    # SF is int16 (signed)
-    if sf > 32767:
-        sf -= 65536
-    return raw * (10 ** sf)
-```
-
-**Scale factor registers are in the same datablock**, updated every poll cycle alongside their data registers. No separate fetch needed.
-
-## Snapshot Format (WebSocket payload)
-
+### Data Flow (Current)
+1. `_poll_loop` polls SE30K every 1s via plugin
+2. On success: `DashboardCollector.collect()` produces snapshot dict
+3. `broadcast_to_clients()` pushes `{type: "snapshot", data: {...}}` to all WS clients
+4. `app.js handleSnapshot()` updates DOM elements by ID
+
+### Snapshot Structure (Current)
 ```json
 {
-  "ts": 1710770400.0,
-  "inverter": {
-    "ac_power_w": 12450.0,
-    "ac_current_a": 18.2,
-    "ac_current_a_phase": [6.1, 6.0, 6.1],
-    "ac_voltage_v_phase": [230.1, 231.0, 229.8],
-    "ac_frequency_hz": 50.01,
-    "dc_power_w": 12800.0,
-    "dc_voltage_v": 720.0,
-    "dc_current_a": 17.8,
-    "temperature_c": 42.5,
-    "energy_total_kwh": 21543.2,
-    "status": "MPPT",
-    "status_code": 7
-  },
-  "control": {
-    "enabled": true,
-    "limit_pct": 75.0,
-    "source": "venus_os",
-    "venus_os_active": true
-  },
-  "connection": {
-    "state": "connected",
-    "poll_success_rate": 99.8,
-    "cache_stale": false,
-    "uptime_s": 86400
-  }
+  "ts": 1710754800.0,
+  "inverter": { "ac_power_w", "ac_current_l1_a", ..., "status", "temperature_*", "dc_*", "daily_energy_wh" },
+  "control": { "enabled", "limit_pct", "last_source", "revert_remaining_s", ... },
+  "connection": { "state", "poll_success", "poll_total", "cache_stale" },
+  "override_log": [{ "ts", "source", "action", "value", "detail" }]
 }
 ```
 
-## History Format (sparkline initial load)
+## Recommended Architecture for v2.1
 
-```json
-{
-  "ac_power_w": [[1710770000.0, 12400], [1710770001.0, 12450], ...],
-  "ac_frequency_hz": [[1710770000.0, 50.01], [1710770001.0, 50.02], ...],
-  ...
-}
+### Principle: Minimal Backend Changes
+
+The existing snapshot already contains all data needed for most v2.1 features. The backend needs only two small additions (peak stats tracking, Venus OS details). Everything else is frontend restructuring.
+
+### Component Boundaries
+
+| Component | Responsibility | Changes for v2.1 |
+|-----------|---------------|-------------------|
+| `dashboard.py` (DashboardCollector) | Decode registers, produce snapshot | ADD: peak stats tracking (peak_kw, operating_hours, efficiency) |
+| `webapp.py` (routes + WS) | Serve API, push snapshots | ADD: Venus OS info fields to status endpoint OR snapshot |
+| `proxy.py` (_poll_loop) | Poll, broadcast | NO CHANGES |
+| `control.py` (ControlState) | Track power limit state | NO CHANGES |
+| `connection.py` (ConnectionManager) | Track SE30K connection | NO CHANGES -- already exposes state |
+| `index.html` | Page structure, HTML skeleton | RESTRUCTURE: merge power control into dashboard, add Venus OS widget, toast container |
+| `style.css` | Venus OS themed styles | ADD: animations, toast stacking, lock toggle, compact power control styles |
+| `app.js` | WS client, DOM updates | RESTRUCTURE: remove page-power nav, inline power control, add toast system, add Venus OS widget updates, add animations |
+
+### Data Flow Changes
+
+```
+EXISTING (unchanged):
+  _poll_loop --> DashboardCollector.collect() --> broadcast --> WS --> handleSnapshot()
+
+NEW additions to snapshot:
+  DashboardCollector.collect() now also produces:
+    snapshot.inverter.peak_power_w      (tracked in-memory, reset on restart)
+    snapshot.inverter.operating_hours   (time when status=MPPT, in-memory)
+    snapshot.inverter.efficiency_pct    (ac_power/dc_power ratio)
+
+  snapshot.venus_os section (NEW):
+    Populated from shared_ctx data already available:
+    - control_state.last_source, last_change_ts  (already in snapshot.control)
+    - conn_mgr connection state for Venus OS side  (needs: track last Venus OS Modbus read)
 ```
 
-Frontend receives flat arrays of `[timestamp, value]` pairs. For sparklines, send downsampled data (every 10th sample = 360 points per metric for 60 minutes). Backend provides downsampling to keep initial load payload under ~50 KB.
+## Feature Integration Analysis
+
+### Feature 1: Unified Dashboard (Power Control Inline)
+
+**What changes:**
+- `index.html`: Remove `page-power` section entirely. Move its content (slider, toggle, override banner, revert countdown) into `page-dashboard` as a new card between sparkline and bottom grid.
+- `app.js`: Remove power control nav item click handler. Keep all `updatePowerControl()` logic -- it already updates by element ID regardless of which page section they are in. Remove the `page-power` nav-item event listener reference.
+- `style.css`: Add compact power control card styles (`.ve-ctrl-inline`). The existing power control CSS already works; just needs a compact variant for the inline card.
+- Sidebar nav: Remove "Power Control" nav-item from HTML. Keep Dashboard, Config, Registers.
+
+**Backend changes:** NONE. The snapshot already includes `control` section and `override_log`.
+
+**Risk:** LOW. This is purely HTML restructuring. All JS functions update by element ID, not by page context.
+
+### Feature 2: Venus OS Info Widget
+
+**What changes:**
+- `index.html`: Add a new card in dashboard bottom grid showing Venus OS connection info.
+- `dashboard.py`: Add Venus OS tracking fields to snapshot:
+  - `venus_os.last_read_ts`: timestamp of last Modbus read from Venus OS (track in StalenessAwareSlaveContext.getValues)
+  - `venus_os.connected`: bool (last read within ~10s)
+  - `venus_os.ip`: from last connection (if available from pymodbus server context)
+  - `venus_os.control_locked`: bool (new lock state, see Feature 3)
+- `proxy.py`: Track last Venus OS read timestamp in shared_ctx when `StalenessAwareSlaveContext.getValues()` is called. Add a `_last_venus_read_ts` attribute updated on each successful getValues call.
+- `webapp.py`: Include venus_os section in snapshot broadcast (or add to DashboardCollector).
+- `app.js`: New `updateVenusInfo(data.venus_os)` function to populate the widget.
+
+**Backend changes:** SMALL. Track Venus OS last-read timestamp in StalenessAwareSlaveContext and pass through shared_ctx to DashboardCollector.
+
+### Feature 3: Venus OS Lock Toggle
+
+**What changes:**
+- `control.py`: Add `venus_locked: bool` to ControlState. When locked=True, StalenessAwareSlaveContext._handle_control_write() rejects all Model 123 writes with a "locked" error.
+- `webapp.py`: New POST `/api/venus-lock` endpoint to toggle the lock state.
+- `index.html`: Apple-style toggle switch in the Venus OS info widget.
+- `app.js`: Toggle click handler calls `/api/venus-lock`, update visual state from snapshot.
+- `style.css`: Apple-style toggle component (`.ve-toggle`).
+
+**Backend changes:** SMALL. Add boolean to ControlState, guard in _handle_control_write, one new endpoint.
+
+### Feature 4: Peak Statistics
+
+**What changes:**
+- `dashboard.py`: Track in DashboardCollector:
+  - `_peak_power_w`: max(ac_power_w) seen since startup
+  - `_peak_power_ts`: timestamp of peak
+  - `_operating_seconds`: cumulative seconds where status == "MPPT"
+  - `_last_collect_ts`: for calculating operating time deltas
+  - Efficiency: computed per-snapshot as `ac_power_w / dc_power_w * 100` (only when dc_power > 0)
+- Emit in snapshot under `inverter.peak_power_w`, `inverter.peak_power_ts`, `inverter.operating_hours`, `inverter.efficiency_pct`.
+- `index.html`: Stats card in dashboard (or extend daily energy widget with additional stats).
+- `app.js`: New `updatePeakStats(inv)` function.
+
+**Backend changes:** SMALL. All tracking is in-memory in DashboardCollector, same reset-on-restart pattern as daily energy.
+
+### Feature 5: Smooth Animations
+
+**What changes:**
+- `style.css`:
+  - Gauge arc: already has `transition: stroke-dashoffset 0.8s ease-out` -- verified working.
+  - Phase card values: add CSS number transitions via `transition: opacity` on value flash.
+  - Card entrance: add `@keyframes ve-card-enter` for initial page load.
+  - Sparkline: add smooth path morphing via `transition` on polyline (limited -- SVG polyline transitions don't interpolate points natively; use JS-based lerp for smooth sparkline updates).
+- `app.js`:
+  - Gauge: add easing function for smooth needle animation (currently direct DOM update, which already triggers CSS transition -- may just need tuning).
+  - Value counter: optional `animateValue(el, from, to)` for the main kW display.
+  - Sparkline: lerp between old and new point arrays for smooth updates.
+
+**Backend changes:** NONE. Purely frontend CSS/JS.
+
+### Feature 6: Smart Toast Notifications
+
+**What changes:**
+- Current state: `showToast()` already exists in app.js (used for power control feedback). Toasts are created dynamically, auto-remove after 3s. CSS for `.ve-toast` with slide-in animation exists.
+- Missing:
+  - Toast stacking (multiple simultaneous toasts pile up at same position)
+  - Event-driven toasts from snapshot changes (override detected, fault, temp warning, night mode)
+  - Toast container for proper stacking
+- `index.html`: Add `<div id="toast-container"></div>` for stacked toast positioning.
+- `style.css`: Toast container with flexbox column-reverse for bottom-up stacking. Add slide-out animation.
+- `app.js`:
+  - Refactor `showToast()` to append to toast container instead of body.
+  - Add event detection in `handleSnapshot()`:
+    - Override: if `control.last_source` changes to `venus_os` -> toast "Venus OS took control"
+    - Fault: if `inverter.status` changes to `FAULT` -> toast with error style
+    - Temperature: if `temperature_sink_c > 75` (or configurable threshold) -> toast warning
+    - Night mode: if `connection.state` changes to `night_mode` -> toast info
+  - Track previous snapshot values to detect changes (partial: `lastControlState` already exists for power control).
+
+**Backend changes:** NONE. All detection is frontend-side by comparing consecutive snapshots.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Polling from the frontend for "real-time"
-**What:** Keep the existing 2-second `setInterval(fetch)` pattern for dashboard data.
-**Why bad:** Creates N * polling_rate HTTP requests. Adds latency. Cannot achieve sub-second updates. Wastes bandwidth re-sending unchanged data.
-**Instead:** WebSocket pushes snapshots after each poll cycle. Single persistent connection per browser tab.
+### Anti-Pattern 1: New WebSocket Message Types for Each Feature
+**What:** Adding new WS message types like `type: "venus_info"`, `type: "peak_stats"`.
+**Why bad:** Fragments the data flow. The snapshot already goes out every poll cycle (1s). Adding more message types means more handlers, more race conditions, more complexity.
+**Instead:** Extend the existing snapshot dict with new sections. One message, one handler, one truth.
 
-### Anti-Pattern 2: Reading registers in the WebSocket broadcast
-**What:** Each WebSocket broadcast reads from `cache.datablock` directly.
-**Why bad:** Scale factor decoding happens N times (once per client). Same work repeated.
-**Instead:** DashboardCollector decodes once per poll cycle, broadcasts the pre-built snapshot.
+### Anti-Pattern 2: Separate REST Endpoints for Dashboard Data
+**What:** Adding `/api/venus-info`, `/api/peak-stats` etc. and polling them.
+**Why bad:** The WebSocket already pushes all data. Polling REST endpoints adds latency and complexity.
+**Instead:** All live data goes through the snapshot via WebSocket. REST endpoints only for actions (power-limit, venus-lock, config).
 
-### Anti-Pattern 3: Storing history in the frontend only
-**What:** Let the browser accumulate WebSocket events for sparklines.
-**Why bad:** Page refresh loses all history. Second tab has no history until 60 minutes pass.
-**Instead:** Server-side TimeSeriesBuffers. Initial load via WebSocket `history` message. Incremental updates via `snapshot` messages.
+### Anti-Pattern 3: Separate Animation Library
+**What:** Adding a JS animation library (GSAP, anime.js) for smooth transitions.
+**Why bad:** Violates zero-dependency constraint. CSS transitions handle 90% of the cases.
+**Instead:** CSS `transition` for most animations. Small inline JS `requestAnimationFrame` loop for the gauge counter animation and sparkline lerp.
 
-### Anti-Pattern 4: Direct plugin.write_power_limit() from WebSocket handler
-**What:** WebSocket command handler calls plugin.write_power_limit() without going through ControlState.
-**Why bad:** Bypasses validation, bypasses readback update, ControlState falls out of sync, Venus OS reads stale Model 123 registers.
-**Instead:** WebSocket handler updates ControlState first (same validation path as Modbus write), then calls plugin.write_power_limit(). Mirror the existing `_handle_control_write` logic.
+### Anti-Pattern 4: Breaking the Single-File Pattern
+**What:** Splitting app.js into multiple JS files (toast.js, animations.js, etc.).
+**Why bad:** No build tooling means manual script ordering in HTML. The current 3-file pattern (HTML+CSS+JS) works with importlib.resources serving.
+**Instead:** Use clear section comments (already the pattern in app.js). Keep everything in one JS file with well-separated IIFE blocks.
 
-### Anti-Pattern 5: Sending full history on every WebSocket message
-**What:** Include 60-min history arrays in every 1-second snapshot broadcast.
-**Why bad:** ~50 KB per message * 1/second = 50 KB/s bandwidth for data that barely changes.
-**Instead:** Send history once on WebSocket connect. Send only current snapshot (< 1 KB) on each poll cycle. Frontend appends to its local sparkline array.
+## Patterns to Follow
+
+### Pattern 1: Extend Snapshot, Not Add Messages
+**What:** All new data (peak stats, Venus OS info) added as new keys in the existing snapshot dict.
+**When:** Any time you need to show live data in the dashboard.
+**Example:**
+```python
+# In DashboardCollector.collect():
+snapshot = {
+    "ts": time.time(),
+    "inverter": {**inverter, "peak_power_w": self._peak_power_w, ...},
+    "control": control,
+    "connection": connection,
+    "venus_os": {                          # NEW section
+        "last_read_ts": shared_ctx.get("venus_last_read_ts"),
+        "connected": ...,
+        "control_locked": control_state.venus_locked if control_state else False,
+    },
+    "override_log": ...,
+}
+```
+
+### Pattern 2: Detect Changes by Comparing Previous Snapshot
+**What:** Track `previousSnapshot` in app.js, compare fields to trigger toasts.
+**When:** Event-driven notifications from continuous data stream.
+**Example:**
+```javascript
+let previousSnapshot = null;
+
+function handleSnapshot(data) {
+    if (previousSnapshot) {
+        detectEvents(previousSnapshot, data);
+    }
+    // ... existing update logic ...
+    previousSnapshot = data;
+}
+
+function detectEvents(prev, curr) {
+    // Override detection
+    if (prev.control.last_source !== 'venus_os' && curr.control.last_source === 'venus_os') {
+        showToast('Venus OS took control', 'error');
+    }
+    // Fault detection
+    if (prev.inverter.status !== 'FAULT' && curr.inverter.status === 'FAULT') {
+        showToast('Inverter FAULT detected!', 'error');
+    }
+}
+```
+
+### Pattern 3: CSS-First Animations
+**What:** Use CSS transitions and @keyframes for all visual transitions.
+**When:** Any animation that involves a simple property change.
+**Example:**
+```css
+/* Gauge fill already uses this pattern */
+#gauge-fill {
+    transition: stroke-dashoffset 0.8s ease-out, stroke 0.5s ease;
+}
+
+/* Extend to value updates */
+.ve-live-value {
+    transition: color 0.3s ease, opacity 0.15s ease;
+}
+
+/* Card entrance */
+.ve-card {
+    animation: ve-card-enter 0.3s ease-out;
+}
+@keyframes ve-card-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+```
+
+### Pattern 4: Compact Inline Control
+**What:** Power control as a collapsible card within the dashboard, not a separate page.
+**When:** Moving power control inline.
+**Structure:**
+```html
+<!-- In page-dashboard, after sparkline, before bottom grid -->
+<div class="ve-card ve-ctrl-card">
+    <h2 class="ve-card-title">
+        Power Control
+        <span class="ve-badge ve-badge--test">Manual</span>
+    </h2>
+    <!-- Compact: override banner, status dot+label, slider, buttons in tighter layout -->
+    <!-- Override log as collapsible section -->
+</div>
+```
 
 ## Suggested Build Order
 
-Dependencies dictate this order:
+Dependencies drive the order. Each step is independently testable.
 
-### Step 1: TimeSeriesBuffer + DashboardCollector (no webapp changes)
-- `timeseries.py` -- pure Python, easily testable
-- `dashboard.py` -- register decoding + buffer feeding
-- Unit tests for both
-- **Why first:** Foundation for everything else. No external integration needed.
+```
+Step 1: Peak Stats (backend-only, no HTML changes needed yet)
+  dashboard.py: add _peak_power_w, _operating_seconds, efficiency tracking
+  Tests: unit test DashboardCollector with mock data
+  WHY FIRST: Pure backend addition, no restructuring, validates data flow extension pattern
 
-### Step 2: Poll loop integration + shared_ctx wiring
-- Add 3-4 lines to `proxy.py` `_poll_loop` for collector callback
-- Create collector in `__main__.py`, add to `shared_ctx`
-- **Why second:** Validates that data flows correctly before building UI.
+Step 2: Unified Dashboard Layout (frontend-only restructuring)
+  index.html: move power control HTML into page-dashboard, remove page-power
+  index.html: remove Power Control nav-item from sidebar
+  app.js: remove page-power references from navigation (nav-item click handlers still work)
+  style.css: add compact power control card styles
+  WHY SECOND: Biggest structural change. Do it early while code is stable.
 
-### Step 3: WebSocket endpoint + REST fallback
-- `GET /ws` -- WebSocket handler with initial snapshot + history
-- `GET /api/dashboard` -- REST snapshot (for curl/testing)
-- `GET /api/dashboard/history` -- REST history (for curl/testing)
-- Broadcast hook from poll loop
-- Test with `wscat ws://localhost/ws`
-- **Why third:** Requires collector to already work. Verifiable before frontend.
+Step 3: Venus OS Info Widget (small backend + frontend)
+  proxy.py: track Venus OS last-read in StalenessAwareSlaveContext
+  control.py: add venus_locked boolean
+  dashboard.py: add venus_os section to snapshot
+  webapp.py: add /api/venus-lock endpoint
+  index.html: add Venus OS info card + lock toggle in dashboard
+  app.js: updateVenusInfo() + lock toggle handler
+  style.css: lock toggle component
+  WHY THIRD: Depends on dashboard layout being finalized (Step 2).
 
-### Step 4: Power Control API
-- WebSocket command handler (set_power_limit, set_power_enable, reset)
-- REST fallback endpoints (POST /api/power/*)
-- Override detection in ControlState
-- **Why fourth:** Needs careful safety validation, independent of dashboard display.
+Step 4: Toast System Enhancement (frontend-only)
+  index.html: add toast container
+  style.css: toast stacking, slide-out animation
+  app.js: refactor showToast(), add event detection from snapshot diffs
+  WHY FOURTH: Builds on top of all data being in snapshot (Steps 1+3).
 
-### Step 5: Frontend Dashboard
-- Venus OS styled HTML/CSS/JS
-- WebSocket integration
-- Sparkline charts (inline SVG polyline)
-- Power control slider + toggle
-- **Why last:** Consumes all backend features. Can iterate on styling independently.
+Step 5: Smooth Animations (frontend polish, last)
+  style.css: card entrance animations, value transition polish
+  app.js: gauge counter animation, sparkline lerp
+  WHY LAST: Polish layer. Everything must work first, then make it smooth.
+```
+
+## File Change Matrix
+
+| File | Step 1 | Step 2 | Step 3 | Step 4 | Step 5 |
+|------|--------|--------|--------|--------|--------|
+| `dashboard.py` | MODIFY (peak stats) | -- | MODIFY (venus_os section) | -- | -- |
+| `proxy.py` | -- | -- | MODIFY (track venus read ts) | -- | -- |
+| `control.py` | -- | -- | MODIFY (venus_locked) | -- | -- |
+| `webapp.py` | -- | -- | MODIFY (venus-lock endpoint) | -- | -- |
+| `index.html` | -- | RESTRUCTURE | MODIFY (venus widget) | MODIFY (toast container) | -- |
+| `style.css` | -- | MODIFY (compact ctrl) | MODIFY (toggle) | MODIFY (toast stack) | MODIFY (animations) |
+| `app.js` | -- | MODIFY (remove nav) | MODIFY (venus info) | MODIFY (toast refactor) | MODIFY (animations) |
 
 ## Scalability Considerations
 
-| Concern | Current (1 browser) | 5 browsers | Notes |
-|---------|---------------------|------------|-------|
-| WebSocket connections | 1 connection | 5 connections | Trivial for aiohttp |
-| Broadcast cost | 1 JSON serialize + 1 send | 1 serialize + 5 sends | Serialize once, send N times |
-| Memory (buffers) | ~1.3 MB (6 * 210 KB) | Same (server-side) | Shared, not per-client |
-| History on connect | ~50 KB response | 5 * 50 KB | One-time per connect |
-| Poll loop overhead | +1 collect() call/s | Same | Decoding is microseconds |
-
-This is an admin dashboard for one solar installation. Performance is a non-concern.
+Not applicable -- this is a single-user embedded dashboard on a LAN device. The WebSocket serves 1-3 concurrent browsers at most. The in-memory data resets on restart by design.
 
 ## Sources
 
-- [aiohttp WebSocket docs (v3.13.3)](https://docs.aiohttp.org/en/stable/web_quickstart.html) -- WebSocket handler pattern
-- [aiohttp Web Server Advanced](https://docs.aiohttp.org/en/stable/web_advanced.html) -- WeakSet pattern for client tracking
-- [aiohttp multiple WebSocket clients (Issue #2940)](https://github.com/aio-libs/aiohttp/issues/2940) -- broadcast pattern
-- [Python deque as ring buffer](https://realpython.com/python-deque/) -- confirmed collections.deque with maxlen
-- Existing codebase: `webapp.py`, `proxy.py`, `control.py`, `register_cache.py`, `__main__.py`
+- Direct code analysis of existing codebase (HIGH confidence)
+- All architecture recommendations derived from actual file contents and data flow patterns
+- No external sources needed -- this is integration architecture for an existing system
