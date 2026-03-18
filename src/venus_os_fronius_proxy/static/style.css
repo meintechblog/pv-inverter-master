@@ -694,35 +694,80 @@ body {
     gap: 1rem;
 }
 
-.ve-dashboard-info-row {
+/* Dashboard top: Gauge + Phases side by side */
+.ve-dashboard-top {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin-bottom: 1rem;
 }
 
-.ve-dashboard-bottom-row {
+/* Row 2: Power Control + Connection + Venus OS */
+.ve-dashboard-row2 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Row 3: Sparkline + Performance */
+.ve-dashboard-row3 {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Row 4: Inverter + Health */
+.ve-dashboard-row4 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+/* Phases table card */
+.ve-phases-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.ve-phase-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--ve-mono);
+}
+.ve-phase-table th {
+    text-align: right;
+    color: var(--ve-text-dim);
+    font-weight: 400;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+}
+.ve-phase-table th:first-child { text-align: left; }
+.ve-phase-table td {
+    padding: 4px 8px;
+    text-align: right;
+    font-size: 0.95em;
+}
+.ve-phase-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: var(--ve-blue-light);
+}
+.ve-phase-table td.ve-phase-label {
+    width: 30px;
 }
 
 /* Inline Power Control — compact */
 .ve-power-control-inline {
-    margin-bottom: 1rem;
     padding: 0.75rem 1rem;
 }
-.ve-ctrl-compact {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-.ve-ctrl-info {
+.ve-ctrl-status-line {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 .ve-ctrl-actions {
     display: flex;
@@ -903,7 +948,8 @@ body {
 
 /* Responsive: Dashboard Grid - Tablet */
 @media (max-width: 1024px) {
-    .ve-dashboard-grid {
+    .ve-dashboard-grid,
+.ve-dashboard-top {
         grid-template-columns: 1fr 1fr 1fr 1fr;
     }
     .ve-gauge-card {
@@ -913,7 +959,8 @@ body {
 
 /* Responsive: Dashboard Grid - Mobile */
 @media (max-width: 768px) {
-    .ve-dashboard-grid {
+    .ve-dashboard-grid,
+.ve-dashboard-top {
         grid-template-columns: 1fr 1fr 1fr;
     }
     .ve-gauge-card {
@@ -922,20 +969,23 @@ body {
     .ve-dashboard-bottom {
         grid-template-columns: 1fr;
     }
-    .ve-dashboard-info-row {
+    .ve-dashboard-top {
         grid-template-columns: 1fr;
     }
-    .ve-dashboard-bottom-row {
+    .ve-dashboard-row2 {
         grid-template-columns: 1fr;
     }
-    .ve-ctrl-compact {
-        flex-direction: column;
-        align-items: flex-start;
+    .ve-dashboard-row3 {
+        grid-template-columns: 1fr;
+    }
+    .ve-dashboard-row4 {
+        grid-template-columns: 1fr;
     }
 }
 
 @media (max-width: 480px) {
-    .ve-dashboard-grid {
+    .ve-dashboard-grid,
+.ve-dashboard-top {
         grid-template-columns: 1fr;
     }
     .ve-phase-card {

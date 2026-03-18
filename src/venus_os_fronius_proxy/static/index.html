@@ -80,24 +80,20 @@
 
       <!-- Dashboard Page -->
       <div id="page-dashboard" class="page active">
-        <!-- Row 1: Power Gauge (hero) + Phase Cards -->
-        <div class="ve-dashboard-grid">
+        <!-- Row 1: Power Gauge + 3-Phase (combined) -->
+        <div class="ve-dashboard-top">
           <div class="ve-card ve-gauge-card">
             <h2 class="ve-card-title">Power Output</h2>
             <svg id="power-gauge" viewBox="0 0 200 130" class="ve-gauge-svg">
-              <!-- Background arc (semicircle r=80, center 100,100) -->
               <path d="M 20 100 A 80 80 0 0 1 180 100"
                     fill="none" stroke="var(--ve-border)" stroke-width="12" stroke-linecap="round"/>
-              <!-- Value arc -->
               <path id="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100"
                     fill="none" stroke="var(--ve-blue)" stroke-width="12" stroke-linecap="round"
                     stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
-              <!-- Center value -->
               <text x="100" y="82" text-anchor="middle" fill="var(--ve-text)"
                     font-size="32" font-weight="700" id="gauge-value">--</text>
               <text x="100" y="100" text-anchor="middle" fill="var(--ve-text-dim)"
                     font-size="11">kW / 30 kW</text>
-              <!-- Status text -->
               <text x="100" y="122" text-anchor="middle" fill="var(--ve-text-dim)"
                     font-size="11" id="gauge-status">--</text>
             </svg>
@@ -107,80 +103,79 @@
             </div>
           </div>
 
-          <div class="ve-card ve-phase-card" id="phase-l1">
-            <h3 class="ve-phase-label">L1</h3>
-            <div class="ve-phase-voltage ve-live-value" id="l1-voltage">-- V</div>
-            <div class="ve-phase-current ve-live-value" id="l1-current">-- A</div>
-            <div class="ve-phase-power ve-live-value" id="l1-power">-- W</div>
-          </div>
-          <div class="ve-card ve-phase-card" id="phase-l2">
-            <h3 class="ve-phase-label">L2</h3>
-            <div class="ve-phase-voltage ve-live-value" id="l2-voltage">-- V</div>
-            <div class="ve-phase-current ve-live-value" id="l2-current">-- A</div>
-            <div class="ve-phase-power ve-live-value" id="l2-power">-- W</div>
-          </div>
-          <div class="ve-card ve-phase-card" id="phase-l3">
-            <h3 class="ve-phase-label">L3</h3>
-            <div class="ve-phase-voltage ve-live-value" id="l3-voltage">-- V</div>
-            <div class="ve-phase-current ve-live-value" id="l3-current">-- A</div>
-            <div class="ve-phase-power ve-live-value" id="l3-power">-- W</div>
+          <div class="ve-card ve-phases-card">
+            <h2 class="ve-card-title">3-Phase AC</h2>
+            <table class="ve-phase-table">
+              <thead>
+                <tr><th></th><th>Voltage</th><th>Current</th><th>Power</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="ve-phase-label">L1</td>
+                  <td class="ve-live-value" id="l1-voltage">-- V</td>
+                  <td class="ve-live-value" id="l1-current">-- A</td>
+                  <td class="ve-live-value" id="l1-power">-- W</td>
+                </tr>
+                <tr>
+                  <td class="ve-phase-label">L2</td>
+                  <td class="ve-live-value" id="l2-voltage">-- V</td>
+                  <td class="ve-live-value" id="l2-current">-- A</td>
+                  <td class="ve-live-value" id="l2-power">-- W</td>
+                </tr>
+                <tr>
+                  <td class="ve-phase-label">L3</td>
+                  <td class="ve-live-value" id="l3-voltage">-- V</td>
+                  <td class="ve-live-value" id="l3-current">-- A</td>
+                  <td class="ve-live-value" id="l3-power">-- W</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <!-- Inline Power Control (compact) -->
-        <div class="ve-card ve-power-control-inline" id="power-control-inline">
-          <div id="ctrl-override-banner" class="ve-ctrl-override-banner" style="display:none">
-            Venus OS has control -- manual controls disabled
-          </div>
-          <div class="ve-ctrl-compact">
-            <div class="ve-ctrl-info">
+        <!-- Row 2: Power Control + Connection + Venus OS (3-col) -->
+        <div class="ve-dashboard-row2">
+          <div class="ve-card ve-power-control-inline" id="power-control-inline">
+            <h2 class="ve-card-title">Power Control</h2>
+            <div id="ctrl-override-banner" class="ve-ctrl-override-banner" style="display:none">
+              Venus OS has control
+            </div>
+            <div class="ve-ctrl-status-line">
               <span class="ve-dot" id="ctrl-dot"></span>
               <span id="ctrl-label">No limit active</span>
               <span class="ve-text-dim" id="ctrl-source-brief"></span>
             </div>
             <div class="ve-ctrl-actions" id="ctrl-action-group">
               <select id="ctrl-dropdown" class="ve-ctrl-dropdown">
-                <option value="0">0%</option>
-                <option value="5">5%</option>
-                <option value="10">10%</option>
-                <option value="15">15%</option>
-                <option value="20">20%</option>
-                <option value="25">25%</option>
-                <option value="30">30%</option>
-                <option value="35">35%</option>
-                <option value="40">40%</option>
-                <option value="45">45%</option>
-                <option value="50">50%</option>
-                <option value="55">55%</option>
-                <option value="60">60%</option>
-                <option value="65">65%</option>
-                <option value="70">70%</option>
-                <option value="75">75%</option>
-                <option value="80">80%</option>
-                <option value="85">85%</option>
-                <option value="90">90%</option>
-                <option value="95">95%</option>
+                <option value="0">0%</option><option value="5">5%</option>
+                <option value="10">10%</option><option value="15">15%</option>
+                <option value="20">20%</option><option value="25">25%</option>
+                <option value="30">30%</option><option value="35">35%</option>
+                <option value="40">40%</option><option value="45">45%</option>
+                <option value="50">50%</option><option value="55">55%</option>
+                <option value="60">60%</option><option value="65">65%</option>
+                <option value="70">70%</option><option value="75">75%</option>
+                <option value="80">80%</option><option value="85">85%</option>
+                <option value="90">90%</option><option value="95">95%</option>
                 <option value="100" selected>100%</option>
               </select>
-              <button id="ctrl-apply" class="ve-btn ve-btn--primary ve-btn--sm">Apply</button>
-              <button id="ctrl-toggle" class="ve-btn ve-btn--sm">Enable</button>
+              <label class="ve-toggle">
+                <input type="checkbox" id="ctrl-toggle">
+                <span class="ve-toggle-track"></span>
+              </label>
+            </div>
+            <div id="ctrl-revert" class="ve-ctrl-revert" style="display:none">
+              Auto-revert in: <span id="ctrl-revert-time">5:00</span>
+            </div>
+            <div class="ve-override-log-section">
+              <button class="ve-override-log-toggle" id="override-log-toggle">
+                Log (<span id="override-log-count">0</span>)
+              </button>
+              <div id="override-log" class="ve-override-log ve-override-log--collapsed">
+                <div class="ve-text-dim">No events yet</div>
+              </div>
             </div>
           </div>
-          <div id="ctrl-revert" class="ve-ctrl-revert" style="display:none">
-            Auto-revert in: <span id="ctrl-revert-time">5:00</span>
-          </div>
-          <div class="ve-override-log-section">
-            <button class="ve-override-log-toggle" id="override-log-toggle">
-              Override Log (<span id="override-log-count">0</span> events)
-            </button>
-            <div id="override-log" class="ve-override-log ve-override-log--collapsed">
-              <div class="ve-text-dim">No events yet</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Key Info Row: Connection + Venus OS Control -->
-        <div class="ve-dashboard-info-row">
           <div class="ve-card" id="status-panel">
             <h2 class="ve-card-title">Connection</h2>
             <div class="ve-status-row">
@@ -221,18 +216,28 @@
           </div>
         </div>
 
-        <!-- Sparkline (compact) -->
-        <div class="ve-card ve-sparkline-card ve-sparkline-compact">
-          <h2 class="ve-card-title">Power History (60 min)</h2>
-          <svg id="sparkline-power" viewBox="0 0 600 50" preserveAspectRatio="none" class="ve-sparkline-svg"></svg>
-          <div class="ve-sparkline-labels">
-            <span class="ve-text-dim" id="sparkline-min">--</span>
-            <span class="ve-text-dim" id="sparkline-max">--</span>
+        <!-- Row 3: Sparkline + Performance -->
+        <div class="ve-dashboard-row3">
+          <div class="ve-card ve-sparkline-card ve-sparkline-compact">
+            <h2 class="ve-card-title">Power History (60 min)</h2>
+            <svg id="sparkline-power" viewBox="0 0 600 50" preserveAspectRatio="none" class="ve-sparkline-svg"></svg>
+            <div class="ve-sparkline-labels">
+              <span class="ve-text-dim" id="sparkline-min">--</span>
+              <span class="ve-text-dim" id="sparkline-max">--</span>
+            </div>
+          </div>
+          <div class="ve-card" id="peak-stats-panel">
+            <h2 class="ve-card-title">Today's Performance</h2>
+            <div class="ve-grid">
+              <div><label>Peak Power</label><span class="ve-live-value" id="peak-power">-- kW</span></div>
+              <div><label>Operating Hours</label><span class="ve-live-value" id="operating-hours">--</span></div>
+              <div><label>Efficiency</label><span class="ve-live-value" id="efficiency-pct">--%</span></div>
+            </div>
           </div>
         </div>
 
-        <!-- Bottom Row: Inverter + Performance + Health -->
-        <div class="ve-dashboard-bottom-row">
+        <!-- Row 4: Inverter + Health -->
+        <div class="ve-dashboard-row4">
           <div class="ve-card" id="inverter-status-panel">
             <h2 class="ve-card-title">Inverter Status</h2>
             <div class="ve-status-row">
@@ -245,14 +250,6 @@
               <div><label>DC Voltage</label><span class="ve-live-value" id="inv-dc-voltage">--</span></div>
               <div><label>DC Current</label><span class="ve-live-value" id="inv-dc-current">--</span></div>
               <div><label>DC Power</label><span class="ve-live-value" id="inv-dc-power">--</span></div>
-            </div>
-          </div>
-          <div class="ve-card" id="peak-stats-panel">
-            <h2 class="ve-card-title">Today's Performance</h2>
-            <div class="ve-grid">
-              <div><label>Peak Power</label><span class="ve-live-value" id="peak-power">-- kW</span></div>
-              <div><label>Operating Hours</label><span class="ve-live-value" id="operating-hours">--</span></div>
-              <div><label>Efficiency</label><span class="ve-live-value" id="efficiency-pct">--%</span></div>
             </div>
           </div>
           <div class="ve-card" id="health-panel">

@@ -881,14 +881,13 @@ async function applyPowerLimit(pct) {
     }
 }
 
-// --- Apply Button ---
+// --- Dropdown Change → Confirm & Apply ---
 
 (function() {
-    var applyBtn = document.getElementById('ctrl-apply');
     var dropdown = document.getElementById('ctrl-dropdown');
-    if (!applyBtn || !dropdown) return;
+    if (!dropdown) return;
 
-    applyBtn.addEventListener('click', function() {
+    dropdown.addEventListener('change', function() {
         var pct = parseInt(dropdown.value);
         var kw = (pct / 100 * RATED_KW).toFixed(1);
         showConfirmDialog(
@@ -902,13 +901,14 @@ async function applyPowerLimit(pct) {
 // --- Enable/Disable Toggle ---
 
 (function() {
-    var toggleBtn = document.getElementById('ctrl-toggle');
-    if (!toggleBtn) return;
+    var toggle = document.getElementById('ctrl-toggle');
+    if (!toggle) return;
 
-    toggleBtn.addEventListener('click', function() {
-        var isEnabled = lastControlState && lastControlState.enabled;
-        var action = isEnabled ? 'disable' : 'enable';
-        var label = isEnabled ? 'Disable' : 'Enable';
+    toggle.addEventListener('change', function() {
+        var action = toggle.checked ? 'enable' : 'disable';
+        var label = toggle.checked ? 'Enable' : 'Disable';
+        // Revert visual state until confirmed
+        toggle.checked = !toggle.checked;
         showConfirmDialog(
             '<strong>' + label + '</strong> power limiting?',
             async function() {
@@ -946,7 +946,6 @@ function updatePowerControl(data) {
     var label = document.getElementById('ctrl-label');
     var sourceBrief = document.getElementById('ctrl-source-brief');
     var dropdown = document.getElementById('ctrl-dropdown');
-    var applyBtn = document.getElementById('ctrl-apply');
     var toggleBtn = document.getElementById('ctrl-toggle');
     var revertDiv = document.getElementById('ctrl-revert');
     var revertTime = document.getElementById('ctrl-revert-time');
@@ -980,13 +979,12 @@ function updatePowerControl(data) {
         }
     }
 
-    // Disable dropdown and apply when Venus OS controls
+    // Disable dropdown when Venus OS controls
     if (dropdown) dropdown.disabled = isVenusOverride;
-    if (applyBtn) applyBtn.disabled = isVenusOverride;
 
     // Toggle button text
     if (toggleBtn) {
-        toggleBtn.textContent = enabled ? 'Disable' : 'Enable';
+        toggleBtn.checked = enabled;
         toggleBtn.disabled = isVenusOverride;
     }
 
