@@ -86,7 +86,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — Backend lock state + write path lock check + auto-unlock + snapshot extension + POST /api/venus-lock endpoint + tests
+- [x] 11-01-PLAN.md — Backend lock state + write path lock check + auto-unlock + snapshot extension + POST /api/venus-lock endpoint + tests
 - [ ] 11-02-PLAN.md — Frontend Venus OS widget card with connection status, override display, Apple-style lock toggle, confirmation dialog, countdown timer
 
 ### Phase 12: Unified Dashboard Layout
@@ -119,5 +119,5 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12
 | 8. Inverter Details & Polish | v2.0 | 1/1 | Complete | 2026-03-18 |
 | 9. CSS Animations & Toast System | 2/2 | Complete   | 2026-03-18 | - |
 | 10. Peak Statistics & Smart Notifications | 2/2 | Complete    | 2026-03-18 | - |
-| 11. Venus OS Widget & Lock Toggle | v2.1 | 0/2 | Not started | - |
+| 11. Venus OS Widget & Lock Toggle | v2.1 | 1/2 | In progress | - |
 | 12. Unified Dashboard Layout | v2.1 | 0/? | Not started | - |
