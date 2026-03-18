@@ -277,6 +277,13 @@ async def _poll_loop(
                         conn_mgr=conn_mgr, poll_counter=poll_counter,
                     )
 
+                # Broadcast latest snapshot to all WebSocket clients
+                if shared_ctx is not None and "webapp" in shared_ctx:
+                    from venus_os_fronius_proxy.webapp import broadcast_to_clients
+                    snapshot = shared_ctx["dashboard_collector"].last_snapshot
+                    if snapshot is not None:
+                        await broadcast_to_clients(shared_ctx["webapp"], snapshot)
+
                 # Restore power limit after reconnection from night mode
                 if conn_mgr.reconnected_from_night and control_state is not None and control_state.is_enabled:
                     try:

@@ -133,6 +133,7 @@ def main():
         if shared_ctx:
             config_path = args.config or DEFAULT_CONFIG_PATH
             runner = await create_webapp(shared_ctx, config, config_path, plugin)
+            shared_ctx["webapp"] = runner.app
             site = web.TCPSite(runner, "0.0.0.0", config.webapp.port)
             await site.start()
             log.info("webapp_started", port=config.webapp.port)

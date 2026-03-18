@@ -2,10 +2,13 @@
 
 Serves status, health, config, and register data endpoints.
 The register viewer provides side-by-side SE30K source and Fronius target values.
+WebSocket endpoint at /ws pushes live inverter snapshots to connected browsers.
 """
 from __future__ import annotations
 
+import json
 import time
+import weakref
 
 from aiohttp import web
 
@@ -377,6 +380,66 @@ async def static_handler(request: web.Request) -> web.Response:
         raise web.HTTPNotFound()
 
 
+async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+    """Handle WebSocket connections at /ws.
+
+    On connect: send latest snapshot + downsampled history.
+    Then keep connection open for broadcast pushes from poll loop.
+    """
+    ws = web.WebSocketResponse(heartbeat=30.0)
+    await ws.prepare(request)
+    request.app["ws_clients"].add(ws)
+
+    try:
+        collector = request.app["shared_ctx"].get("dashboard_collector")
+
+        # Send latest snapshot if available
+        if collector is not None and collector.last_snapshot is not None:
+            await ws.send_json({"type": "snapshot", "data": collector.last_snapshot})
+
+        # Send downsampled history for sparklines
+        if collector is not None:
+            mono_offset = time.time() - time.monotonic()
+            history: dict[str, list[list[float]]] = {}
+            for buf_key, buf in collector._buffers.items():
+                samples = buf.get_all()
+                if not samples:
+                    continue
+                # Downsample with step of 10
+                downsampled = samples[::10]
+                history[buf_key] = [
+                    [s.timestamp + mono_offset, s.value] for s in downsampled
+                ]
+            if history:
+                await ws.send_json({"type": "history", "data": history})
+
+        # Keep connection alive; read loop for future commands (Phase 7)
+        async for msg in ws:
+            if msg.type in (web.WSMsgType.ERROR, web.WSMsgType.CLOSE):
+                break
+    finally:
+        request.app["ws_clients"].discard(ws)
+
+    return ws
+
+
+async def broadcast_to_clients(app: web.Application, snapshot: dict) -> None:
+    """Push a snapshot to all connected WebSocket clients.
+
+    Dead/disconnected clients are silently removed.
+    """
+    clients = app.get("ws_clients")
+    if not clients:
+        return
+
+    payload = json.dumps({"type": "snapshot", "data": snapshot})
+    for ws in set(clients):
+        try:
+            await ws.send_str(payload)
+        except (ConnectionError, RuntimeError, ConnectionResetError):
+            clients.discard(ws)
+
+
 async def create_webapp(
     shared_ctx: dict,
     config: Config,
@@ -394,7 +457,9 @@ async def create_webapp(
     app["plugin"] = plugin
     app["start_time"] = time.monotonic()
     app["reconfiguring"] = False
+    app["ws_clients"] = weakref.WeakSet()
 
+    app.router.add_get("/ws", ws_handler)
     app.router.add_get("/", index_handler)
     app.router.add_get("/api/status", status_handler)
     app.router.add_get("/api/health", health_handler)
