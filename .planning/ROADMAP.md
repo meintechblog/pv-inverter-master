@@ -68,11 +68,11 @@ Plans:
   2. A toast appears when Venus OS overrides the power limit, showing the override value
   3. A toast appears when the inverter reports a fault or temperature warning
   4. A toast appears when the inverter transitions to/from night mode (sleep/wake)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
-- [ ] 10-02: TBD
+- [ ] 10-01-PLAN.md — Peak stats backend + UI: DashboardCollector tracking (peak power, operating hours, efficiency), stats card in dashboard, tests
+- [ ] 10-02-PLAN.md — Smart notifications: snapshot-diff event detection for Venus OS override, inverter fault, temperature warning, night mode transitions
 
 ### Phase 11: Venus OS Widget & Lock Toggle
 **Goal**: Users can see Venus OS connection status and control whether Venus OS is allowed to override power limits
@@ -118,6 +118,6 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12
 | 7. Power Control | v2.0 | 2/2 | Complete | 2026-03-18 |
 | 8. Inverter Details & Polish | v2.0 | 1/1 | Complete | 2026-03-18 |
 | 9. CSS Animations & Toast System | 2/2 | Complete   | 2026-03-18 | - |
-| 10. Peak Statistics & Smart Notifications | v2.1 | 0/? | Not started | - |
+| 10. Peak Statistics & Smart Notifications | v2.1 | 0/2 | Not started | - |
 | 11. Venus OS Widget & Lock Toggle | v2.1 | 0/? | Not started | - |
 | 12. Unified Dashboard Layout | v2.1 | 0/? | Not started | - |
