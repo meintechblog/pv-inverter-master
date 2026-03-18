@@ -14,13 +14,13 @@
 ### Modbus Proxy Core
 
 - [ ] **PROXY-01**: Modbus TCP Server laeuft und akzeptiert Verbindungen von Venus OS
-- [ ] **PROXY-02**: SunSpec Common Model (Model 1) korrekt bereitgestellt mit Fronius-Manufacturer-String
+- [x] **PROXY-02**: SunSpec Common Model (Model 1) korrekt bereitgestellt mit Fronius-Manufacturer-String
 - [ ] **PROXY-03**: SunSpec Inverter Model 103 (three-phase) korrekt bereitgestellt mit Live-Daten vom SE30K
-- [ ] **PROXY-04**: SunSpec Nameplate Model (Model 120) korrekt bereitgestellt
-- [ ] **PROXY-05**: SunSpec Model Chain korrekt aufgebaut (Header -> Common -> Inverter -> Nameplate -> End)
+- [x] **PROXY-04**: SunSpec Nameplate Model (Model 120) korrekt bereitgestellt
+- [x] **PROXY-05**: SunSpec Model Chain korrekt aufgebaut (Header -> Common -> Inverter -> Nameplate -> End)
 - [ ] **PROXY-06**: SolarEdge Register werden per Modbus TCP Client async gepollt
-- [ ] **PROXY-07**: Venus OS wird aus Register-Cache bedient (nicht synchron durch-proxied)
-- [ ] **PROXY-08**: Scale Factors korrekt uebersetzt zwischen SolarEdge und Fronius SunSpec-Profil
+- [x] **PROXY-07**: Venus OS wird aus Register-Cache bedient (nicht synchron durch-proxied)
+- [x] **PROXY-08**: Scale Factors korrekt uebersetzt zwischen SolarEdge und Fronius SunSpec-Profil
 - [ ] **PROXY-09**: Venus OS erkennt und zeigt den Proxy als Fronius Inverter an
 
 ### Steuerung (Control Path)
@@ -46,8 +46,8 @@
 
 ### Architektur
 
-- [ ] **ARCH-01**: Plugin-Interface definiert fuer Inverter-Marken (SolarEdge als erstes Plugin)
-- [ ] **ARCH-02**: Register-Mapping als austauschbares Modul (nicht hardcoded)
+- [x] **ARCH-01**: Plugin-Interface definiert fuer Inverter-Marken (SolarEdge als erstes Plugin)
+- [x] **ARCH-02**: Register-Mapping als austauschbares Modul (nicht hardcoded)
 
 ## v2 Requirements
 
@@ -85,13 +85,13 @@
 | PROTO-02 | Phase 1 | Complete |
 | PROTO-03 | Phase 1 | Complete |
 | PROXY-01 | Phase 2 | Pending |
-| PROXY-02 | Phase 2 | Pending |
+| PROXY-02 | Phase 2 | Complete |
 | PROXY-03 | Phase 2 | Pending |
-| PROXY-04 | Phase 2 | Pending |
-| PROXY-05 | Phase 2 | Pending |
+| PROXY-04 | Phase 2 | Complete |
+| PROXY-05 | Phase 2 | Complete |
 | PROXY-06 | Phase 2 | Pending |
-| PROXY-07 | Phase 2 | Pending |
-| PROXY-08 | Phase 2 | Pending |
+| PROXY-07 | Phase 2 | Complete |
+| PROXY-08 | Phase 2 | Complete |
 | PROXY-09 | Phase 2 | Pending |
 | CTRL-01 | Phase 3 | Pending |
 | CTRL-02 | Phase 3 | Pending |
@@ -105,8 +105,8 @@
 | DEPL-02 | Phase 3 | Pending |
 | DEPL-03 | Phase 3 | Pending |
 | DEPL-04 | Phase 3 | Pending |
-| ARCH-01 | Phase 2 | Pending |
-| ARCH-02 | Phase 2 | Pending |
+| ARCH-01 | Phase 2 | Complete |
+| ARCH-02 | Phase 2 | Complete |
 
 **Coverage:**
 - v1 requirements: 26 total
