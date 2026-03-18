@@ -43,12 +43,11 @@ Plans:
   3. The proxy serves a valid SunSpec model chain (Common -> Inverter 103 -> Nameplate 120 -> End) with correct Fronius manufacturer string
   4. SolarEdge registers are polled asynchronously and Venus OS reads from a local cache (not pass-through)
   5. The inverter-brand-specific code is isolated behind a plugin interface that can be swapped for other brands
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — Plugin interface, SunSpec model chain builder, register cache with staleness tracking
+- [ ] 02-02-PLAN.md — SolarEdge plugin, proxy server orchestration, integration tests
 
 ### Phase 3: Control Path & Production Hardening
 **Goal**: Venus OS can throttle the SolarEdge inverter's power output and the proxy runs reliably as a system service
@@ -89,6 +88,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Protocol Research & Validation | 0/2 | Planning complete | - |
-| 2. Core Proxy (Read Path) | 0/? | Not started | - |
+| 2. Core Proxy (Read Path) | 0/2 | Planning complete | - |
 | 3. Control Path & Production Hardening | 0/? | Not started | - |
 | 4. Configuration Webapp | 0/? | Not started | - |
