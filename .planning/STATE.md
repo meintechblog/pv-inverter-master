@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Dashboard & Power Control
-status: in-progress
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-18T16:16:00Z"
-last_activity: 2026-03-18 -- Completed 06-01 WebSocket push infrastructure
+status: completed
+stopped_at: Completed 06-02-PLAN.md (Task 2 checkpoint pending)
+last_updated: "2026-03-18T16:22:04.691Z"
+last_activity: 2026-03-18 -- Completed 06-02 live dashboard frontend
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-18)
 
 ## Current Position
 
-Phase: 6 of 8 (Live Dashboard) - IN PROGRESS
-Plan: 1 of 2 in current phase (Plan 01 complete)
-Status: 06-01 complete, ready for 06-02
-Last activity: 2026-03-18 -- Completed 06-01 WebSocket push infrastructure
+Phase: 6 of 8 (Live Dashboard) - COMPLETE
+Plan: 2 of 2 in current phase (all plans complete)
+Status: Phase 6 complete, ready for Phase 7
+Last activity: 2026-03-18 -- Completed 06-02 live dashboard frontend
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [████████░░] 75%
 | 05    | 01   | 4min     | 2     | 7     |
 | Phase 05 P02 | 3min | 2 tasks | 4 files |
 | 06    | 01   | 2min     | 2     | 4     |
+| Phase 06 P02 | 3min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Late import of broadcast_to_clients in proxy.py (same circular-import avoidance pattern)
 - [Phase 06]: Downsample history with [::10] step for sparklines
 - [Phase 06]: Send all 6 buffer keys in history for future widgets
+- [Phase 06]: Compute per-phase power client-side (V*I) to keep snapshot lean
+- [Phase 06]: Reduce fallback polling to 10s; WebSocket provides live data
+- [Phase 06]: Register polling conditional on page being active
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:16:00Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-18T16:22:04.685Z
+Stopped at: Completed 06-02-PLAN.md (Task 2 checkpoint pending)
 Resume file: None

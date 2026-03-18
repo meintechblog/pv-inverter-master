@@ -10,11 +10,11 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 ### Dashboard (DASH)
 
 - [x] **DASH-01**: Venus OS themed UI (exakte Farben #387DC5/#141414, Fonts, Widget-Style)
-- [ ] **DASH-02**: Live Power Gauge — zentrale Anzeige aktuelle Leistung vs 30kW Nennleistung
-- [ ] **DASH-03**: 3-Phasen Detail — L1/L2/L3 Strom, Spannung, Leistung einzeln
+- [x] **DASH-02**: Live Power Gauge — zentrale Anzeige aktuelle Leistung vs 30kW Nennleistung
+- [x] **DASH-03**: 3-Phasen Detail — L1/L2/L3 Strom, Spannung, Leistung einzeln
 - [ ] **DASH-04**: Inverter Status Panel — Operating/Sleeping/Throttled/Fault, Temperatur, DC Werte
 - [ ] **DASH-05**: Tagesertrag Anzeige — heutiger Ertrag in kWh (in-memory, reset bei Restart)
-- [ ] **DASH-06**: Mini-Sparklines — Leistungsverlauf letzte 60 Minuten (SVG, in-memory Ring Buffer)
+- [x] **DASH-06**: Mini-Sparklines — Leistungsverlauf letzte 60 Minuten (SVG, in-memory Ring Buffer)
 
 ### Power Control (CTRL)
 
@@ -32,7 +32,7 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 - [x] **INFRA-02**: DashboardCollector — decoded Inverter-Daten einmal pro Poll-Cycle
 - [x] **INFRA-03**: TimeSeriesBuffer — 60-min Ring Buffer für Sparklines (collections.deque)
 - [x] **INFRA-04**: 3-File Split — index.html + style.css + app.js (statt single-file)
-- [ ] **INFRA-05**: Config + Register Viewer integriert ins neue Dashboard (Tabs/Sections)
+- [x] **INFRA-05**: Config + Register Viewer integriert ins neue Dashboard (Tabs/Sections)
 
 ## Future Requirements
 
@@ -67,11 +67,11 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DASH-01 | Phase 5 | Complete |
-| DASH-02 | Phase 6 | Pending |
-| DASH-03 | Phase 6 | Pending |
+| DASH-02 | Phase 6 | Complete |
+| DASH-03 | Phase 6 | Complete |
 | DASH-04 | Phase 8 | Pending |
 | DASH-05 | Phase 8 | Pending |
-| DASH-06 | Phase 6 | Pending |
+| DASH-06 | Phase 6 | Complete |
 | CTRL-04 | Phase 7 | Pending |
 | CTRL-05 | Phase 7 | Pending |
 | CTRL-06 | Phase 7 | Pending |
@@ -83,7 +83,7 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 | INFRA-02 | Phase 5 | Complete |
 | INFRA-03 | Phase 5 | Complete |
 | INFRA-04 | Phase 5 | Complete |
-| INFRA-05 | Phase 6 | Pending |
+| INFRA-05 | Phase 6 | Complete |
 
 **Coverage:**
 - v2 requirements: 18 total
