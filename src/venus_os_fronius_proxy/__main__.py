@@ -13,11 +13,13 @@ import sys
 import time
 
 import structlog
+from aiohttp import web
 
-from venus_os_fronius_proxy.config import load_config
+from venus_os_fronius_proxy.config import load_config, DEFAULT_CONFIG_PATH
 from venus_os_fronius_proxy.logging_config import configure_logging
 from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
 from venus_os_fronius_proxy.proxy import run_proxy
+from venus_os_fronius_proxy.webapp import create_webapp
 
 
 HEARTBEAT_INTERVAL = 300  # 5 minutes
@@ -122,6 +124,15 @@ def main():
                 break
             await asyncio.sleep(0.01)
 
+        # Start webapp alongside proxy
+        runner = None
+        if shared_ctx:
+            config_path = args.config or DEFAULT_CONFIG_PATH
+            runner = await create_webapp(shared_ctx, config, config_path, plugin)
+            site = web.TCPSite(runner, "0.0.0.0", config.webapp.port)
+            await site.start()
+            log.info("webapp_started", port=config.webapp.port)
+
         # Start health heartbeat task
         heartbeat_task = None
         if shared_ctx:
@@ -146,6 +157,11 @@ def main():
                 await heartbeat_task
             except asyncio.CancelledError:
                 pass
+
+        # Stop webapp
+        if runner is not None:
+            await runner.cleanup()
+            log.info("webapp_stopped")
 
         # Reset power limit to 100% (no limit) before stopping
         try:

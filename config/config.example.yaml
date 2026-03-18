@@ -18,5 +18,9 @@ proxy:
 night_mode:
   threshold_seconds: 300.0  # Seconds of failure before entering night mode (5 min)
 
+# Webapp settings
+webapp:
+  port: 80  # HTTP port for web interface
+
 # Logging
 log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
