@@ -38,24 +38,22 @@ created: 2026-03-18
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | ARCH-01, ARCH-02 | unit | `python -m pytest tests/test_plugin.py -v` | ❌ W0 | ⬜ pending |
-| 02-01-02 | 01 | 1 | PROXY-06, PROXY-07 | unit | `python -m pytest tests/test_poller.py -v` | ❌ W0 | ⬜ pending |
-| 02-02-01 | 02 | 2 | PROXY-01, PROXY-05, PROXY-08 | unit | `python -m pytest tests/test_server.py -v` | ❌ W0 | ⬜ pending |
-| 02-02-02 | 02 | 2 | PROXY-02, PROXY-03, PROXY-04 | unit | `python -m pytest tests/test_translation.py -v` | ❌ W0 | ⬜ pending |
-| 02-03-01 | 03 | 3 | PROXY-09 | integration | `python -m pytest tests/test_integration.py -v` | ❌ W0 | ⬜ pending |
+| 02-01-02 | 01 | 1 | PROXY-04, PROXY-05, PROXY-07, PROXY-08 | unit | `python -m pytest tests/test_sunspec_models.py -v` | tests/test_sunspec_models.py | pending |
+| 02-01-03 | 01 | 1 | ARCH-01, ARCH-02 | unit | `python -m pytest tests/test_register_cache.py -v` | tests/test_register_cache.py | pending |
+| 02-02-01 | 02 | 2 | PROXY-03, PROXY-06 | unit | `python -m pytest tests/test_solaredge_plugin.py -v` | tests/test_solaredge_plugin.py | pending |
+| 02-02-02 | 02 | 2 | PROXY-01, PROXY-09 | integration | `python -m pytest tests/test_proxy.py -v --timeout=30` | tests/test_proxy.py | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_plugin.py` — stubs for ARCH-01, ARCH-02 (plugin interface)
-- [ ] `tests/test_poller.py` — stubs for PROXY-06, PROXY-07 (polling and cache)
-- [ ] `tests/test_server.py` — stubs for PROXY-01, PROXY-05, PROXY-08 (Modbus server, model chain, scale factors)
-- [ ] `tests/test_translation.py` — stubs for PROXY-02, PROXY-03, PROXY-04 (register translation)
-- [ ] `tests/test_integration.py` — stubs for PROXY-09 (end-to-end discovery)
-- [ ] `tests/conftest.py` — shared fixtures (mock SE30K registers, test cache)
+- [ ] `tests/test_sunspec_models.py` — tests for SunSpec model chain builder (build_initial_registers, encode_string, apply_common_translation)
+- [ ] `tests/test_register_cache.py` — tests for cache staleness tracking (starts stale, update resets, configurable timeout)
+- [ ] `tests/test_solaredge_plugin.py` — tests for SolarEdge plugin (interface, polling, overrides, model 120)
+- [ ] `tests/test_proxy.py` — integration tests for proxy server (connection, discovery flow, cache serving, staleness errors, unit ID filtering)
+- [ ] `tests/conftest.py` — shared fixtures (mock SE30K registers, test cache) if needed
 
 *Existing infrastructure: pytest already configured, 27 register mapping tests passing.*
 
