@@ -99,6 +99,9 @@ class ControlState:
         self.last_source: str = "none"              # "none" | "venus_os" | "webapp"
         self.last_change_ts: float = 0.0            # time.time() of last change
         self.webapp_revert_at: float | None = None  # monotonic deadline for auto-revert
+        # Phase 11: Venus OS lock state
+        self.is_locked: bool = False
+        self.lock_expires_at: float | None = None   # time.monotonic() deadline
 
     @property
     def is_enabled(self) -> bool:
@@ -144,6 +147,42 @@ class ControlState:
         self.last_source = "venus_os"
         self.last_change_ts = time.time()
         self.webapp_revert_at = None  # Cancel any webapp revert timer
+
+    def lock(self, duration_s: float = 900.0) -> None:
+        """Lock Venus OS power control writes for duration_s (max 900s).
+
+        HARD CAP: duration is capped at 900s (15 minutes) regardless of input.
+        """
+        duration_s = min(duration_s, 900.0)
+        self.is_locked = True
+        self.lock_expires_at = time.monotonic() + duration_s
+
+    def unlock(self) -> None:
+        """Unlock Venus OS power control writes."""
+        self.is_locked = False
+        self.lock_expires_at = None
+
+    def check_lock_expiry(self) -> bool:
+        """Check if lock has expired; auto-unlock if so.
+
+        Returns:
+            True if lock was expired and cleared, False otherwise.
+        """
+        if (
+            self.is_locked
+            and self.lock_expires_at is not None
+            and time.monotonic() >= self.lock_expires_at
+        ):
+            self.unlock()
+            return True
+        return False
+
+    @property
+    def lock_remaining_s(self) -> float | None:
+        """Seconds remaining on lock, or None if not locked."""
+        if self.is_locked and self.lock_expires_at is not None:
+            return max(0.0, self.lock_expires_at - time.monotonic())
+        return None
 
     def is_model_123_address(self, address: int, count: int) -> bool:
         """Check if an address range overlaps Model 123 registers.
@@ -203,6 +242,12 @@ async def edpc_refresh_loop(
     """
     while True:
         await asyncio.sleep(interval)
+
+        # Phase 11: check lock expiry before other checks
+        if control_state.check_lock_expiry():
+            override_log.append("system", "unlock", None, "auto-unlock after timeout")
+            if broadcast_fn is not None:
+                await broadcast_fn()
 
         if not control_state.is_enabled or control_state.last_source == "none":
             continue

@@ -146,6 +146,15 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
 
             self._control.update_wmaxlimpct(values[0])
 
+            if self._control.is_locked:
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlimpct=values[0], result="locked",
+                    detail="Venus OS write accepted, not forwarded to inverter",
+                )
+                self._update_model_123_readback()
+                return
+
             if self._control.is_enabled:
                 result = await self._plugin.write_power_limit(
                     True, self._control.wmaxlimpct_float,
@@ -194,6 +203,15 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
                 )
 
             self._control.update_wmaxlim_ena(ena_value)
+
+            if self._control.is_locked:
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlim_ena=ena_value, result="locked",
+                    detail="Venus OS write accepted, not forwarded to inverter",
+                )
+                self._update_model_123_readback()
+                return
 
             result = await self._plugin.write_power_limit(
                 self._control.is_enabled, self._control.wmaxlimpct_float,

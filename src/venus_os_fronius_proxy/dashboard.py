@@ -186,6 +186,16 @@ class DashboardCollector:
                 "revert_remaining_s": _revert_remaining(control_state),
             }
 
+        # Build venus_os section (Phase 11: lock state)
+        venus_os: dict = {}
+        if control_state is not None:
+            venus_os = {
+                "last_source": getattr(control_state, "last_source", "none"),
+                "last_change_ts": getattr(control_state, "last_change_ts", 0.0),
+                "is_locked": getattr(control_state, "is_locked", False),
+                "lock_remaining_s": getattr(control_state, "lock_remaining_s", None),
+            }
+
         # Build connection section
         connection: dict = {
             "state": conn_mgr.state.value if conn_mgr is not None else "unknown",
@@ -198,6 +208,7 @@ class DashboardCollector:
             "ts": time.time(),
             "inverter": inverter,
             "control": control,
+            "venus_os": venus_os,
             "connection": connection,
             "override_log": override_log.get_all() if override_log else [],
         }

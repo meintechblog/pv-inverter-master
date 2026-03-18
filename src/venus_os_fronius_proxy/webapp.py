@@ -526,6 +526,41 @@ async def power_limit_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": result.success, "error": result.error})
 
 
+async def venus_lock_handler(request: web.Request) -> web.Response:
+    """Handle Venus OS lock toggle commands.
+
+    Actions: "lock" (lock for 15 min), "unlock" (unlock immediately).
+    Returns 400 on invalid JSON or unknown action.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response(
+            {"success": False, "error": "Invalid JSON body"}, status=400,
+        )
+
+    action = body.get("action")
+    if action not in ("lock", "unlock"):
+        return web.json_response(
+            {"success": False, "error": f"Unknown action: {action}"}, status=400,
+        )
+
+    shared_ctx = request.app["shared_ctx"]
+    control = shared_ctx["control_state"]
+    override_log = shared_ctx.get("override_log")
+
+    if action == "lock":
+        control.lock(duration_s=900.0)
+        if override_log is not None:
+            override_log.append("webapp", "lock", None, "Venus OS writes blocked")
+    else:
+        control.unlock()
+        if override_log is not None:
+            override_log.append("webapp", "unlock", None, "Venus OS writes unblocked")
+
+    return web.json_response({"success": True})
+
+
 async def create_webapp(
     shared_ctx: dict,
     config: Config,
@@ -555,6 +590,7 @@ async def create_webapp(
     app.router.add_get("/api/registers", registers_handler)
     app.router.add_get("/api/dashboard", dashboard_handler)
     app.router.add_post("/api/power-limit", power_limit_handler)
+    app.router.add_post("/api/venus-lock", venus_lock_handler)
     app.router.add_get("/static/{filename}", static_handler)
 
     runner = web.AppRunner(app)
