@@ -216,3 +216,62 @@ def test_collect_with_connection_info():
     assert snapshot["connection"]["poll_total"] == 4530
     assert snapshot["connection"]["state"] == "connected"
     assert snapshot["connection"]["cache_stale"] == cache.is_stale
+
+
+# --- Daily energy tests ---
+
+def _zero_sf_overrides():
+    """Common scale-factor overrides setting all SFs to 0."""
+    return {
+        40075: 0, 40082: 0, 40084: 0, 40086: 0,
+        40088: 0, 40090: 0, 40092: 0,
+        40097: 0, 40099: 0, 40101: 0, 40106: 0,
+        40107: 4,  # Status = MPPT
+    }
+
+
+def test_daily_energy_first_collect_zero():
+    """First collect() with energy > 0 sets baseline; daily_energy_wh == 0."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 1000000]  # energy_total_wh = 1000000
+    overrides[40095] = 0  # Energy SF
+
+    cache = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache)
+    inv = snapshot["inverter"]
+
+    assert "daily_energy_wh" in inv
+    assert inv["daily_energy_wh"] == 0
+
+
+def test_daily_energy_delta():
+    """Second collect() returns delta from baseline as daily_energy_wh."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40095] = 0
+
+    # First collect: baseline
+    overrides[40093] = [0, 1000000]
+    cache1 = _make_cache_with_values(overrides)
+    collector.collect(cache1)
+
+    # Second collect: energy increased by 5000
+    overrides[40093] = [0, 1005000]
+    cache2 = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache2)
+
+    assert snapshot["inverter"]["daily_energy_wh"] == 5000
+
+
+def test_daily_energy_reset_new_instance():
+    """New DashboardCollector instance starts with daily_energy_wh == 0."""
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 5000000]
+    overrides[40095] = 0
+
+    collector = DashboardCollector()
+    cache = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache)
+
+    assert snapshot["inverter"]["daily_energy_wh"] == 0

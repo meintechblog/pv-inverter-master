@@ -144,6 +144,10 @@ class DashboardCollector:
         if self._energy_at_start is None and energy_wh > 0:
             self._energy_at_start = energy_wh
 
+        # Compute daily energy delta from startup baseline
+        daily_wh = energy_wh - self._energy_at_start if self._energy_at_start is not None else 0
+        inverter["daily_energy_wh"] = max(0, daily_wh)
+
         # Build control section
         control: dict = {}
         if control_state is not None:
