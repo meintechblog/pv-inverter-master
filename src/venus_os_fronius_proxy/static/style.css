@@ -544,3 +544,140 @@ body {
         font-size: 0.75em;
     }
 }
+
+/* ===== Dashboard Grid ===== */
+.ve-dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.ve-dashboard-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.ve-card-title {
+    font-size: 0.85rem;
+    color: var(--ve-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+}
+
+/* Gauge Card */
+.ve-gauge-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem;
+}
+
+.ve-gauge-svg {
+    width: 100%;
+    max-width: 280px;
+}
+
+#gauge-fill {
+    transition: stroke-dashoffset 0.8s ease-out, stroke 0.5s ease;
+}
+
+/* Phase Cards */
+.ve-phase-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem 1rem;
+    text-align: center;
+}
+
+.ve-phase-label {
+    font-size: 0.9rem;
+    color: var(--ve-blue-light);
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.ve-phase-voltage {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--ve-text);
+    margin-bottom: 0.25rem;
+}
+
+.ve-phase-current {
+    font-size: 1.1rem;
+    color: var(--ve-text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.ve-phase-power {
+    font-size: 1rem;
+    color: var(--ve-text-dim);
+}
+
+/* Live value animation */
+.ve-live-value {
+    font-family: var(--ve-mono);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s ease;
+}
+
+.ve-value-flash {
+    color: var(--ve-blue-light) !important;
+}
+
+/* Sparkline Card */
+.ve-sparkline-card {
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.ve-sparkline-svg {
+    width: 100%;
+    height: 80px;
+}
+
+.ve-sparkline-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* Responsive: Dashboard Grid - Tablet */
+@media (max-width: 1024px) {
+    .ve-dashboard-grid {
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+    .ve-gauge-card {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Responsive: Dashboard Grid - Mobile */
+@media (max-width: 768px) {
+    .ve-dashboard-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+    .ve-gauge-card {
+        grid-column: 1 / -1;
+    }
+    .ve-dashboard-bottom {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .ve-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .ve-phase-card {
+        flex-direction: row;
+        justify-content: space-between;
+        text-align: left;
+    }
+}

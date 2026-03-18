@@ -79,30 +79,84 @@
 
       <!-- Dashboard Page -->
       <div id="page-dashboard" class="page active">
-        <div class="ve-panel">
-          <h2>Dashboard</h2>
-          <p class="ve-text-dim">Live data widgets coming in Phase 6. Connection status and health metrics below.</p>
+        <!-- Row 1: Power Gauge (hero) + Phase Cards -->
+        <div class="ve-dashboard-grid">
+          <div class="ve-card ve-gauge-card">
+            <h2 class="ve-card-title">Power Output</h2>
+            <svg id="power-gauge" viewBox="0 0 200 130" class="ve-gauge-svg">
+              <!-- Background arc (semicircle r=80, center 100,100) -->
+              <path d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none" stroke="var(--ve-border)" stroke-width="12" stroke-linecap="round"/>
+              <!-- Value arc -->
+              <path id="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none" stroke="var(--ve-blue)" stroke-width="12" stroke-linecap="round"
+                    stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+              <!-- Center value -->
+              <text x="100" y="82" text-anchor="middle" fill="var(--ve-text)"
+                    font-size="32" font-weight="700" id="gauge-value">--</text>
+              <text x="100" y="100" text-anchor="middle" fill="var(--ve-text-dim)"
+                    font-size="11">kW / 30 kW</text>
+              <!-- Status text -->
+              <text x="100" y="122" text-anchor="middle" fill="var(--ve-text-dim)"
+                    font-size="11" id="gauge-status">--</text>
+            </svg>
+          </div>
+
+          <div class="ve-card ve-phase-card" id="phase-l1">
+            <h3 class="ve-phase-label">L1</h3>
+            <div class="ve-phase-voltage ve-live-value" id="l1-voltage">-- V</div>
+            <div class="ve-phase-current ve-live-value" id="l1-current">-- A</div>
+            <div class="ve-phase-power ve-live-value" id="l1-power">-- W</div>
+          </div>
+          <div class="ve-card ve-phase-card" id="phase-l2">
+            <h3 class="ve-phase-label">L2</h3>
+            <div class="ve-phase-voltage ve-live-value" id="l2-voltage">-- V</div>
+            <div class="ve-phase-current ve-live-value" id="l2-current">-- A</div>
+            <div class="ve-phase-power ve-live-value" id="l2-power">-- W</div>
+          </div>
+          <div class="ve-card ve-phase-card" id="phase-l3">
+            <h3 class="ve-phase-label">L3</h3>
+            <div class="ve-phase-voltage ve-live-value" id="l3-voltage">-- V</div>
+            <div class="ve-phase-current ve-live-value" id="l3-current">-- A</div>
+            <div class="ve-phase-power ve-live-value" id="l3-power">-- W</div>
+          </div>
         </div>
 
-        <div class="ve-panel" id="status-panel">
-          <h2>Connection Status</h2>
-          <div class="ve-status-row">
-            <span class="ve-dot" id="se-dot-detail"></span>
-            <span id="se-label">SolarEdge: --</span>
-          </div>
-          <div class="ve-status-row">
-            <span class="ve-dot" id="vos-dot-detail"></span>
-            <span id="vos-label">Venus OS: --</span>
+        <!-- Row 2: Sparkline -->
+        <div class="ve-card ve-sparkline-card">
+          <h2 class="ve-card-title">Power History (60 min)</h2>
+          <svg id="sparkline-power" viewBox="0 0 600 80" preserveAspectRatio="none" class="ve-sparkline-svg"></svg>
+          <div class="ve-sparkline-labels">
+            <span class="ve-text-dim" id="sparkline-min">--</span>
+            <span class="ve-text-dim" id="sparkline-max">--</span>
           </div>
         </div>
 
-        <div class="ve-panel" id="health-panel">
-          <h2>Service Health</h2>
-          <div class="ve-grid">
-            <div><label>Uptime</label><span id="uptime">--</span></div>
-            <div><label>Poll Success Rate</label><span id="poll-rate">--</span></div>
-            <div><label>Last Poll</label><span id="last-poll">--</span></div>
-            <div><label>Cache</label><span id="cache-status">--</span></div>
+        <!-- Row 3: Connection Status + Health -->
+        <div class="ve-dashboard-bottom">
+          <div class="ve-card" id="status-panel">
+            <h2 class="ve-card-title">Connection</h2>
+            <div class="ve-status-row">
+              <span class="ve-dot" id="se-dot-detail"></span>
+              <span id="se-label">SolarEdge: --</span>
+            </div>
+            <div class="ve-status-row">
+              <span class="ve-dot" id="vos-dot-detail"></span>
+              <span id="vos-label">Venus OS: --</span>
+            </div>
+            <div class="ve-status-row">
+              <span class="ve-dot" id="ws-dot"></span>
+              <span id="ws-label">WebSocket: --</span>
+            </div>
+          </div>
+          <div class="ve-card" id="health-panel">
+            <h2 class="ve-card-title">Service Health</h2>
+            <div class="ve-grid">
+              <div><label>Uptime</label><span id="uptime">--</span></div>
+              <div><label>Poll Rate</label><span id="poll-rate">--</span></div>
+              <div><label>Last Poll</label><span id="last-poll">--</span></div>
+              <div><label>Cache</label><span id="cache-status">--</span></div>
+            </div>
           </div>
         </div>
       </div>

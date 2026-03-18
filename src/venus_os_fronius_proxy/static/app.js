@@ -1,8 +1,11 @@
 /* Venus OS Fronius Proxy - Frontend Application
-   Navigation, polling, config form, register viewer */
+   Navigation, WebSocket live dashboard, config form, register viewer */
 
-const POLL_INTERVAL = 2000;
+const POLL_INTERVAL = 10000; // Fallback polling interval (WebSocket provides live data)
 let previousRegValues = {};
+let ws = null;
+let sparklineData = [];
+const CAPACITY_W = 30000;
 
 // ===== Navigation =====
 
@@ -40,7 +43,250 @@ if (sidebarOverlay) {
     });
 }
 
-// ===== Status Polling =====
+// ===== WebSocket Connection =====
+
+function connectWebSocket() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(protocol + '//' + location.host + '/ws');
+    let reconnectDelay = 1000;
+
+    ws.onopen = function() {
+        reconnectDelay = 1000;
+        updateConnectionIndicator('connected');
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'snapshot') handleSnapshot(msg.data);
+            if (msg.type === 'history') handleHistory(msg.data);
+        } catch (e) {
+            console.error('WebSocket message parse error:', e);
+        }
+    };
+
+    ws.onclose = function() {
+        updateConnectionIndicator('disconnected');
+        setTimeout(function() {
+            reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+            connectWebSocket();
+        }, reconnectDelay);
+    };
+
+    ws.onerror = function() {
+        ws.close();
+    };
+
+    return ws;
+}
+
+// ===== Snapshot Handler =====
+
+function handleSnapshot(data) {
+    const inv = data.inverter;
+    if (!inv) return;
+
+    // Update gauge
+    updateGauge(inv.ac_power_w || 0);
+    updateGaugeStatus(inv.status || '--');
+
+    // Update phase cards
+    updatePhaseCard('l1', inv.ac_voltage_an_v, inv.ac_current_l1_a);
+    updatePhaseCard('l2', inv.ac_voltage_bn_v, inv.ac_current_l2_a);
+    updatePhaseCard('l3', inv.ac_voltage_cn_v, inv.ac_current_l3_a);
+
+    // Append to sparkline data
+    sparklineData.push(inv.ac_power_w || 0);
+    if (sparklineData.length > 3600) sparklineData.shift();
+    renderSparkline();
+
+    // Update connection/health from snapshot data
+    if (data.connection) {
+        updateConnectionStatus(data.connection);
+    }
+
+    // Update top-bar dots from connection state
+    if (data.connection && data.connection.state) {
+        const seDot = document.getElementById('se-dot');
+        const seDotDetail = document.getElementById('se-dot-detail');
+        const seLabel = document.getElementById('se-label');
+        if (data.connection.state === 'connected') {
+            if (seDot) seDot.className = 've-dot ve-dot--ok';
+            if (seDotDetail) seDotDetail.className = 've-dot ve-dot--ok';
+            if (seLabel) seLabel.textContent = 'SolarEdge: Connected';
+        } else {
+            if (seDot) seDot.className = 've-dot ve-dot--err';
+            if (seDotDetail) seDotDetail.className = 've-dot ve-dot--err';
+            if (seLabel) seLabel.textContent = 'SolarEdge: ' + data.connection.state;
+        }
+    }
+}
+
+// ===== History Handler =====
+
+function handleHistory(data) {
+    if (data.ac_power_w && Array.isArray(data.ac_power_w)) {
+        sparklineData = data.ac_power_w.map(function(p) { return p[1]; });
+        renderSparkline();
+    }
+}
+
+// ===== Gauge Update =====
+
+function updateGauge(powerW) {
+    var pct = Math.min(powerW / CAPACITY_W, 1.0);
+    var arcLength = 251.3;
+    var offset = arcLength * (1 - pct);
+
+    var gaugeFill = document.getElementById('gauge-fill');
+    var gaugeValue = document.getElementById('gauge-value');
+
+    if (gaugeFill) {
+        gaugeFill.style.strokeDashoffset = offset;
+        // Color: green < 50%, orange 50-80%, red > 80%
+        var color = pct < 0.5 ? 'var(--ve-green)' : pct < 0.8 ? 'var(--ve-orange)' : 'var(--ve-red)';
+        gaugeFill.style.stroke = color;
+    }
+
+    if (gaugeValue) {
+        gaugeValue.textContent = (powerW / 1000).toFixed(1);
+    }
+}
+
+// ===== Gauge Status =====
+
+function updateGaugeStatus(status) {
+    var el = document.getElementById('gauge-status');
+    if (el) el.textContent = status;
+}
+
+// ===== Phase Card Update =====
+
+function updatePhaseCard(phase, voltage, current) {
+    var voltageEl = document.getElementById(phase + '-voltage');
+    var currentEl = document.getElementById(phase + '-current');
+    var powerEl = document.getElementById(phase + '-power');
+
+    if (voltageEl) {
+        var newV = (voltage != null) ? voltage.toFixed(1) + ' V' : '-- V';
+        if (voltageEl.textContent !== newV) {
+            voltageEl.textContent = newV;
+            flashValue(voltageEl);
+        }
+    }
+
+    if (currentEl) {
+        var newA = (current != null) ? current.toFixed(2) + ' A' : '-- A';
+        if (currentEl.textContent !== newA) {
+            currentEl.textContent = newA;
+            flashValue(currentEl);
+        }
+    }
+
+    if (powerEl) {
+        var newW;
+        if (voltage != null && current != null) {
+            newW = (voltage * current).toFixed(0) + ' W';
+        } else {
+            newW = '-- W';
+        }
+        if (powerEl.textContent !== newW) {
+            powerEl.textContent = newW;
+            flashValue(powerEl);
+        }
+    }
+}
+
+function flashValue(el) {
+    el.classList.add('ve-value-flash');
+    setTimeout(function() {
+        el.classList.remove('ve-value-flash');
+    }, 300);
+}
+
+// ===== Sparkline Renderer =====
+
+function renderSparkline() {
+    var svgEl = document.getElementById('sparkline-power');
+    if (!svgEl || sparklineData.length < 2) return;
+
+    var W = 600;
+    var H = 80;
+    var data = sparklineData;
+    var min = Math.min.apply(null, data);
+    var max = Math.max.apply(null, data);
+    var range = max - min || 1;
+    var dx = W / (data.length - 1);
+
+    var points = [];
+    for (var i = 0; i < data.length; i++) {
+        var x = i * dx;
+        var y = H - ((data[i] - min) / range) * (H * 0.9);
+        points.push(x.toFixed(1) + ',' + y.toFixed(1));
+    }
+    var pointsStr = points.join(' ');
+
+    // Line polyline
+    var polyline = svgEl.querySelector('.sparkline-line');
+    if (!polyline) {
+        polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        polyline.classList.add('sparkline-line');
+        polyline.setAttribute('fill', 'none');
+        polyline.setAttribute('stroke', 'var(--ve-blue)');
+        polyline.setAttribute('stroke-width', '1.5');
+        svgEl.appendChild(polyline);
+    }
+    polyline.setAttribute('points', pointsStr);
+
+    // Fill polygon
+    var fillPoly = svgEl.querySelector('.sparkline-fill');
+    if (!fillPoly) {
+        fillPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        fillPoly.classList.add('sparkline-fill');
+        fillPoly.setAttribute('fill', 'var(--ve-blue)');
+        fillPoly.setAttribute('opacity', '0.15');
+        svgEl.appendChild(fillPoly);
+    }
+    var fillPoints = '0,' + H + ' ' + pointsStr + ' ' + W + ',' + H;
+    fillPoly.setAttribute('points', fillPoints);
+
+    // Update min/max labels
+    var minEl = document.getElementById('sparkline-min');
+    var maxEl = document.getElementById('sparkline-max');
+    if (minEl) minEl.textContent = (min / 1000).toFixed(1) + ' kW';
+    if (maxEl) maxEl.textContent = (max / 1000).toFixed(1) + ' kW';
+}
+
+// ===== Connection Indicator =====
+
+function updateConnectionIndicator(state) {
+    var dot = document.getElementById('ws-dot');
+    var label = document.getElementById('ws-label');
+    if (state === 'connected') {
+        if (dot) dot.className = 've-dot ve-dot--ok';
+        if (label) label.textContent = 'WebSocket: Connected';
+    } else {
+        if (dot) dot.className = 've-dot ve-dot--err';
+        if (label) label.textContent = 'WebSocket: Disconnected';
+    }
+}
+
+// ===== Connection Status Update (from snapshot) =====
+
+function updateConnectionStatus(conn) {
+    if (conn.poll_success != null && conn.poll_total != null && conn.poll_total > 0) {
+        var rate = (conn.poll_success / conn.poll_total * 100).toFixed(1);
+        var pollRateEl = document.getElementById('poll-rate');
+        if (pollRateEl) pollRateEl.textContent = rate + '%';
+    }
+    var cacheEl = document.getElementById('cache-status');
+    if (cacheEl && conn.cache_stale != null) {
+        cacheEl.textContent = conn.cache_stale ? 'STALE' : 'Fresh';
+        cacheEl.style.color = conn.cache_stale ? 'var(--ve-red)' : 'var(--ve-green)';
+    }
+}
+
+// ===== Status Polling (fallback) =====
 
 async function pollStatus() {
     try {
@@ -98,7 +344,7 @@ async function pollStatus() {
     }
 }
 
-// ===== Health Polling =====
+// ===== Health Polling (fallback) =====
 
 async function pollHealth() {
     try {
@@ -200,6 +446,8 @@ document.getElementById('config-form').addEventListener('submit', async (e) => {
 // ===== Register Viewer =====
 
 async function pollRegisters() {
+    // Only poll when register page is active
+    if (!document.querySelector('#page-registers.active')) return;
     try {
         const res = await fetch('/api/registers');
         const models = await res.json();
@@ -307,10 +555,15 @@ function formatValue(val) {
 // ===== Initialization =====
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Start WebSocket connection for live dashboard
+    connectWebSocket();
+
+    // Load config form values
     loadConfig();
+
+    // Fallback polling (reduced frequency -- WebSocket provides live data)
     pollStatus();
     pollHealth();
-    pollRegisters();
     setInterval(() => {
         pollStatus();
         pollHealth();
