@@ -223,6 +223,7 @@ async def _poll_loop(
     conn_mgr: ConnectionManager | None = None,
     control_state: ControlState | None = None,
     poll_interval: float = POLL_INTERVAL,
+    poll_counter: dict | None = None,
 ) -> None:
     """Background polling loop with reconnection and night mode.
 
@@ -238,12 +239,17 @@ async def _poll_loop(
     if conn_mgr is None:
         conn_mgr = ConnectionManager(poll_interval=poll_interval)
 
+    if poll_counter is None:
+        poll_counter = {"success": 0, "total": 0}
+
     last_energy_wh = 0  # Track last known energy for night mode preservation
 
     while True:
         try:
             result = await plugin.poll()
+            poll_counter["total"] += 1
             if result.success:
+                poll_counter["success"] += 1
                 conn_mgr.on_poll_success()
 
                 # Preserve energy reading from inverter registers
@@ -291,6 +297,7 @@ async def _poll_loop(
                         logger.debug("Reconnect attempt failed: %s", e)
 
         except Exception as e:
+            poll_counter["total"] += 1
             conn_mgr.on_poll_failure()
             logger.error("Unexpected poll error: %s", e)
 
@@ -319,6 +326,7 @@ async def run_proxy(
     host: str = "0.0.0.0",
     port: int = 502,
     poll_interval: float = POLL_INTERVAL,
+    shared_ctx: dict | None = None,
 ) -> None:
     """Start the Fronius proxy server and polling loop.
 
@@ -375,10 +383,20 @@ async def run_proxy(
     # Create connection manager for reconnection and night mode
     conn_mgr = ConnectionManager(poll_interval=poll_interval)
 
+    # Poll counter for health heartbeat
+    poll_counter = {"success": 0, "total": 0}
+
+    # Populate shared context for external consumers (e.g. health heartbeat)
+    if shared_ctx is not None:
+        shared_ctx["cache"] = cache
+        shared_ctx["conn_mgr"] = conn_mgr
+        shared_ctx["control_state"] = control_state
+        shared_ctx["poll_counter"] = poll_counter
+
     try:
         await asyncio.gather(
             _start_server(server),
-            _poll_loop(plugin, cache, conn_mgr, control_state, poll_interval=poll_interval),
+            _poll_loop(plugin, cache, conn_mgr, control_state, poll_interval=poll_interval, poll_counter=poll_counter),
         )
     finally:
         await plugin.close()

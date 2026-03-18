@@ -1,0 +1,22 @@
+# Venus OS Fronius Proxy Configuration
+# Copy to /etc/venus-os-fronius-proxy/config.yaml and adjust values.
+
+# SolarEdge inverter connection
+inverter:
+  host: "192.168.3.18"   # SE30K IP address
+  port: 1502             # Modbus TCP port
+  unit_id: 1             # Modbus unit/slave ID
+
+# Proxy server settings
+proxy:
+  host: "0.0.0.0"        # Bind address (0.0.0.0 = all interfaces)
+  port: 502              # Modbus TCP port for Venus OS
+  poll_interval: 1.0     # Seconds between SE30K polls
+  staleness_timeout: 30.0  # Seconds before cache is considered stale
+
+# Night mode (inverter offline/sleeping)
+night_mode:
+  threshold_seconds: 300.0  # Seconds of failure before entering night mode (5 min)
+
+# Logging
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
