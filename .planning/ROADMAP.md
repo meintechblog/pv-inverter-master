@@ -75,11 +75,11 @@ Plans:
   2. The webapp shows live connection status for both the SolarEdge inverter and Venus OS
   3. The webapp shows service health (uptime, last successful poll timestamps)
   4. A register viewer displays both the raw SolarEdge source registers and the translated Fronius target registers in real time
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Backend API: aiohttp REST endpoints, config save/validate, plugin reconfigure, register data model
+- [ ] 04-02-PLAN.md — Frontend HTML + integration: dark-themed dashboard, entry point wiring, systemd update
 
 ## Progress
 
@@ -91,4 +91,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Protocol Research & Validation | 0/2 | Planning complete | - |
 | 2. Core Proxy (Read Path) | 2/2 | Complete   | 2026-03-18 |
 | 3. Control Path & Production Hardening | 2/3 | In Progress|  |
-| 4. Configuration Webapp | 0/? | Not started | - |
+| 4. Configuration Webapp | 0/2 | Not started | - |
