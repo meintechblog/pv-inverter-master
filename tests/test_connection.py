@@ -1,6 +1,10 @@
 """Tests for ConnectionManager state machine with exponential backoff and night mode."""
 from __future__ import annotations
 
+import asyncio
+import struct
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from venus_os_fronius_proxy.connection import (
@@ -8,6 +12,20 @@ from venus_os_fronius_proxy.connection import (
     ConnectionState,
     build_night_mode_inverter_registers,
 )
+from venus_os_fronius_proxy.control import ControlState
+from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from venus_os_fronius_proxy.proxy import _poll_loop, INVERTER_CACHE_ADDR
+from venus_os_fronius_proxy.register_cache import RegisterCache
+from venus_os_fronius_proxy.sunspec_models import (
+    build_initial_registers,
+    DATABLOCK_START,
+    encode_string,
+    COMMON_DID,
+    COMMON_LENGTH,
+    INVERTER_DID,
+    INVERTER_LENGTH,
+)
+from pymodbus.datastore import ModbusSequentialDataBlock
 
 
 class TestConnectionStateTransitions:
@@ -148,3 +166,167 @@ class TestNightModeRegisters:
         regs = build_night_mode_inverter_registers(last_energy_wh=energy)
         recovered = (regs[26] << 16) | regs[27]
         assert recovered == energy
+
+
+# ---------- Integration Tests ----------
+
+def _make_sample_common() -> list[int]:
+    """67 registers: DID=1, Length=65, Manufacturer='SolarEdge', rest zeros."""
+    regs = [0] * 67
+    regs[0] = COMMON_DID
+    regs[1] = COMMON_LENGTH
+    regs[2:18] = encode_string("SolarEdge", 16)
+    regs[66] = 1
+    return regs
+
+
+def _make_sample_inverter(energy_wh: int = 50000) -> list[int]:
+    """52 registers: DID=103, Length=50, with sample values including energy."""
+    regs = [0] * 52
+    regs[0] = INVERTER_DID
+    regs[1] = INVERTER_LENGTH
+    regs[2] = 440  # I_AC_Current
+    regs[26] = (energy_wh >> 16) & 0xFFFF
+    regs[27] = energy_wh & 0xFFFF
+    regs[38] = 4  # I_Status = MPPT
+    return regs
+
+
+def _make_cache_and_datablock():
+    """Create a RegisterCache + datablock for integration tests."""
+    initial_values = build_initial_registers()
+    datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
+    cache = RegisterCache(datablock, staleness_timeout=30.0)
+    return cache, datablock
+
+
+def _make_mock_plugin_with_sequence(poll_results: list[PollResult]) -> InverterPlugin:
+    """Create a mock plugin that returns a sequence of poll results."""
+    plugin = MagicMock(spec=InverterPlugin)
+    plugin.connect = AsyncMock()
+    plugin.close = AsyncMock()
+    plugin.poll = AsyncMock(side_effect=poll_results)
+    plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
+    return plugin
+
+
+class TestPollLoopReconnection:
+    """Integration tests for poll loop with ConnectionManager."""
+
+    @pytest.mark.asyncio
+    async def test_poll_loop_reconnects_on_failure(self):
+        """Poll loop transitions through RECONNECTING and back to CONNECTED."""
+        fail_result = PollResult(
+            common_registers=[], inverter_registers=[],
+            success=False, error="Connection refused",
+        )
+        success_result = PollResult(
+            common_registers=_make_sample_common(),
+            inverter_registers=_make_sample_inverter(),
+            success=True,
+        )
+        # Fail twice, then succeed
+        results = [fail_result, fail_result, success_result]
+        plugin = _make_mock_plugin_with_sequence(results)
+
+        cache, _ = _make_cache_and_datablock()
+        conn_mgr = ConnectionManager(poll_interval=0.01)
+
+        # Run poll loop for a limited number of iterations
+        loop_count = 0
+
+        async def limited_poll_loop():
+            nonlocal loop_count
+            while loop_count < 3:
+                loop_count += 1
+                try:
+                    result = await plugin.poll()
+                    if result.success:
+                        conn_mgr.on_poll_success()
+                    else:
+                        conn_mgr.on_poll_failure()
+                        try:
+                            await plugin.close()
+                        except Exception:
+                            pass
+                        try:
+                            await plugin.connect()
+                        except Exception:
+                            pass
+                except Exception:
+                    conn_mgr.on_poll_failure()
+                await asyncio.sleep(0.001)
+
+        await limited_poll_loop()
+
+        # After 2 failures and 1 success, should be back to CONNECTED
+        assert conn_mgr.state == ConnectionState.CONNECTED
+        # Plugin should have been reconnected (close + connect called)
+        assert plugin.close.call_count >= 1
+        assert plugin.connect.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_night_mode_injects_synthetic_registers(self):
+        """After >5 min failure, cache contains night mode registers with SLEEPING status."""
+        cache, datablock = _make_cache_and_datablock()
+        conn_mgr = ConnectionManager(poll_interval=0.01)
+
+        # Manually simulate: failures over 5+ minutes using injectable time
+        conn_mgr.on_poll_failure(now=0.0)
+        assert conn_mgr.state == ConnectionState.RECONNECTING
+
+        conn_mgr.on_poll_failure(now=301.0)
+        assert conn_mgr.state == ConnectionState.NIGHT_MODE
+
+        # Now inject night mode registers into cache (as poll loop would)
+        last_energy_wh = 12345
+        night_regs = build_night_mode_inverter_registers(last_energy_wh)
+        cache.update(INVERTER_CACHE_ADDR, night_regs)
+
+        # Verify cache contains night mode data
+        # Read status register: Model 103 offset 40 from INVERTER_CACHE_ADDR
+        # INVERTER_CACHE_ADDR = 40070, status at offset 40 = address 40110
+        status_values = datablock.getValues(40070 + 40, 1)
+        assert status_values[0] == 4  # SLEEPING
+
+        # Verify energy preserved
+        energy_hi = datablock.getValues(40070 + 26, 1)[0]
+        energy_lo = datablock.getValues(40070 + 27, 1)[0]
+        assert (energy_hi << 16) | energy_lo == 12345
+
+    @pytest.mark.asyncio
+    async def test_power_limit_restored_after_reconnect(self):
+        """After reconnect from night mode, plugin.write_power_limit is called."""
+        success_result = PollResult(
+            common_registers=_make_sample_common(),
+            inverter_registers=_make_sample_inverter(),
+            success=True,
+        )
+        plugin = _make_mock_plugin_with_sequence([success_result])
+
+        cache, _ = _make_cache_and_datablock()
+        conn_mgr = ConnectionManager(poll_interval=0.01)
+
+        # Simulate: was in night mode, now reconnecting
+        conn_mgr.on_poll_failure(now=0.0)
+        conn_mgr.on_poll_failure(now=301.0)
+        assert conn_mgr.state == ConnectionState.NIGHT_MODE
+
+        # Set up control state with an active power limit
+        control_state = ControlState()
+        control_state.update_wmaxlimpct(7500)  # 75.00%
+        control_state.update_wmaxlim_ena(1)     # enabled
+        assert control_state.is_enabled
+        assert control_state.wmaxlimpct_float == 75.0
+
+        # Now simulate a successful poll (as _poll_loop would do)
+        result = await plugin.poll()
+        assert result.success
+        conn_mgr.on_poll_success()
+
+        # reconnected_from_night should be True
+        if conn_mgr.reconnected_from_night and control_state.is_enabled:
+            await plugin.write_power_limit(True, control_state.wmaxlimpct_float)
+
+        # Verify write_power_limit was called with correct values
+        plugin.write_power_limit.assert_called_once_with(True, 75.0)

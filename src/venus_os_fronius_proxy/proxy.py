@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from pymodbus.datastore import (
     ModbusSequentialDataBlock,
@@ -19,6 +20,11 @@ from pymodbus.server import ModbusTcpServer
 
 import structlog
 
+from venus_os_fronius_proxy.connection import (
+    ConnectionManager,
+    ConnectionState,
+    build_night_mode_inverter_registers,
+)
 from venus_os_fronius_proxy.control import (
     ControlState,
     MODEL_123_START,
@@ -214,28 +220,81 @@ class StalenessAwareSlaveContext(ModbusSlaveContext):
 async def _poll_loop(
     plugin: InverterPlugin,
     cache: RegisterCache,
+    conn_mgr: ConnectionManager | None = None,
+    control_state: ControlState | None = None,
     poll_interval: float = POLL_INTERVAL,
 ) -> None:
-    """Background polling loop that reads the inverter and updates the cache.
+    """Background polling loop with reconnection and night mode.
 
-    Runs every poll_interval seconds. On success, applies Common Model
-    translation (Fronius identity substitution) and writes to cache.
-    On failure, logs and skips -- cache retains last good data.
+    State machine integration:
+    - CONNECTED: normal polling at poll_interval
+    - RECONNECTING: attempt reconnect with exponential backoff (5s-60s)
+    - NIGHT_MODE: inject synthetic zero-power registers, continue reconnect attempts
+
+    Args:
+        conn_mgr: Optional ConnectionManager. If None, creates one internally.
+        control_state: Optional ControlState for power limit restore after reconnect.
     """
+    if conn_mgr is None:
+        conn_mgr = ConnectionManager(poll_interval=poll_interval)
+
+    last_energy_wh = 0  # Track last known energy for night mode preservation
+
     while True:
         try:
             result = await plugin.poll()
             if result.success:
+                conn_mgr.on_poll_success()
+
+                # Preserve energy reading from inverter registers
+                if len(result.inverter_registers) > 27:
+                    last_energy_wh = (
+                        (result.inverter_registers[26] << 16)
+                        | result.inverter_registers[27]
+                    )
+
                 translated_common = apply_common_translation(result.common_registers)
                 cache.update(COMMON_CACHE_ADDR, translated_common)
                 cache.update(INVERTER_CACHE_ADDR, result.inverter_registers)
+
+                # Restore power limit after reconnection from night mode
+                if conn_mgr.reconnected_from_night and control_state is not None and control_state.is_enabled:
+                    try:
+                        await plugin.write_power_limit(True, control_state.wmaxlimpct_float)
+                        logger.info("Restored power limit after reconnect: %.1f%%", control_state.wmaxlimpct_float)
+                    except Exception as e:
+                        logger.error("Failed to restore power limit: %s", e)
+
                 logger.debug("Poll successful, cache updated")
             else:
-                logger.warning("Poll failed: %s", result.error)
+                new_state = conn_mgr.on_poll_failure()
+                logger.warning("Poll failed: %s (state=%s)", result.error, new_state.value)
+
+                if new_state == ConnectionState.NIGHT_MODE:
+                    # Inject synthetic zero-power registers
+                    night_regs = build_night_mode_inverter_registers(last_energy_wh)
+                    cache.update(INVERTER_CACHE_ADDR, night_regs)
+                    # Force cache to appear fresh so staleness doesn't override night mode
+                    cache.last_successful_poll = time.monotonic()
+                    cache._has_been_updated = True
+
+                # Try to reconnect the plugin
+                if new_state in (ConnectionState.RECONNECTING, ConnectionState.NIGHT_MODE):
+                    try:
+                        await plugin.close()
+                    except Exception:
+                        pass
+                    try:
+                        await plugin.connect()
+                        logger.info("Reconnected to inverter")
+                    except Exception as e:
+                        logger.debug("Reconnect attempt failed: %s", e)
+
         except Exception as e:
+            conn_mgr.on_poll_failure()
             logger.error("Unexpected poll error: %s", e)
 
-        await asyncio.sleep(poll_interval)
+        await asyncio.sleep(conn_mgr.sleep_duration)
 
 
 async def _start_server(server: ModbusTcpServer) -> None:
@@ -313,10 +372,13 @@ async def run_proxy(
         host, port, PROXY_UNIT_ID,
     )
 
+    # Create connection manager for reconnection and night mode
+    conn_mgr = ConnectionManager(poll_interval=poll_interval)
+
     try:
         await asyncio.gather(
             _start_server(server),
-            _poll_loop(plugin, cache, poll_interval=poll_interval),
+            _poll_loop(plugin, cache, conn_mgr, control_state, poll_interval=poll_interval),
         )
     finally:
         await plugin.close()
