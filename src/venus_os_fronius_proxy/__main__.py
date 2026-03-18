@@ -108,6 +108,10 @@ def main():
 
         # Start proxy in background task with shared context for heartbeat
         shared_ctx: dict = {}
+
+        from venus_os_fronius_proxy.dashboard import DashboardCollector
+        shared_ctx["dashboard_collector"] = DashboardCollector()
+
         proxy_task = asyncio.create_task(
             run_proxy(
                 plugin,

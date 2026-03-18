@@ -271,6 +271,12 @@ async def _poll_loop(
                 cache.update(COMMON_CACHE_ADDR, translated_common)
                 cache.update(INVERTER_CACHE_ADDR, result.inverter_registers)
 
+                if shared_ctx is not None and "dashboard_collector" in shared_ctx:
+                    shared_ctx["dashboard_collector"].collect(
+                        cache, shared_ctx.get("control_state"),
+                        conn_mgr=conn_mgr, poll_counter=poll_counter,
+                    )
+
                 # Restore power limit after reconnection from night mode
                 if conn_mgr.reconnected_from_night and control_state is not None and control_state.is_enabled:
                     try:

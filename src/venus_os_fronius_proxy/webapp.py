@@ -346,6 +346,37 @@ async def registers_handler(request: web.Request) -> web.Response:
     return web.json_response(models_out)
 
 
+CONTENT_TYPES = {
+    "index.html": "text/html",
+    "style.css": "text/css",
+    "app.js": "application/javascript",
+}
+
+
+async def dashboard_handler(request: web.Request) -> web.Response:
+    """Return the latest decoded dashboard snapshot as JSON."""
+    shared_ctx = request.app["shared_ctx"]
+    collector = shared_ctx.get("dashboard_collector")
+    if collector is None or collector.last_snapshot is None:
+        return web.json_response({"error": "no data"}, status=503)
+    return web.json_response(collector.last_snapshot)
+
+
+async def static_handler(request: web.Request) -> web.Response:
+    """Serve static files (.css, .js) from the package via importlib.resources."""
+    import importlib.resources as pkg_resources
+
+    filename = request.match_info["filename"]
+    if filename not in CONTENT_TYPES:
+        raise web.HTTPNotFound()
+    try:
+        ref = pkg_resources.files("venus_os_fronius_proxy") / "static" / filename
+        content = ref.read_text(encoding="utf-8")
+        return web.Response(text=content, content_type=CONTENT_TYPES[filename])
+    except (FileNotFoundError, TypeError, ModuleNotFoundError):
+        raise web.HTTPNotFound()
+
+
 async def create_webapp(
     shared_ctx: dict,
     config: Config,
@@ -371,6 +402,8 @@ async def create_webapp(
     app.router.add_post("/api/config", config_save_handler)
     app.router.add_post("/api/config/test", config_test_handler)
     app.router.add_get("/api/registers", registers_handler)
+    app.router.add_get("/api/dashboard", dashboard_handler)
+    app.router.add_get("/static/{filename}", static_handler)
 
     runner = web.AppRunner(app)
     await runner.setup()
