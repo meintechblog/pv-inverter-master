@@ -15,9 +15,9 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 
 ### Venus OS (VENUS)
 
-- [ ] **VENUS-01**: Venus OS Info Widget zeigt Connection Status (Online/Offline), IP-Adresse, und Zeitpunkt des letzten Kontakts
-- [ ] **VENUS-02**: Widget zeigt aktuellen Override-Status (ob Venus OS gerade die Kontrolle hat, welcher Wert)
-- [ ] **VENUS-03**: Apple-style Lock Toggle um Venus OS Kontrolle zu sperren/erlauben, mit Confirmation Dialog
+- [x] **VENUS-01**: Venus OS Info Widget zeigt Connection Status (Online/Offline), IP-Adresse, und Zeitpunkt des letzten Kontakts
+- [x] **VENUS-02**: Widget zeigt aktuellen Override-Status (ob Venus OS gerade die Kontrolle hat, welcher Wert)
+- [x] **VENUS-03**: Apple-style Lock Toggle um Venus OS Kontrolle zu sperren/erlauben, mit Confirmation Dialog
 - [x] **VENUS-04**: Lock Toggle hat Auto-Unlock Timer (max 15 Minuten) als Safety-Feature — Venus OS wird nie permanent ausgesperrt
 
 ### Peak Statistiken (STATS)
@@ -77,9 +77,9 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 | LAYOUT-01 | Phase 12 | Pending |
 | LAYOUT-02 | Phase 12 | Pending |
 | LAYOUT-03 | Phase 12 | Pending |
-| VENUS-01 | Phase 11 | Pending |
-| VENUS-02 | Phase 11 | Pending |
-| VENUS-03 | Phase 11 | Pending |
+| VENUS-01 | Phase 11 | Complete |
+| VENUS-02 | Phase 11 | Complete |
+| VENUS-03 | Phase 11 | Complete |
 | VENUS-04 | Phase 11 | Complete |
 | STATS-01 | Phase 10 | Complete |
 | STATS-02 | Phase 10 | Complete |

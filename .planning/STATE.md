@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Dashboard Redesign & Polish
-status: in_progress
-stopped_at: Completed 11-01 Venus OS lock backend
-last_updated: "2026-03-18T21:19:00Z"
-last_activity: 2026-03-18 — Completed 11-01 Venus OS lock backend
+status: completed
+stopped_at: Completed 11-02 Venus OS widget & lock toggle frontend
+last_updated: "2026-03-18T21:22:53.859Z"
+last_activity: 2026-03-18 — Completed 11-02 Venus OS widget & lock toggle frontend
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-18)
 ## Current Position
 
 Phase: 11 of 12 (Venus OS Widget & Lock Toggle)
-Plan: 1 of 1 (complete)
-Status: Plan Complete
-Last activity: 2026-03-18 — Completed 11-01 Venus OS lock backend
+Plan: 2 of 2 (complete)
+Status: Phase Complete
+Last activity: 2026-03-18 — Completed 11-02 Venus OS widget & lock toggle frontend
 
 Progress: [██████████] 100%
 
@@ -53,6 +53,9 @@ Progress: [██████████] 100%
 - Locked writes silently accepted but NOT forwarded — prevents Venus OS retry storms (11-01)
 - Lock defaults to unlocked on restart — safe default (11-01)
 - Locked writes do not update last_source — lock means "pretend write didn't happen" (11-01)
+- [Phase 11]: Toggle disabled when Venus OS offline but enabled for unlock even if offline (11-02)
+- [Phase 11]: Countdown interpolated client-side between snapshots for smooth mm:ss display (11-02)
+- [Phase 11]: Auto-unlock detected by diffing previous vs current snapshot is_locked field (11-02)
 
 ### Pending Todos
 
@@ -65,6 +68,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T21:19:00Z
-Stopped at: Completed 11-01 Venus OS lock backend
-Resume file: .planning/phases/11-venus-os-widget-lock-toggle/11-01-SUMMARY.md
+Last session: 2026-03-18T21:22:53.856Z
+Stopped at: Completed 11-02 Venus OS widget & lock toggle frontend
+Resume file: None

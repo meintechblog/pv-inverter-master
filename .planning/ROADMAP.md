@@ -38,7 +38,7 @@ Full details: `.planning/milestones/v2.0-ROADMAP.md`
 
 - [x] **Phase 9: CSS Animations & Toast System** - Animation foundation and notification infrastructure (completed 2026-03-18)
 - [x] **Phase 10: Peak Statistics & Smart Notifications** - Backend stats tracking and event-driven toasts (completed 2026-03-18)
-- [ ] **Phase 11: Venus OS Widget & Lock Toggle** - Venus OS info display and control lock
+- [x] **Phase 11: Venus OS Widget & Lock Toggle** - Venus OS info display and control lock (completed 2026-03-18)
 - [ ] **Phase 12: Unified Dashboard Layout** - Single-page merge of all widgets
 
 ## Phase Details
@@ -119,5 +119,5 @@ Phases execute in numeric order: 9 -> 10 -> 11 -> 12
 | 8. Inverter Details & Polish | v2.0 | 1/1 | Complete | 2026-03-18 |
 | 9. CSS Animations & Toast System | 2/2 | Complete   | 2026-03-18 | - |
 | 10. Peak Statistics & Smart Notifications | 2/2 | Complete    | 2026-03-18 | - |
-| 11. Venus OS Widget & Lock Toggle | v2.1 | 1/2 | In progress | - |
+| 11. Venus OS Widget & Lock Toggle | 2/2 | Complete   | 2026-03-18 | - |
 | 12. Unified Dashboard Layout | v2.1 | 0/? | Not started | - |
