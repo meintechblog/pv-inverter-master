@@ -1,0 +1,157 @@
+"""Tests for control state, validation, and SunSpec-to-SolarEdge translation.
+
+Tests cover:
+- WMaxLimPct validation (valid/invalid values, NaN detection)
+- SunSpec integer+SF to SolarEdge Float32 register translation
+- ControlState tracking and Model 123 readback
+"""
+from __future__ import annotations
+
+import struct
+
+import pytest
+
+from venus_os_fronius_proxy.control import (
+    ControlState,
+    validate_wmaxlimpct,
+    wmaxlimpct_to_se_registers,
+    MODEL_123_START,
+    MODEL_123_END,
+    WMAXLIMPCT_OFFSET,
+    WMAXLIM_ENA_OFFSET,
+    WMAXLIMPCT_SF,
+    SE_ENABLE_REG,
+    SE_POWER_LIMIT_REG,
+    SE_CMD_TIMEOUT_REG,
+)
+
+
+# ---------- validate_wmaxlimpct ----------
+
+
+class TestValidateWMaxLimPct:
+    def test_validate_wmaxlimpct_valid_50pct(self):
+        """5000 with SF -2 = 50.0% -> valid (None)."""
+        assert validate_wmaxlimpct(5000, -2) is None
+
+    def test_validate_wmaxlimpct_valid_100pct(self):
+        """10000 with SF -2 = 100.0% -> valid (None)."""
+        assert validate_wmaxlimpct(10000, -2) is None
+
+    def test_validate_wmaxlimpct_valid_0pct(self):
+        """0 with SF -2 = 0.0% -> valid (None)."""
+        assert validate_wmaxlimpct(0, -2) is None
+
+    def test_validate_wmaxlimpct_over_100(self):
+        """10001 with SF -2 = 100.01% -> error containing 'exceeds 100%'."""
+        result = validate_wmaxlimpct(10001, -2)
+        assert result is not None
+        assert "exceeds 100%" in result
+
+    def test_validate_wmaxlimpct_negative(self):
+        """-1 with SF -2 -> error containing 'negative'."""
+        result = validate_wmaxlimpct(-1, -2)
+        assert result is not None
+        assert "negative" in result
+
+    def test_validate_wmaxlimpct_nan(self):
+        """SunSpec NaN encoding (0x7FC0 as uint16) -> error containing 'NaN'."""
+        nan_raw = int.from_bytes(struct.pack(">H", 0x7FC0), "big")
+        result = validate_wmaxlimpct(nan_raw, -2)
+        assert result is not None
+        assert "NaN" in result
+
+
+# ---------- wmaxlimpct_to_se_registers ----------
+
+
+class TestWMaxLimPctToSERegisters:
+    def test_wmaxlimpct_to_se_registers_50pct(self):
+        """5000 with SF -2 -> Float32(50.0) as two uint16 registers."""
+        hi, lo = wmaxlimpct_to_se_registers(5000, -2)
+        packed = struct.pack(">HH", hi, lo)
+        assert packed == struct.pack(">f", 50.0)
+
+    def test_wmaxlimpct_to_se_registers_100pct(self):
+        """10000 with SF -2 -> Float32(100.0)."""
+        hi, lo = wmaxlimpct_to_se_registers(10000, -2)
+        packed = struct.pack(">HH", hi, lo)
+        assert packed == struct.pack(">f", 100.0)
+
+    def test_wmaxlimpct_to_se_registers_0pct(self):
+        """0 with SF -2 -> Float32(0.0)."""
+        hi, lo = wmaxlimpct_to_se_registers(0, -2)
+        packed = struct.pack(">HH", hi, lo)
+        assert packed == struct.pack(">f", 0.0)
+
+
+# ---------- ControlState ----------
+
+
+class TestControlState:
+    def test_control_state_defaults(self):
+        """ControlState starts with wmaxlim_ena=0, wmaxlimpct_raw=0."""
+        cs = ControlState()
+        assert cs.wmaxlim_ena == 0
+        assert cs.wmaxlimpct_raw == 0
+        assert cs.is_enabled is False
+        assert cs.wmaxlimpct_float == 0.0
+
+    def test_control_state_update_wmaxlimpct(self):
+        """update_wmaxlimpct stores value, wmaxlimpct_float returns correct float."""
+        cs = ControlState()
+        cs.update_wmaxlimpct(5000)
+        assert cs.wmaxlimpct_raw == 5000
+        assert cs.wmaxlimpct_float == 50.0
+
+    def test_control_state_update_wmaxlim_ena(self):
+        """update_wmaxlim_ena sets enabled state."""
+        cs = ControlState()
+        cs.update_wmaxlim_ena(1)
+        assert cs.is_enabled is True
+        cs.update_wmaxlim_ena(0)
+        assert cs.is_enabled is False
+
+    def test_control_state_readback(self):
+        """get_model_123_readback returns 26 registers with correct layout."""
+        cs = ControlState()
+        cs.update_wmaxlimpct(5000)
+        cs.update_wmaxlim_ena(1)
+        readback = cs.get_model_123_readback()
+
+        assert len(readback) == 26
+        assert readback[0] == 123   # DID
+        assert readback[1] == 24    # Length
+        assert readback[5] == 5000  # WMaxLimPct at offset 5
+        assert readback[9] == 1     # WMaxLim_Ena at offset 9
+
+    def test_control_state_readback_defaults(self):
+        """Readback with defaults has DID=123, Length=24, zeros elsewhere."""
+        cs = ControlState()
+        readback = cs.get_model_123_readback()
+
+        assert len(readback) == 26
+        assert readback[0] == 123
+        assert readback[1] == 24
+        assert readback[5] == 0     # WMaxLimPct default
+        assert readback[9] == 0     # WMaxLim_Ena default
+
+
+# ---------- Constants ----------
+
+
+class TestControlConstants:
+    def test_model_123_start(self):
+        assert MODEL_123_START == 40149
+
+    def test_model_123_end(self):
+        assert MODEL_123_END == 40174
+
+    def test_se_power_limit_reg(self):
+        assert SE_POWER_LIMIT_REG == 0xF322
+
+    def test_se_enable_reg(self):
+        assert SE_ENABLE_REG == 0xF300
+
+    def test_se_cmd_timeout_reg(self):
+        assert SE_CMD_TIMEOUT_REG == 0xF310
