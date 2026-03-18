@@ -6,10 +6,11 @@ translated for Fronius proxy serving.
 from __future__ import annotations
 
 import logging
+import struct
 
 from pymodbus.client import AsyncModbusTcpClient
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult
+from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
 from venus_os_fronius_proxy.sunspec_models import (
     encode_string,
     _int16_as_uint16,
@@ -136,6 +137,35 @@ class SolarEdgePlugin(InverterPlugin):
         regs[18] = _int16_as_uint16(-2)      # PFRtg_SF
         # 19-27 = zeros (storage ratings N/A, padding)
         return regs
+
+    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+        """Write power limit to the SE30K via proprietary registers.
+
+        Writes enable/disable to 0xF300 and Float32 power limit to 0xF322-0xF323.
+        """
+        if self._client is None or not self._client.connected:
+            return WriteResult(success=False, error="Not connected")
+        try:
+            # Write enable/disable to 0xF300 (62208)
+            result = await self._client.write_register(
+                0xF300, int(enable), slave=self.unit_id,
+            )
+            if result.isError():
+                return WriteResult(success=False, error=f"Enable write failed: {result}")
+
+            if enable:
+                # Write Float32 power limit to 0xF322-0xF323 (62242-62243)
+                packed = struct.pack(">f", limit_pct)
+                hi, lo = struct.unpack(">HH", packed)
+                result = await self._client.write_registers(
+                    0xF322, [hi, lo], slave=self.unit_id,
+                )
+                if result.isError():
+                    return WriteResult(success=False, error=f"Limit write failed: {result}")
+
+            return WriteResult(success=True)
+        except Exception as e:
+            return WriteResult(success=False, error=str(e))
 
     async def close(self) -> None:
         if self._client is not None:

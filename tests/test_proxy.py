@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pymodbus.client import AsyncModbusTcpClient
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult
+from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
 from venus_os_fronius_proxy.sunspec_models import (
     PROXY_UNIT_ID,
     encode_string,
@@ -89,6 +89,8 @@ def _make_mock_plugin(poll_success: bool = True) -> InverterPlugin:
             common_registers=[], inverter_registers=[],
             success=False, error="Connection refused",
         ))
+
+    plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
 
     from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
     real_plugin = SolarEdgePlugin()

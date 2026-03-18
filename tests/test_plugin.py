@@ -40,7 +40,7 @@ class TestInverterPluginABC:
             InverterPlugin()
 
     def test_concrete_subclass_can_instantiate(self):
-        from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult
+        from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
 
         class DummyPlugin(InverterPlugin):
             async def connect(self) -> None:
@@ -54,6 +54,9 @@ class TestInverterPluginABC:
 
             def get_model_120_registers(self) -> list[int]:
                 return []
+
+            async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+                return WriteResult(success=True)
 
             async def close(self) -> None:
                 pass

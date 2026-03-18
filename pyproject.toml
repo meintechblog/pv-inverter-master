@@ -5,6 +5,7 @@ description = "Modbus TCP proxy making SolarEdge inverters appear as Fronius to 
 requires-python = ">=3.11"
 dependencies = [
     "pymodbus>=3.6,<4.0",
+    "structlog>=24.0",
 ]
 
 [project.optional-dependencies]

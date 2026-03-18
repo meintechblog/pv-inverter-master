@@ -17,6 +17,15 @@ from pymodbus.datastore import (
 )
 from pymodbus.server import ModbusTcpServer
 
+import structlog
+
+from venus_os_fronius_proxy.control import (
+    ControlState,
+    MODEL_123_START,
+    WMAXLIMPCT_OFFSET,
+    WMAXLIM_ENA_OFFSET,
+    validate_wmaxlimpct,
+)
 from venus_os_fronius_proxy.plugin import InverterPlugin
 from venus_os_fronius_proxy.sunspec_models import (
     build_initial_registers,
@@ -27,6 +36,7 @@ from venus_os_fronius_proxy.sunspec_models import (
 from venus_os_fronius_proxy.register_cache import RegisterCache
 
 logger = logging.getLogger(__name__)
+control_log = structlog.get_logger(component="control")
 
 # Polling interval in seconds (locked decision from CONTEXT.md)
 POLL_INTERVAL = 1.0
@@ -51,11 +61,22 @@ class StalenessAwareSlaveContext(ModbusSlaveContext):
     When stale, raises ModbusIOException with exception_code=0x04
     (SLAVE_DEVICE_FAILURE), which pymodbus translates into a proper
     Modbus exception response to the client.
+
+    Overrides async_setValues() to intercept writes to Model 123 registers
+    for power control forwarding to the inverter.
     """
 
-    def __init__(self, cache: RegisterCache, **kwargs):
+    def __init__(
+        self,
+        cache: RegisterCache,
+        plugin: InverterPlugin | None = None,
+        control_state: ControlState | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._cache = cache
+        self._plugin = plugin
+        self._control = control_state
 
     def getValues(self, fc_as_hex, address, count=1):
         """Override to intercept reads when cache is stale.
@@ -71,6 +92,123 @@ class StalenessAwareSlaveContext(ModbusSlaveContext):
             # See pymodbus ServerRequestHandler.handle_request() except clause.
             raise Exception("Cache stale: no successful poll within timeout")
         return super().getValues(fc_as_hex, address, count)
+
+    async def async_setValues(self, fc_as_hex, address, values):
+        """Intercept writes to Model 123 registers for power control.
+
+        pymodbus passes the protocol address directly (e.g. 40154 for
+        register 40154). The +1 adjustment happens inside setValues(),
+        not in the address passed to async_setValues.
+
+        For Model 123 writes, validates and forwards to the inverter plugin.
+        Other writes fall through to normal datablock storage.
+        """
+        # Address from pymodbus is the SunSpec address directly
+        abs_addr = address
+
+        if (
+            self._control is not None
+            and self._plugin is not None
+            and self._control.is_model_123_address(abs_addr, len(values))
+        ):
+            await self._handle_control_write(abs_addr, values)
+            return
+
+        # Default: store in datablock via normal setValues
+        self.setValues(fc_as_hex, address, values)
+
+    async def _handle_control_write(self, abs_addr: int, values: list[int]) -> None:
+        """Process a write to Model 123 control registers.
+
+        Validates values, updates local state, and forwards to inverter
+        via plugin.write_power_limit. Every control command is logged at
+        INFO level with value and result (per locked CONTEXT.md decision).
+        """
+        offset = abs_addr - MODEL_123_START
+
+        # Handle WMaxLimPct write (offset 5, register 40154)
+        if offset == WMAXLIMPCT_OFFSET and len(values) >= 1:
+            error = validate_wmaxlimpct(values[0])
+            if error:
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlimpct=values[0], result="rejected", reason=error,
+                )
+                raise Exception(f"ILLEGAL_VALUE: {error}")
+
+            self._control.update_wmaxlimpct(values[0])
+
+            if self._control.is_enabled:
+                result = await self._plugin.write_power_limit(
+                    True, self._control.wmaxlimpct_float,
+                )
+                if not result.success:
+                    control_log.info(
+                        "power_limit_write",
+                        wmaxlimpct=values[0], enabled=True,
+                        result="failed", error=result.error,
+                    )
+                    raise Exception(f"Write failed: {result.error}")
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlimpct=values[0],
+                    limit_pct=self._control.wmaxlimpct_float,
+                    enabled=True, result="ok",
+                )
+            else:
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlimpct=values[0], enabled=False, result="stored",
+                )
+
+            # Update local readback registers
+            self._update_model_123_readback()
+            return
+
+        # Handle WMaxLim_Ena write (offset 9, register 40158)
+        if offset == WMAXLIM_ENA_OFFSET and len(values) >= 1:
+            ena_value = values[0]
+            if ena_value not in (0, 1):
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlim_ena=ena_value, result="rejected",
+                    reason="must be 0 or 1",
+                )
+                raise Exception(
+                    f"ILLEGAL_VALUE: WMaxLim_Ena must be 0 or 1, got {ena_value}"
+                )
+
+            self._control.update_wmaxlim_ena(ena_value)
+
+            result = await self._plugin.write_power_limit(
+                self._control.is_enabled, self._control.wmaxlimpct_float,
+            )
+            if not result.success:
+                control_log.info(
+                    "power_limit_write",
+                    wmaxlim_ena=ena_value, result="failed", error=result.error,
+                )
+                raise Exception(f"Write failed: {result.error}")
+            control_log.info(
+                "power_limit_write",
+                wmaxlim_ena=ena_value,
+                enabled=self._control.is_enabled,
+                limit_pct=self._control.wmaxlimpct_float,
+                result="ok",
+            )
+
+            self._update_model_123_readback()
+            return
+
+        # Other Model 123 registers: store locally only (no SE30K forwarding)
+        # Datablock address = SunSpec address + 1 (pymodbus internal offset)
+        self.store["h"].setValues(abs_addr + 1, values)
+
+    def _update_model_123_readback(self) -> None:
+        """Write current ControlState as Model 123 readback to the datablock."""
+        readback = self._control.get_model_123_readback()
+        # Model 123 DID is at 40149, datablock address = 40149 + 1 offset = 40150
+        self.store["h"].setValues(40150, readback)
 
 
 async def _poll_loop(
@@ -149,8 +287,13 @@ async def run_proxy(
     # Model 120 starts at datablock address 40122 (40121 + 1 offset)
     datablock.setValues(40122, model_120_regs)
 
+    # Create control state for Model 123 write path
+    control_state = ControlState()
+
     # Create staleness-aware Modbus server context with unit ID 126
-    slave_ctx = StalenessAwareSlaveContext(cache=cache, hr=datablock)
+    slave_ctx = StalenessAwareSlaveContext(
+        cache=cache, plugin=plugin, control_state=control_state, hr=datablock,
+    )
     server_ctx = ModbusServerContext(
         slaves={PROXY_UNIT_ID: slave_ctx},
         single=False,

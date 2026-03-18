@@ -13,6 +13,13 @@ class PollResult:
     error: str | None = None
 
 
+@dataclass
+class WriteResult:
+    """Result from writing a power limit to the inverter."""
+    success: bool
+    error: str | None = None
+
+
 class InverterPlugin(ABC):
     """Interface for inverter brand plugins.
 
@@ -52,6 +59,18 @@ class InverterPlugin(ABC):
 
         Includes DID (120) and Length (26) as first two values,
         followed by 26 data registers.
+        """
+
+    @abstractmethod
+    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+        """Write power limit to the inverter.
+
+        Args:
+            enable: True to enable dynamic power control, False to disable
+            limit_pct: Power limit as float percentage (0.0-100.0)
+
+        Returns:
+            WriteResult with success/error status
         """
 
     @abstractmethod
