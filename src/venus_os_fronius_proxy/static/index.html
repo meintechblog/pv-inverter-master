@@ -151,7 +151,7 @@
     }
     .reg-header {
       display: grid;
-      grid-template-columns: 80px 1fr 120px 120px;
+      grid-template-columns: 80px 1fr minmax(160px, 1.2fr) minmax(160px, 1.2fr);
       padding: 4px 8px;
       font-size: 0.8em;
       color: var(--text-dim);
@@ -159,7 +159,7 @@
     }
     .reg-row {
       display: grid;
-      grid-template-columns: 80px 1fr 120px 120px;
+      grid-template-columns: 80px 1fr minmax(160px, 1.2fr) minmax(160px, 1.2fr);
       padding: 4px 8px;
       border-bottom: 1px solid var(--border);
       font-family: var(--mono);
@@ -177,10 +177,14 @@
     .reg-se-value {
       text-align: right;
       color: var(--text-dim);
+      word-break: break-all;
+      overflow-wrap: break-word;
     }
     .reg-fronius-value {
       text-align: right;
       color: var(--text);
+      word-break: break-all;
+      overflow-wrap: break-word;
     }
     .reg-se-value.null-value {
       color: var(--border);
