@@ -112,6 +112,7 @@ function handleSnapshot(data) {
     // Update inverter status panel and daily energy
     updateStatusPanel(inv);
     updateDailyEnergy(inv);
+    updatePeakStats(inv);
 
     // Update phase cards
     updatePhaseCard('l1', inv.ac_voltage_an_v, inv.ac_current_l1_a);
@@ -250,6 +251,27 @@ function updateDailyEnergy(inv) {
     if (el.textContent !== kwh) {
         el.textContent = kwh;
         flashValue(el);
+    }
+}
+
+// ===== Peak Stats Update =====
+
+function updatePeakStats(inv) {
+    var peakEl = document.getElementById('peak-power');
+    var hoursEl = document.getElementById('operating-hours');
+    var effEl = document.getElementById('efficiency-pct');
+
+    if (peakEl) {
+        var newPeak = inv.peak_power_w != null ? (inv.peak_power_w / 1000).toFixed(1) + ' kW' : '-- kW';
+        if (peakEl.textContent !== newPeak) { peakEl.textContent = newPeak; flashValue(peakEl, 'power'); }
+    }
+    if (hoursEl) {
+        var newHours = inv.operating_hours != null ? inv.operating_hours.toFixed(1) + 'h' : '--';
+        if (hoursEl.textContent !== newHours) { hoursEl.textContent = newHours; flashValue(hoursEl); }
+    }
+    if (effEl) {
+        var newEff = inv.efficiency_pct != null ? inv.efficiency_pct.toFixed(0) + '%' : '--%';
+        if (effEl.textContent !== newEff) { effEl.textContent = newEff; flashValue(effEl); }
     }
 }
 
