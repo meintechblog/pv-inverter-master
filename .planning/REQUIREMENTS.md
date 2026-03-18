@@ -9,7 +9,7 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 
 ### Dashboard (DASH)
 
-- [ ] **DASH-01**: Venus OS themed UI (exakte Farben #387DC5/#141414, Fonts, Widget-Style)
+- [x] **DASH-01**: Venus OS themed UI (exakte Farben #387DC5/#141414, Fonts, Widget-Style)
 - [ ] **DASH-02**: Live Power Gauge — zentrale Anzeige aktuelle Leistung vs 30kW Nennleistung
 - [ ] **DASH-03**: 3-Phasen Detail — L1/L2/L3 Strom, Spannung, Leistung einzeln
 - [ ] **DASH-04**: Inverter Status Panel — Operating/Sleeping/Throttled/Fault, Temperatur, DC Werte
@@ -66,7 +66,7 @@ Requirements for v2.0 Dashboard & Power Control UI milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DASH-01 | Phase 5 | Pending |
+| DASH-01 | Phase 5 | Complete |
 | DASH-02 | Phase 6 | Pending |
 | DASH-03 | Phase 6 | Pending |
 | DASH-04 | Phase 8 | Pending |
