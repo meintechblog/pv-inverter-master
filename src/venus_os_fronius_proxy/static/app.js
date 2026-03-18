@@ -1168,7 +1168,7 @@ function updateVenusInfo(snapshot) {
 
     // Lock toggle state
     toggle.checked = venus.is_locked;
-    toggle.disabled = !isOnline && !venus.is_locked;  // Allow unlock even if offline
+    toggle.disabled = false;  // Always allow lock (preemptive) and unlock
 
     // Countdown
     if (venus.is_locked && venus.lock_remaining_s != null) {
