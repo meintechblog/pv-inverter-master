@@ -25,6 +25,10 @@
           <line x1="12" y1="3" x2="10" y2="1" stroke="#F0962E" stroke-width="1.5"/>
         </svg>
         <span class="sidebar-title">Fronius Proxy</span>
+        <div class="sidebar-dots">
+          <span class="ve-dot" id="se-dot" title="SolarEdge"></span>
+          <span class="ve-dot" id="vos-dot" title="Venus OS"></span>
+        </div>
       </div>
 
       <a class="nav-item active" data-page="dashboard">
@@ -63,20 +67,14 @@
 
     <!-- Main Content -->
     <main class="content">
-      <header class="top-bar">
-        <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <line x1="3" y1="5" x2="19" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="3" y1="11" x2="19" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <line x1="3" y1="17" x2="19" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <span class="top-bar-title"></span>
-        <div class="top-bar-status">
-          <span class="ve-dot" id="se-dot" title="SolarEdge"></span>
-          <span class="ve-dot" id="vos-dot" title="Venus OS"></span>
-        </div>
-      </header>
+      <!-- Mobile hamburger (hidden on desktop) -->
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="3" y1="5" x2="19" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="3" y1="11" x2="19" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="3" y1="17" x2="19" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
 
       <!-- Dashboard Page -->
       <div id="page-dashboard" class="page active">

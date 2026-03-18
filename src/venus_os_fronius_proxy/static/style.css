@@ -86,6 +86,13 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+}
+
+.sidebar-dots {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
 }
 
 .nav-item {
@@ -132,19 +139,7 @@ body {
 }
 
 /* ===== Top Bar ===== */
-.top-bar {
-    background: var(--ve-bg-surface);
-    border-bottom: 1px solid var(--ve-border);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 6px 20px;
-    min-height: 32px;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
+/* top-bar removed — dots moved to sidebar header */
 
 .hamburger {
     display: none;
@@ -152,8 +147,14 @@ body {
     border: none;
     color: var(--ve-text);
     cursor: pointer;
-    padding: 4px;
+    padding: 8px;
     line-height: 0;
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 20;
+    background: var(--ve-bg-surface);
+    border-radius: 6px;
 }
 
 .top-bar-title {
