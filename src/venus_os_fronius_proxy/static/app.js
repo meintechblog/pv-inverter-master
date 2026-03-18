@@ -6,6 +6,8 @@ let previousRegValues = {};
 let ws = null;
 let sparklineData = [];
 const CAPACITY_W = 30000;
+var previousSnapshot = null;
+var TEMP_WARNING_C = 75; // Heatsink temperature warning threshold for SE30K
 
 // ===== Navigation =====
 
@@ -105,6 +107,11 @@ function handleSnapshot(data) {
     const inv = data.inverter;
     if (!inv) return;
 
+    // Smart notifications: detect events from snapshot diff
+    if (previousSnapshot) {
+        detectEvents(previousSnapshot, data);
+    }
+
     // Update gauge
     updateGauge(inv.ac_power_w || 0);
     updateGaugeStatus(inv.status || '--');
@@ -132,6 +139,8 @@ function handleSnapshot(data) {
     // Update power control section
     updatePowerControl(data);
 
+    previousSnapshot = data;
+
     // Update top-bar dots from connection state
     if (data.connection && data.connection.state) {
         const seDot = document.getElementById('se-dot');
@@ -146,6 +155,52 @@ function handleSnapshot(data) {
             if (seDotDetail) seDotDetail.className = 've-dot ve-dot--err';
             if (seLabel) seLabel.textContent = 'SolarEdge: ' + data.connection.state;
         }
+    }
+}
+
+// ===== Smart Notifications =====
+
+function detectEvents(prev, curr) {
+    if (!prev || !curr) return;
+    var prevInv = prev.inverter || {};
+    var currInv = curr.inverter || {};
+    var prevCtrl = prev.control || {};
+    var currCtrl = curr.control || {};
+
+    // NOTIF-02: Venus OS override detection
+    // Trigger when last_source transitions TO venus_os from any other source
+    if (prevCtrl.last_source !== 'venus_os' && currCtrl.last_source === 'venus_os') {
+        var limitStr = currCtrl.limit_pct != null ? ' at ' + currCtrl.limit_pct.toFixed(1) + '%' : '';
+        showToast('Venus OS took control' + limitStr, 'warning');
+    }
+
+    // NOTIF-03: Inverter fault detection
+    // Trigger when status transitions TO FAULT from any other status
+    if (prevInv.status !== 'FAULT' && currInv.status === 'FAULT') {
+        showToast('Inverter FAULT detected!', 'error');
+    }
+
+    // NOTIF-03: Temperature warning
+    // Trigger when heatsink temp crosses threshold upward
+    var prevTemp = prevInv.temperature_sink_c;
+    var currTemp = currInv.temperature_sink_c;
+    if (prevTemp != null && currTemp != null) {
+        if (prevTemp < TEMP_WARNING_C && currTemp >= TEMP_WARNING_C) {
+            showToast('Heatsink temperature warning: ' + currTemp.toFixed(1) + '\u00B0C', 'warning');
+        }
+    }
+
+    // NOTIF-04: Night mode transition (sleep)
+    // Trigger when status transitions TO SLEEPING from MPPT or THROTTLED (active states)
+    var activeStates = ['MPPT', 'THROTTLED', 'STARTING'];
+    if (activeStates.indexOf(prevInv.status) !== -1 && currInv.status === 'SLEEPING') {
+        showToast('Inverter entering night mode', 'info');
+    }
+
+    // NOTIF-04: Wake transition
+    // Trigger when status transitions FROM SLEEPING to MPPT
+    if (prevInv.status === 'SLEEPING' && currInv.status === 'MPPT') {
+        showToast('Inverter waking up - producing power', 'success');
     }
 }
 
