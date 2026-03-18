@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Dashboard & Power Control
-status: completed
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-18T15:52:43.167Z"
-last_activity: 2026-03-18 -- Completed 05-02 frontend theme & restructure
+status: in-progress
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-18T16:16:00Z"
+last_activity: 2026-03-18 -- Completed 06-01 WebSocket push infrastructure
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
+  total_plans: 4
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** Phase 6 - Live Dashboard (next)
+**Current focus:** Phase 6 - Live Dashboard
 
 ## Current Position
 
-Phase: 5 of 8 (Data Pipeline & Theme Foundation) - COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase 5 complete, ready for Phase 6
-Last activity: 2026-03-18 -- Completed 05-02 frontend theme & restructure
+Phase: 6 of 8 (Live Dashboard) - IN PROGRESS
+Plan: 1 of 2 in current phase (Plan 01 complete)
+Status: 06-01 complete, ready for 06-02
+Last activity: 2026-03-18 -- Completed 06-01 WebSocket push infrastructure
 
-Progress: [██████████] 100%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: [██████████] 100%
 |-------|------|----------|-------|-------|
 | 05    | 01   | 4min     | 2     | 7     |
 | Phase 05 P02 | 3min | 2 tasks | 4 files |
+| 06    | 01   | 2min     | 2     | 4     |
 
 ## Accumulated Context
 
@@ -60,6 +61,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Store time series at 1/s poll rate (memory cheap at ~1.3MB for 6 buffers)
 - [Phase 05]: DashboardCollector import inside run_with_shutdown() to avoid circular imports
 - [Phase 05]: All CSS classes use ve- prefix to avoid conflicts
+- [Phase 06]: Late import of broadcast_to_clients in proxy.py (same circular-import avoidance pattern)
+- [Phase 06]: Downsample history with [::10] step for sparklines
+- [Phase 06]: Send all 6 buffer keys in history for future widgets
 
 ### Pending Todos
 
@@ -72,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T15:47:43.562Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-18T16:16:00Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
