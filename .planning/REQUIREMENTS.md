@@ -36,9 +36,9 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 ### Notifications (NOTIF)
 
 - [x] **NOTIF-01**: Toast-System mit Stacking (mehrere Toasts gleichzeitig sichtbar, nicht ueberlappend)
-- [ ] **NOTIF-02**: Toast bei Venus OS Override Event (wer hat uebernommen, welcher Wert)
-- [ ] **NOTIF-03**: Toast bei Inverter Fault oder Temperatur-Warnung
-- [ ] **NOTIF-04**: Toast bei Nachtmodus-Wechsel (Inverter geht schlafen / wacht auf)
+- [x] **NOTIF-02**: Toast bei Venus OS Override Event (wer hat uebernommen, welcher Wert)
+- [x] **NOTIF-03**: Toast bei Inverter Fault oder Temperatur-Warnung
+- [x] **NOTIF-04**: Toast bei Nachtmodus-Wechsel (Inverter geht schlafen / wacht auf)
 - [x] **NOTIF-05**: Toasts haben Exit-Animation und Click-to-Dismiss
 
 ## Future Requirements
@@ -89,9 +89,9 @@ Requirements for v2.1 Dashboard Redesign & Polish milestone.
 | ANIM-03 | Phase 9 | Complete |
 | ANIM-04 | Phase 9 | Complete |
 | NOTIF-01 | Phase 9 | Complete |
-| NOTIF-02 | Phase 10 | Pending |
-| NOTIF-03 | Phase 10 | Pending |
-| NOTIF-04 | Phase 10 | Pending |
+| NOTIF-02 | Phase 10 | Complete |
+| NOTIF-03 | Phase 10 | Complete |
+| NOTIF-04 | Phase 10 | Complete |
 | NOTIF-05 | Phase 9 | Complete |
 
 **Coverage:**
