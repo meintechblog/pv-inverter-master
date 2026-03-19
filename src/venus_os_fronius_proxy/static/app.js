@@ -532,7 +532,7 @@ async function pollStatus() {
             seText = 'SolarEdge: ' + (data.solaredge || 'Disconnected');
         }
 
-        seDot.className = seClass + (seDotMod ? ' ' + seDotMod : '');
+        if (seDot) seDot.className = seClass + (seDotMod ? ' ' + seDotMod : '');
         if (seDotDetail) seDotDetail.className = seClass + (seDotMod ? ' ' + seDotMod : '');
         if (seLabel) seLabel.textContent = seText;
 
@@ -552,7 +552,7 @@ async function pollStatus() {
             vosText = 'Venus OS: ' + (data.venus_os || 'Unknown');
         }
 
-        vosDot.className = seClass + (vosDotMod ? ' ' + vosDotMod : '');
+        if (vosDot) vosDot.className = seClass + (vosDotMod ? ' ' + vosDotMod : '');
         if (vosDotDetail) vosDotDetail.className = seClass + (vosDotMod ? ' ' + vosDotMod : '');
         if (vosLabel) vosLabel.textContent = vosText;
     } catch (e) {
