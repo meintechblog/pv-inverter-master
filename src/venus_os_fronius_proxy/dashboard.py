@@ -87,6 +87,9 @@ def _revert_remaining(control_state: object) -> float | None:
     return None
 
 
+_DAILY_ENERGY_FILE = "/etc/venus-os-fronius-proxy/daily_energy.json"
+
+
 class DashboardCollector:
     """Decodes raw registers, updates time series buffers, produces snapshots."""
 
@@ -101,10 +104,37 @@ class DashboardCollector:
         }
         self._last_snapshot: dict | None = None
         self._energy_at_start: int | None = None
+        self._energy_date: str | None = None  # YYYY-MM-DD for daily reset
         # Peak stats (in-memory, reset on restart)
         self._peak_power_w: float = 0.0
         self._operating_seconds: float = 0.0
         self._last_collect_ts: float | None = None
+        # Load persistent daily energy baseline
+        self._load_daily_energy()
+
+    def _load_daily_energy(self) -> None:
+        """Load daily energy baseline from persistent file."""
+        import json, datetime
+        try:
+            with open(_DAILY_ENERGY_FILE) as f:
+                data = json.load(f)
+            today = datetime.date.today().isoformat()
+            if data.get("date") == today:
+                self._energy_at_start = data.get("baseline_wh")
+                self._energy_date = today
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
+    def _save_daily_energy(self, baseline_wh: int) -> None:
+        """Persist daily energy baseline to survive restarts."""
+        import json, datetime
+        today = datetime.date.today().isoformat()
+        try:
+            with open(_DAILY_ENERGY_FILE, "w") as f:
+                json.dump({"date": today, "baseline_wh": baseline_wh}, f)
+            self._energy_date = today
+        except OSError:
+            pass  # Config dir might not be writable
 
     @property
     def last_snapshot(self) -> dict | None:
@@ -143,12 +173,21 @@ class DashboardCollector:
                 key = field_name + suffix
                 inverter[key] = decoded[field_name]
 
-        # Track daily energy
+        # Track daily energy (persistent across restarts, resets at midnight)
+        import datetime
         energy_wh = inverter.get("energy_total_wh", 0)
+        today = datetime.date.today().isoformat()
+
+        # Reset baseline at midnight or on first run
+        if self._energy_date != today:
+            self._energy_at_start = None
+            self._energy_date = today
+
         if self._energy_at_start is None and energy_wh > 0:
             self._energy_at_start = energy_wh
+            self._save_daily_energy(energy_wh)
 
-        # Compute daily energy delta from startup baseline
+        # Compute daily energy delta from baseline
         daily_wh = energy_wh - self._energy_at_start if self._energy_at_start is not None else 0
         inverter["daily_energy_wh"] = max(0, daily_wh)
 
@@ -204,9 +243,16 @@ class DashboardCollector:
             "cache_stale": cache.is_stale,
         }
 
+        # Read rated power from Model 120 WRtg (register 40124, SF at 40125)
+        wrtg_raw = db.getValues(40124 + _PB_OFFSET, 1)[0]
+        wrtg_sf_raw = db.getValues(40125 + _PB_OFFSET, 1)[0]
+        wrtg_sf = wrtg_sf_raw - 65536 if wrtg_sf_raw > 32767 else wrtg_sf_raw
+        rated_power_w = wrtg_raw * (10 ** wrtg_sf) if wrtg_raw not in (0x8000, 0xFFFF) else 30000
+
         snapshot = {
             "ts": time.time(),
             "inverter": inverter,
+            "rated_power_w": rated_power_w,
             "control": control,
             "venus_os": venus_os,
             "connection": connection,

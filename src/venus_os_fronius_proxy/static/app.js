@@ -5,7 +5,7 @@ const POLL_INTERVAL = 10000; // Fallback polling interval (WebSocket provides li
 let previousRegValues = {};
 let ws = null;
 let sparklineData = [];
-const CAPACITY_W = 30000;
+var CAPACITY_W = 30000;
 var previousSnapshot = null;
 var TEMP_WARNING_C = 75; // Heatsink temperature warning threshold for SE30K
 var venusLockRemaining = null;
@@ -110,6 +110,20 @@ function connectWebSocket() {
 function handleSnapshot(data) {
     const inv = data.inverter;
     if (!inv) return;
+
+    // Update rated power from snapshot (dynamic per inverter)
+    if (data.rated_power_w && data.rated_power_w > 0) {
+        var newRated = Math.round(data.rated_power_w / 1000);
+        if (newRated !== RATED_KW) {
+            RATED_KW = newRated;
+            CAPACITY_W = newRated * 1000;
+            dropdownPopulated = false;  // Rebuild dropdown
+        }
+        if (!dropdownPopulated) {
+            populatePowerDropdown(newRated);
+            dropdownPopulated = true;
+        }
+    }
 
     // Smart notifications: detect events from snapshot diff
     if (previousSnapshot) {
@@ -757,7 +771,8 @@ function formatValue(val) {
 
 // ===== Power Control =====
 
-const RATED_KW = 30;
+let RATED_KW = 30;  // Updated dynamically from snapshot.rated_power_w
+let dropdownPopulated = false;
 
 let lastControlState = null;
 
@@ -861,76 +876,66 @@ function dismissToast(toast) {
 
 // --- Apply Power Limit ---
 
-async function applyPowerLimit(pct) {
-    try {
-        var res = await fetch('/api/power-limit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'set', limit_pct: pct })
-        });
-        var data = await res.json();
-        if (data.success) {
-            showToast('Power limit set to ' + pct + '%', 'success');
-        } else if (res.status === 409) {
-            showToast('Venus OS is controlling -- manual override blocked', 'error');
-        } else {
-            showToast(data.error || 'Failed to set power limit', 'error');
-        }
-    } catch (e) {
-        showToast('Request failed: ' + e.message, 'error');
+// --- Populate kW Dropdown dynamically ---
+
+function populatePowerDropdown(maxKw) {
+    var dropdown = document.getElementById('ctrl-dropdown');
+    if (!dropdown) return;
+    var currentVal = dropdown.value;
+    dropdown.innerHTML = '<option value="off">Off</option>';
+    for (var kw = 1; kw <= maxKw; kw++) {
+        var opt = document.createElement('option');
+        opt.value = kw;
+        opt.textContent = kw + ' kW';
+        dropdown.appendChild(opt);
+    }
+    // Restore selection if it still exists
+    if (currentVal && dropdown.querySelector('option[value="' + currentVal + '"]')) {
+        dropdown.value = currentVal;
     }
 }
 
-// --- Dropdown Change → Confirm & Apply ---
+// --- Dropdown Change → Set limit directly (no confirmation) ---
 
 (function() {
     var dropdown = document.getElementById('ctrl-dropdown');
     if (!dropdown) return;
 
-    dropdown.addEventListener('change', function() {
-        var pct = parseInt(dropdown.value);
-        var kw = (pct / 100 * RATED_KW).toFixed(1);
-        showConfirmDialog(
-            'Set power limit to <strong>' + pct + '% (' + kw + ' kW)</strong>?<br>' +
-            'This limit will auto-revert after 5 minutes.',
-            function() { applyPowerLimit(pct); }
-        );
-    });
-})();
-
-// --- Enable/Disable Toggle ---
-
-(function() {
-    var toggle = document.getElementById('ctrl-toggle');
-    if (!toggle) return;
-
-    toggle.addEventListener('change', function() {
-        var action = toggle.checked ? 'enable' : 'disable';
-        var label = toggle.checked ? 'Enable' : 'Disable';
-        // Revert visual state until confirmed
-        toggle.checked = !toggle.checked;
-        showConfirmDialog(
-            '<strong>' + label + '</strong> power limiting?',
-            async function() {
-                try {
-                    var res = await fetch('/api/power-limit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: action })
-                    });
-                    var data = await res.json();
-                    if (data.success) {
-                        showToast('Power limiting ' + (action === 'enable' ? 'enabled' : 'disabled'), 'success');
-                    } else if (res.status === 409) {
-                        showToast('Venus OS is controlling -- manual override blocked', 'error');
-                    } else {
-                        showToast(data.error || 'Failed to ' + action + ' power limit', 'error');
-                    }
-                } catch (e) {
-                    showToast('Request failed: ' + e.message, 'error');
+    dropdown.addEventListener('change', async function() {
+        var val = dropdown.value;
+        try {
+            if (val === 'off') {
+                var res = await fetch('/api/power-limit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'disable' })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    showToast('Power limit off', 'success');
+                } else {
+                    showToast(data.error || 'Failed', 'error');
+                }
+            } else {
+                var kw = parseInt(val);
+                var pct = (kw / RATED_KW) * 100;
+                var res = await fetch('/api/power-limit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set', limit_pct: pct })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    showToast('Limit: ' + kw + ' kW', 'success');
+                } else if (res.status === 409) {
+                    showToast('Venus OS is controlling', 'error');
+                } else {
+                    showToast(data.error || 'Failed', 'error');
                 }
             }
-        );
+        } catch (e) {
+            showToast('Request failed: ' + e.message, 'error');
+        }
     });
 })();
 
@@ -946,7 +951,6 @@ function updatePowerControl(data) {
     var label = document.getElementById('ctrl-label');
     var sourceBrief = document.getElementById('ctrl-source-brief');
     var dropdown = document.getElementById('ctrl-dropdown');
-    var toggleBtn = document.getElementById('ctrl-toggle');
     var revertDiv = document.getElementById('ctrl-revert');
     var revertTime = document.getElementById('ctrl-revert-time');
     var banner = document.getElementById('ctrl-override-banner');
@@ -956,24 +960,23 @@ function updatePowerControl(data) {
     var enabled = ctrl.enabled;
     if (source === 'venus_os') {
         if (dot) dot.className = 've-dot ve-dot--err';
-        if (label) label.textContent = 'Venus OS override active';
-    } else if (enabled && source === 'webapp') {
+        if (label) label.textContent = 'Venus OS override';
+    } else if (enabled) {
+        var limitKw = (ctrl.limit_pct / 100 * RATED_KW).toFixed(0);
         if (dot) dot.className = 've-dot ve-dot--warn';
-        if (label) label.textContent = 'Limited (' + ctrl.limit_pct.toFixed(1) + '%)';
-    } else if (enabled && source !== 'none') {
-        if (dot) dot.className = 've-dot ve-dot--warn';
-        if (label) label.textContent = 'Limited (' + ctrl.limit_pct.toFixed(1) + '%)';
+        if (label) label.textContent = 'Limited to ' + limitKw + ' kW';
     } else {
         if (dot) dot.className = 've-dot ve-dot--ok';
-        if (label) label.textContent = 'No limit active';
+        if (label) label.textContent = 'No limit';
     }
 
-    // Source brief (shown inline after status label)
+    // Source brief
     var isVenusOverride = source === 'venus_os';
     if (sourceBrief) {
-        if (enabled && source !== 'none') {
-            var sourceNames = { 'webapp': 'Webapp', 'venus_os': 'Venus OS' };
-            sourceBrief.textContent = '(' + (sourceNames[source] || source) + ' · ' + ctrl.limit_pct.toFixed(0) + '%)';
+        if (source === 'venus_os') {
+            sourceBrief.textContent = '(' + ctrl.limit_pct.toFixed(0) + '%)';
+        } else if (enabled && source === 'webapp') {
+            sourceBrief.textContent = '';
         } else {
             sourceBrief.textContent = '';
         }
@@ -981,12 +984,6 @@ function updatePowerControl(data) {
 
     // Disable dropdown when Venus OS controls
     if (dropdown) dropdown.disabled = isVenusOverride;
-
-    // Toggle button text
-    if (toggleBtn) {
-        toggleBtn.checked = enabled;
-        toggleBtn.disabled = isVenusOverride;
-    }
 
     // Venus OS override banner
     if (banner) {
