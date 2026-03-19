@@ -135,5 +135,5 @@ Phases execute in numeric order: 13 -> 14 -> 15 -> 16
 | 12. Unified Dashboard Layout | v2.1 | 1/1 | Complete | 2026-03-18 |
 | 13. MQTT Config Backend | 2/2 | Complete    | 2026-03-19 | - |
 | 14. Config Page & Dashboard UX | 2/2 | Complete    | 2026-03-19 | - |
-| 15. Venus OS Auto-Detect | 1/1 | Complete   | 2026-03-19 | - |
+| 15. Venus OS Auto-Detect | 1/1 | Complete    | 2026-03-19 | - |
 | 16. Install Script & README | v3.0 | 0/? | Not started | - |
