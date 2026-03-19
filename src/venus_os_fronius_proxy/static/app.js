@@ -1282,26 +1282,10 @@ function updateVenusESS(snapshot) {
     if (!vs) return;
 
     var now = Date.now();
-    var limitRow = document.getElementById('ess-limit-row');
 
-    // 1. AC PV Excess Feed-in (main toggle — PreventFeedback: 0=allow)
-    var acExcessOn = !vs.prevent_feedback;
+    // 1. AC PV Excess Feed-in (PreventFeedback: 0=allow, inverted for UI)
     if (acToggle && (now - (acToggle._userChangedAt || 0)) > 5000) {
-        acToggle.checked = acExcessOn;
-    }
-
-    // 2. Show "Limit System Feed-in" only when AC excess is ON
-    if (limitRow) limitRow.style.display = acExcessOn ? '' : 'none';
-
-    // 3. Limit System Feed-in toggle: ON if MaxFeedInPower >= 0 and < 30000
-    var feedInLimited = vs.max_feed_in_w >= 0 && vs.max_feed_in_w < 30000;
-    if (limitToggle && (now - (limitToggle._userChangedAt || 0)) > 5000) {
-        limitToggle.checked = feedInLimited;
-    }
-
-    // 4. Show Max Feed-in row only when both AC excess ON + limit ON
-    if (maxFeedInRow) {
-        maxFeedInRow.style.display = (acExcessOn && feedInLimited) ? '' : 'none';
+        acToggle.checked = !vs.prevent_feedback;
     }
 
     // 4. Feed-in actual (current grid export)
@@ -1352,20 +1336,7 @@ async function writeESSSetting(register, value) {
 
 (function() {
     var acToggle = document.getElementById('ess-ac-excess');
-    var limitToggle = document.getElementById('ess-limit-feedin');
     var feedInDD = document.getElementById('ess-feed-in');
-
-    // Limit System Feed-in toggle
-    if (limitToggle) limitToggle.addEventListener('change', function() {
-        limitToggle._userChangedAt = Date.now();
-        if (limitToggle.checked) {
-            writeESSSetting(2706, 100);
-            showToast('Feed-in limit: 10 kW', 'success');
-        } else {
-            writeESSSetting(2706, 300);
-            showToast('Feed-in limit: Off', 'success');
-        }
-    });
 
     // AC PV Excess (PreventFeedback: inverted)
     if (acToggle) acToggle.addEventListener('change', function() {
