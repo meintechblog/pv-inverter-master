@@ -83,10 +83,6 @@
         <div class="ve-dashboard-top">
           <div class="ve-card ve-gauge-card">
             <h2 class="ve-card-title">Power Output</h2>
-            <div class="ve-daily-energy">
-              <span class="ve-daily-energy-value ve-live-value" id="daily-energy">0.0</span>
-              <span class="ve-daily-energy-unit">kWh today</span>
-            </div>
             <svg id="power-gauge" viewBox="0 0 200 130" class="ve-gauge-svg">
               <path d="M 20 100 A 80 80 0 0 1 180 100"
                     fill="none" stroke="var(--ve-border)" stroke-width="12" stroke-linecap="round"/>
@@ -218,6 +214,7 @@
           <div class="ve-card" id="peak-stats-panel">
             <h2 class="ve-card-title">Today's Performance</h2>
             <div class="ve-grid">
+              <div><label>Energy</label><span class="ve-live-value" id="daily-energy">0.0 kWh</span></div>
               <div><label>Peak Power</label><span class="ve-live-value" id="peak-power">-- kW</span></div>
               <div><label>Operating Hours</label><span class="ve-live-value" id="operating-hours">--</span></div>
               <div><label>Efficiency</label><span class="ve-live-value" id="efficiency-pct">--%</span></div>

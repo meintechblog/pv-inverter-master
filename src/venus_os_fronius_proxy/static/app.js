@@ -329,7 +329,7 @@ function updateDailyEnergy(inv) {
     var el = document.getElementById('daily-energy');
     if (!el) return;
     var wh = inv.daily_energy_wh || 0;
-    var kwh = (wh / 1000).toFixed(1);
+    var kwh = (wh / 1000).toFixed(1) + ' kWh';
     if (el.textContent !== kwh) {
         el.textContent = kwh;
         flashValue(el);
