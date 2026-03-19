@@ -29,10 +29,11 @@ WMAXLIMPCT_OFFSET = 5    # Register 40154 = 40149 + 5
 WMAXLIM_ENA_OFFSET = 9   # Register 40158 = 40149 + 9
 
 # Scale factor for WMaxLimPct
-# Venus OS dbus-fronius "legacy sunspec limiter" writes plain integer
-# percent (e.g., 36 = 36%), ignoring the SunSpec SF=-2 convention.
-# We use SF=0 to match Venus OS behavior.
-WMAXLIMPCT_SF = 0
+# Venus OS dbus-fronius "legacy sunspec limiter" reads the SF register
+# and uses it for its calculations. SF=-2 gives 0.01% resolution
+# (raw 886 = 8.86%), which produces smoother regulation than SF=0
+# (raw 9 = 9%, 300W steps at 30kW rated).
+WMAXLIMPCT_SF = -2
 
 # SolarEdge proprietary control registers
 SE_ENABLE_REG = 0xF300        # 62208 - Enable Dynamic Power Control
