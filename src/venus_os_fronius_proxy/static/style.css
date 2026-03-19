@@ -1410,21 +1410,26 @@ body {
 /* ===== MQTT Gate ===== */
 .mqtt-gated {
     position: relative;
-    opacity: 0.35;
     pointer-events: none;
     transition: opacity var(--ve-duration-normal) var(--ve-easing-default);
+}
+.mqtt-gated > * {
+    opacity: 0.08;
 }
 .mqtt-gated::after {
     content: 'Requires Venus OS MQTT';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 20, 0.82);
     color: var(--ve-text-dim);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.03em;
     text-align: center;
-    white-space: nowrap;
     pointer-events: none;
+    border-radius: var(--ve-radius, 8px);
 }
 
 /* ===== Hint Card ===== */
