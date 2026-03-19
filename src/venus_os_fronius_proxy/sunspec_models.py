@@ -100,10 +100,20 @@ def build_initial_registers() -> list[int]:
     regs[139] = _int16_as_uint16(-2)     # PFRtg_SF
     # 40140-40148 = zeros (storage ratings N/A, padding)
 
-    # Model 123 Immediate Controls (40149-40174) -- header only in Phase 2
+    # Model 123 Immediate Controls (40149-40174)
     regs[149] = CONTROLS_DID     # 123
     regs[150] = CONTROLS_LENGTH  # 24
-    # Remaining fields = 0 (no active control in Phase 2)
+    # [151] Conn_WinTms = 0
+    # [152] Conn_RvrtTms = 0
+    # [153] Conn = 0
+    # [154] WMaxLimPct = 10000 (= 100.00% with SF -2)
+    regs[154] = 10000
+    # [155] WMaxLimPct_WinTms = 0
+    # [156] WMaxLimPct_RvrtTms = 0
+    # [157] WMaxLimPct_RmpTms = 0
+    # [158] WMaxLimPct_SF = -2
+    regs[158] = _int16_as_uint16(-2)
+    # [159] WMaxLim_Ena = 0 (Venus OS sets this when it wants to control)
 
     # End Marker (40175-40176)
     regs[175] = 0xFFFF
