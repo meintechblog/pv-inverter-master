@@ -109,10 +109,10 @@ Plans:
   2. Install script uses secure curl flags and includes pre-flight checks (port 502 availability, existing config preservation)
   3. README documents the full setup flow: install, configure SolarEdge, configure Venus OS MQTT, verify dashboard
   4. README states Venus OS >= 3.7 as prerequisite
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 16-01: TBD
+- [ ] 16-01-PLAN.md — Fix install script YAML + pre-flight checks, rewrite README with v3.0 setup flow
 
 ## Progress
 
@@ -136,4 +136,4 @@ Phases execute in numeric order: 13 -> 14 -> 15 -> 16
 | 13. MQTT Config Backend | 2/2 | Complete    | 2026-03-19 | - |
 | 14. Config Page & Dashboard UX | 2/2 | Complete    | 2026-03-19 | - |
 | 15. Venus OS Auto-Detect | 1/1 | Complete    | 2026-03-19 | - |
-| 16. Install Script & README | v3.0 | 0/? | Not started | - |
+| 16. Install Script & README | v3.0 | 0/1 | Not started | - |
