@@ -1252,7 +1252,7 @@ var essFeedInPopulated = false;
 function populateESSFeedIn() {
     var dd = document.getElementById('ess-feed-in');
     if (!dd || essFeedInPopulated) return;
-    dd.innerHTML = '<option value="-1">No limit</option>';
+    dd.innerHTML = '';
     for (var kw = 30; kw >= 0; kw--) {
         var opt = document.createElement('option');
         opt.value = kw * 1000;
@@ -1270,20 +1270,33 @@ function formatKw(watts) {
 
 function updateVenusESS(snapshot) {
     var vs = snapshot.venus_settings;
+    var acToggle = document.getElementById('ess-ac-excess');
+    var limitToggle = document.getElementById('ess-limit-feedin');
+    var maxFeedInRow = document.getElementById('ess-max-feedin-row');
     var feedInDD = document.getElementById('ess-feed-in');
     var feedInActual = document.getElementById('ess-feed-in-actual');
-    var acToggle = document.getElementById('ess-ac-excess');
     var limiterEl = document.getElementById('ess-limiter-value');
 
     populateESSFeedIn();
 
     if (!vs) return;
 
-    // Feed-in: actual value (current grid export)
+    // 1. AC PV Excess Feed-in (PreventFeedback: 0=allow, inverted for UI)
+    if (acToggle) acToggle.checked = !vs.prevent_feedback;
+
+    // 2. Limit System Feed-in toggle: ON if MaxFeedInPower >= 0, OFF if -1
+    var feedInLimited = vs.max_feed_in_w >= 0;
+    if (limitToggle) limitToggle.checked = feedInLimited;
+
+    // 3. Show Max Feed-in row only when limit is active
+    if (maxFeedInRow) {
+        maxFeedInRow.style.display = feedInLimited ? '' : 'none';
+    }
+
+    // 4. Feed-in actual (current grid export)
     if (feedInActual) {
         feedInActual.textContent = formatKw(vs.grid_feed_in_w);
-        // Color: green if under limit, orange if near, red if over
-        if (vs.max_feed_in_w > 0 && vs.grid_feed_in_w > vs.max_feed_in_w) {
+        if (feedInLimited && vs.grid_feed_in_w > vs.max_feed_in_w) {
             feedInActual.style.color = 'var(--ve-red)';
         } else if (vs.grid_feed_in_w > 0) {
             feedInActual.style.color = 'var(--ve-green)';
@@ -1292,29 +1305,19 @@ function updateVenusESS(snapshot) {
         }
     }
 
-    // Feed-in dropdown (setting)
-    if (feedInDD && !feedInDD.matches(':focus')) {
-        if (vs.max_feed_in_w < 0) {
-            feedInDD.value = '-1';
-        } else {
-            var closest = Math.round(vs.max_feed_in_w / 1000) * 1000;
-            feedInDD.value = closest;
-        }
+    // 5. Feed-in dropdown (target value)
+    if (feedInDD && !feedInDD.matches(':focus') && feedInLimited) {
+        var closest = Math.round(vs.max_feed_in_w / 1000) * 1000;
+        feedInDD.value = closest;
     }
 
-    // AC PV excess toggle (PreventFeedback: 0=allow, inverted for UI)
-    if (acToggle) acToggle.checked = !vs.prevent_feedback;
-
-    // PV Limiter: show status + current limit value
+    // 6. Feed-in Limiting status (read-only)
     if (limiterEl) {
-        if (vs.limiter_active && vs.pv_limit_w != null) {
-            limiterEl.textContent = formatKw(vs.pv_limit_w);
-            limiterEl.style.color = 'var(--ve-green)';
-        } else if (vs.limiter_active) {
+        if (vs.limiter_active) {
             limiterEl.textContent = 'Active';
             limiterEl.style.color = 'var(--ve-green)';
         } else {
-            limiterEl.textContent = 'Off';
+            limiterEl.textContent = 'Inactive';
             limiterEl.style.color = 'var(--ve-text-dim)';
         }
     }
@@ -1337,18 +1340,34 @@ async function writeESSSetting(register, value) {
 }
 
 (function() {
-    var feedInDD = document.getElementById('ess-feed-in');
     var acToggle = document.getElementById('ess-ac-excess');
+    var limitToggle = document.getElementById('ess-limit-feedin');
+    var feedInDD = document.getElementById('ess-feed-in');
 
-    if (feedInDD) feedInDD.addEventListener('change', function() {
-        var watts = parseInt(feedInDD.value);
-        var raw = watts < 0 ? 65535 : Math.round(watts / 100);
-        writeESSSetting(2706, raw);
-        showToast('Feed-in limit: ' + (watts < 0 ? 'No limit' : formatKw(watts)), 'success');
-    });
-
+    // AC PV Excess (PreventFeedback: inverted)
     if (acToggle) acToggle.addEventListener('change', function() {
         writeESSSetting(2708, acToggle.checked ? 0 : 1);
-        showToast('AC PV excess: ' + (acToggle.checked ? 'Allowed' : 'Blocked'), 'success');
+        showToast('AC PV Excess: ' + (acToggle.checked ? 'Allowed' : 'Blocked'), 'success');
+    });
+
+    // Limit System Feed-in toggle
+    if (limitToggle) limitToggle.addEventListener('change', function() {
+        if (limitToggle.checked) {
+            // Enable with default 10 kW (raw = 100)
+            writeESSSetting(2706, 100);
+            showToast('Feed-in limit: 10 kW', 'success');
+        } else {
+            // Disable = unlimited (raw = -1 → 65535 as uint16)
+            writeESSSetting(2706, 65535);
+            showToast('Feed-in limit: Off', 'success');
+        }
+    });
+
+    // Max Feed-in value dropdown
+    if (feedInDD) feedInDD.addEventListener('change', function() {
+        var watts = parseInt(feedInDD.value);
+        var raw = Math.round(watts / 100);
+        writeESSSetting(2706, raw);
+        showToast('Max feed-in: ' + formatKw(watts), 'success');
     });
 })();
