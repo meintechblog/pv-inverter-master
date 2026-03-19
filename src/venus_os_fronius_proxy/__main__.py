@@ -151,11 +151,8 @@ def main():
         # Start Venus OS settings reader (polls ESS config from Venus OS Modbus TCP)
         venus_task = None
         if shared_ctx:
-            from venus_os_fronius_proxy.venus_reader import venus_reader_loop
-            # TODO: make configurable — use the Venus OS with active ESS
-            venus_task = asyncio.create_task(
-                venus_reader_loop(shared_ctx, host="192.168.3.146", interval=2.0)
-            )
+            from venus_os_fronius_proxy.venus_reader import venus_mqtt_loop
+            venus_task = asyncio.create_task(venus_mqtt_loop(shared_ctx))
 
         # Start health heartbeat task
         heartbeat_task = None
