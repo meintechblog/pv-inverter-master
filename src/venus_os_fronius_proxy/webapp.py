@@ -552,6 +552,59 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True})
 
 
+async def venus_write_handler(request: web.Request) -> web.Response:
+    """Write a single register to Venus OS Modbus TCP.
+
+    Body: {"register": 2706, "value": 100}
+    Only allows known safe registers (ESS settings).
+    """
+    ALLOWED_REGISTERS = {2706, 2707, 2708}  # MaxFeedIn, OvervoltageFeedIn, PreventFeedback
+
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response(
+            {"success": False, "error": "Invalid JSON body"}, status=400,
+        )
+
+    register = body.get("register")
+    value = body.get("value")
+
+    if register not in ALLOWED_REGISTERS:
+        return web.json_response(
+            {"success": False, "error": f"Register {register} not writable"}, status=400,
+        )
+
+    try:
+        from pymodbus.client import AsyncModbusTcpClient
+        # Venus OS host — TODO: make configurable
+        client = AsyncModbusTcpClient("192.168.3.146", port=502)
+        await client.connect()
+        if not client.connected:
+            return web.json_response(
+                {"success": False, "error": "Cannot connect to Venus OS"}, status=502,
+            )
+
+        # Handle signed int16
+        raw = int(value)
+        if raw < 0:
+            raw = raw + 65536
+
+        result = await client.write_register(register, raw, device_id=100)
+        client.close()
+
+        if result.isError():
+            return web.json_response(
+                {"success": False, "error": f"Write failed: {result}"}, status=500,
+            )
+
+        return web.json_response({"success": True})
+    except Exception as e:
+        return web.json_response(
+            {"success": False, "error": str(e)}, status=500,
+        )
+
+
 async def venus_lock_handler(request: web.Request) -> web.Response:
     """Handle Venus OS lock toggle commands.
 
@@ -627,6 +680,7 @@ async def create_webapp(
     app.router.add_get("/api/dashboard", dashboard_handler)
     app.router.add_post("/api/power-limit", power_limit_handler)
     app.router.add_post("/api/power-clamp", power_clamp_handler)
+    app.router.add_post("/api/venus-write", venus_write_handler)
     app.router.add_post("/api/venus-lock", venus_lock_handler)
     app.router.add_get("/static/{filename}", static_handler)
 

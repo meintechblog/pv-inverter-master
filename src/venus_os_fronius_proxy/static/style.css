@@ -808,6 +808,20 @@ body {
     margin-top: 0.5rem;
     font-size: 0.8em;
 }
+.ve-ess-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 0.85em;
+}
+.ve-ess-row label:first-child {
+    color: var(--ve-text-dim);
+}
+.ve-ess-dropdown {
+    width: auto;
+    min-width: 90px;
+}
 .ve-lock-timer {
     font-family: var(--ve-mono);
     font-size: 0.9em;

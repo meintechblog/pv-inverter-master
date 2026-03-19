@@ -184,10 +184,21 @@
           </div>
           <div class="ve-card" id="venus-ess-panel">
             <h2 class="ve-card-title">Venus OS ESS</h2>
-            <div class="ve-grid">
-              <div><label>Feed-in Limit</label><span class="ve-live-value" id="ess-feed-in">--</span></div>
-              <div><label>PV Excess → Grid</label><span class="ve-live-value" id="ess-prevent-feedback">--</span></div>
-              <div><label>PV Limiter</label><span class="ve-live-value" id="ess-limiter-active">--</span></div>
+            <div class="ve-ess-row">
+              <label>Max Feed-in</label>
+              <select id="ess-feed-in" class="ve-ctrl-dropdown ve-ess-dropdown"></select>
+            </div>
+            <div class="ve-ess-row">
+              <label>DC-coupled PV Excess</label>
+              <label class="ve-toggle"><input type="checkbox" id="ess-overvoltage"><span class="ve-toggle-track"></span></label>
+            </div>
+            <div class="ve-ess-row">
+              <label>AC-coupled PV Excess</label>
+              <label class="ve-toggle"><input type="checkbox" id="ess-ac-excess"><span class="ve-toggle-track"></span></label>
+            </div>
+            <div class="ve-ess-row">
+              <label>PV Limiter</label>
+              <span class="ve-live-value" id="ess-limiter-active">--</span>
             </div>
           </div>
           <div class="ve-card" id="peak-stats-panel">

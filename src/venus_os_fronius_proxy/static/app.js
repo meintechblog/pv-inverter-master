@@ -1247,35 +1247,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Venus OS ESS Settings ---
 
+var essFeedInPopulated = false;
+
+function populateESSFeedIn() {
+    var dd = document.getElementById('ess-feed-in');
+    if (!dd || essFeedInPopulated) return;
+    dd.innerHTML = '<option value="-1">Unlimited</option>';
+    // 0 to 30 kW in 1 kW steps (descending after unlimited)
+    for (var kw = 30; kw >= 0; kw--) {
+        var opt = document.createElement('option');
+        opt.value = kw * 1000;
+        opt.textContent = kw + ' kW';
+        dd.appendChild(opt);
+    }
+    essFeedInPopulated = true;
+}
+
 function updateVenusESS(snapshot) {
     var vs = snapshot.venus_settings;
-    var feedInEl = document.getElementById('ess-feed-in');
-    var preventEl = document.getElementById('ess-prevent-feedback');
+    var feedInDD = document.getElementById('ess-feed-in');
+    var ovToggle = document.getElementById('ess-overvoltage');
+    var acToggle = document.getElementById('ess-ac-excess');
     var limiterEl = document.getElementById('ess-limiter-active');
 
-    if (!vs) {
-        if (feedInEl) feedInEl.textContent = '--';
-        if (preventEl) preventEl.textContent = '--';
-        if (limiterEl) limiterEl.textContent = '--';
-        return;
-    }
+    populateESSFeedIn();
 
-    if (feedInEl) {
+    if (!vs) return;
+
+    // Feed-in dropdown (only update if not focused)
+    if (feedInDD && !feedInDD.matches(':focus')) {
         if (vs.max_feed_in_w < 0) {
-            feedInEl.textContent = 'Unlimited';
+            feedInDD.value = '-1';
         } else {
-            var kw = vs.max_feed_in_w / 1000;
-            feedInEl.textContent = (kw === Math.floor(kw) ? kw.toFixed(0) : kw.toFixed(1)) + ' kW';
+            // Find closest kW option
+            var closest = Math.round(vs.max_feed_in_w / 1000) * 1000;
+            feedInDD.value = closest;
         }
     }
 
-    if (preventEl) {
-        preventEl.textContent = vs.prevent_feedback ? 'Blocked' : 'Allowed';
-        preventEl.style.color = vs.prevent_feedback ? 'var(--ve-red)' : 'var(--ve-green)';
-    }
+    // DC-coupled PV excess toggle (OvervoltageFeedIn: 1=feed into grid)
+    if (ovToggle) ovToggle.checked = vs.overvoltage_feed_in;
 
+    // AC-coupled PV excess toggle (PreventFeedback: 0=allow, inverted for UI)
+    if (acToggle) acToggle.checked = !vs.prevent_feedback;
+
+    // PV Limiter (read-only)
     if (limiterEl) {
         limiterEl.textContent = vs.limiter_active ? 'Active' : 'Inactive';
         limiterEl.style.color = vs.limiter_active ? 'var(--ve-green)' : 'var(--ve-text-dim)';
     }
 }
+
+// --- ESS Settings Change Handlers ---
+
+async function writeESSSetting(register, value) {
+    try {
+        var res = await fetch('/api/venus-write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ register: register, value: value })
+        });
+        var data = await res.json();
+        if (!data.success) showToast(data.error || 'Write failed', 'error');
+    } catch (e) {
+        showToast('Request failed: ' + e.message, 'error');
+    }
+}
+
+(function() {
+    var feedInDD = document.getElementById('ess-feed-in');
+    var ovToggle = document.getElementById('ess-overvoltage');
+    var acToggle = document.getElementById('ess-ac-excess');
+
+    if (feedInDD) feedInDD.addEventListener('change', function() {
+        var watts = parseInt(feedInDD.value);
+        // Register 2706, scale 0.01 → raw = watts / 100
+        var raw = watts < 0 ? -1 : Math.round(watts / 100);
+        writeESSSetting(2706, raw);
+        var label = watts < 0 ? 'Unlimited' : (watts / 1000) + ' kW';
+        showToast('Max Feed-in: ' + label, 'success');
+    });
+
+    if (ovToggle) ovToggle.addEventListener('change', function() {
+        // Register 2707: 1=feed, 0=don't
+        writeESSSetting(2707, ovToggle.checked ? 1 : 0);
+        showToast('DC PV Excess: ' + (ovToggle.checked ? 'Enabled' : 'Disabled'), 'success');
+    });
+
+    if (acToggle) acToggle.addEventListener('change', function() {
+        // Register 2708: PreventFeedback (inverted: 0=allow, 1=prevent)
+        writeESSSetting(2708, acToggle.checked ? 0 : 1);
+        showToast('AC PV Excess: ' + (acToggle.checked ? 'Allowed' : 'Blocked'), 'success');
+    });
+})();
