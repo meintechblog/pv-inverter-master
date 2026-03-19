@@ -792,7 +792,7 @@ function buildRegisterViewer(container, models) {
         // Column header row
         const headerRow = document.createElement('div');
         headerRow.className = 've-reg-header';
-        headerRow.innerHTML = '<span>Addr</span><span>Name</span><span>SE30K Source</span><span>Fronius Target</span>';
+        headerRow.innerHTML = '<span>Addr</span><span>Name</span><span class="ve-reg-se-value">SE30K Source</span><span class="ve-reg-fronius-value">Fronius Target</span>';
         fields.appendChild(headerRow);
 
         model.fields.forEach(field => {
