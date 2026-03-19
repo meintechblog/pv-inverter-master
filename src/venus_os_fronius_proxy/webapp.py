@@ -592,10 +592,15 @@ async def venus_write_handler(request: web.Request) -> web.Response:
             {"success": False, "error": f"Register {register} not writable"}, status=400,
         )
 
+    venus_cfg = request.app["config"].venus
+    if not venus_cfg.host:
+        return web.json_response(
+            {"success": False, "error": "Venus OS not configured"}, status=503,
+        )
+
     try:
         from pymodbus.client import AsyncModbusTcpClient
-        # Venus OS host — TODO: make configurable
-        client = AsyncModbusTcpClient("192.168.3.146", port=502)
+        client = AsyncModbusTcpClient(venus_cfg.host, port=502)
         await client.connect()
         if not client.connected:
             return web.json_response(
@@ -622,19 +627,22 @@ async def venus_write_handler(request: web.Request) -> web.Response:
         )
 
 
-def _mqtt_write_venus(host: str, portal_id: str, path: str, value) -> bool:
+def _mqtt_write_venus(host: str, port: int, portal_id: str, path: str, value) -> bool:
     """Write a dbus value to Venus OS via MQTT (for values Modbus can't set)."""
     import socket, struct, json as _json
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(5)
-        s.connect((host, 1883))
+        s.connect((host, port))
         # MQTT CONNECT
         cid = b"pv-proxy"
         payload = struct.pack("!H", 4) + b"MQTT" + bytes([4, 2, 0, 60])
         payload += struct.pack("!H", len(cid)) + cid
         s.send(bytes([0x10, len(payload)]) + payload)
-        s.recv(4)  # CONNACK
+        connack = s.recv(4)  # CONNACK
+        if len(connack) < 4 or connack[3] != 0:
+            s.close()
+            return False
         # MQTT PUBLISH
         topic = f"W/{portal_id}/settings/0{path}".encode()
         msg = _json.dumps({"value": value}).encode()
@@ -673,8 +681,12 @@ async def venus_dbus_handler(request: web.Request) -> web.Response:
     if path not in ALLOWED_PATHS:
         return web.json_response({"success": False, "error": f"Path not allowed"}, status=400)
 
-    # TODO: make host + portal_id configurable
-    ok = _mqtt_write_venus("192.168.3.146", "88a29ec1e5f4", path, value)
+    venus_cfg = request.app["config"].venus
+    if not venus_cfg.host or not venus_cfg.portal_id:
+        return web.json_response(
+            {"success": False, "error": "Venus OS MQTT not configured"}, status=503,
+        )
+    ok = _mqtt_write_venus(venus_cfg.host, venus_cfg.port, venus_cfg.portal_id, path, value)
     return web.json_response({"success": ok, "error": None if ok else "MQTT write failed"})
 
 

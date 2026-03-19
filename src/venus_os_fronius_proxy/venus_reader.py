@@ -102,6 +102,40 @@ def _parse_mqtt_messages(data: bytes) -> list[tuple[str, dict]]:
     return messages
 
 
+async def discover_portal_id(host: str, port: int = 1883, timeout: float = 10.0) -> str | None:
+    """Auto-discover Venus OS portal ID via MQTT wildcard subscription."""
+    loop = asyncio.get_event_loop()
+    try:
+        def _discover_blocking():
+            s = _mqtt_connect(host, port, client_id="pv-proxy-discover")
+            _mqtt_subscribe(s, ["N/+/system/0/Serial"])
+            s.settimeout(timeout)
+            try:
+                data = s.recv(8192)
+                for topic, payload in _parse_mqtt_messages(data):
+                    if "/system/0/Serial" in topic:
+                        parts = topic.split("/")
+                        if len(parts) >= 2:
+                            portal_id = parts[1]
+                            logger.info("portal_id_discovered", portal_id=portal_id)
+                            return portal_id
+            except socket.timeout:
+                logger.warning("portal_id_discovery_timeout", host=host, timeout=timeout)
+            finally:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+            return None
+        return await asyncio.wait_for(
+            loop.run_in_executor(None, _discover_blocking),
+            timeout=timeout + 2,
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.warning("portal_id_discovery_error", error=str(e))
+        return None
+
+
 async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str) -> None:
     """Background task: subscribe to Venus OS MQTT and update settings in real-time."""
     if not host:
@@ -110,6 +144,21 @@ async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str
         return
 
     portal = portal_id
+
+    while True:
+        # Auto-discover portal ID if not provided
+        if not portal:
+            discovered = await discover_portal_id(host, port)
+            if discovered:
+                portal = discovered
+            else:
+                logger.warning("portal_id_discovery_failed", host=host)
+                shared_ctx["venus_mqtt_connected"] = False
+                await asyncio.sleep(30)
+                continue
+
+        break
+
     prefix = f"N/{portal}"
 
     # Topics to subscribe (wildcards for grid power)
