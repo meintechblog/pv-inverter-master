@@ -114,6 +114,18 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         # Address from pymodbus is the SunSpec address directly
         abs_addr = address
 
+        # Flag Venus OS detection on any Model 123 write (one-shot)
+        if (
+            self._shared_ctx is not None
+            and self._control is not None
+            and self._plugin is not None
+            and self._control.is_model_123_address(abs_addr, len(values))
+            and not self._shared_ctx.get("venus_os_detected")
+        ):
+            self._shared_ctx["venus_os_detected"] = True
+            self._shared_ctx["venus_os_detected_ts"] = time.time()
+            logger.info("Venus OS detected: first Modbus write to Model 123")
+
         if (
             self._control is not None
             and self._plugin is not None
