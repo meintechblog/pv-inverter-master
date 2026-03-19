@@ -1292,12 +1292,8 @@ function updateVenusESS(snapshot) {
     var dcOn = vs.overvoltage_feed_in;
     if (dcToggle && notCooling(dcToggle)) dcToggle.checked = dcOn;
 
-    // 3. Show "Limit Feed-in" when AC OR DC is on
+    // 3. Show Max Feed-in dropdown when AC or DC is on
     var excessActive = acOn || dcOn;
-    if (limitRow) limitRow.style.display = excessActive ? '' : 'none';
-
-    // 4. Limit Feed-in toggle (MaxFeedInPower >= 0 and < 30000 = limited)
-    // 4. Show Max Feed-in dropdown when AC or DC is on
     if (maxRow) maxRow.style.display = excessActive ? '' : 'none';
 
     // 6. Feed-in actual (current grid export)
