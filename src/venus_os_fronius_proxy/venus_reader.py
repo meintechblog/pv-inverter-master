@@ -15,20 +15,21 @@ import structlog
 
 logger = structlog.get_logger(component="venus_reader")
 
-PORTAL_ID = "88a29ec1e5f4"  # TODO: make configurable
-VENUS_HOST = "192.168.3.146"  # TODO: make configurable
-
-
-def _mqtt_connect(host: str, client_id: str = "pv-proxy-sub") -> socket.socket:
+def _mqtt_connect(host: str, port: int = 1883, client_id: str = "pv-proxy-sub") -> socket.socket:
     """Connect to MQTT broker and return socket."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(5)
-    s.connect((host, 1883))
+    s.connect((host, port))
     cid = client_id.encode()
     payload = struct.pack("!H", 4) + b"MQTT" + bytes([4, 2, 0, 60])
     payload += struct.pack("!H", len(cid)) + cid
     s.send(bytes([0x10, len(payload)]) + payload)
-    s.recv(4)  # CONNACK
+    connack = s.recv(4)
+    if len(connack) < 4 or connack[3] != 0:
+        s.close()
+        raise ConnectionError(
+            f"MQTT CONNACK rejected: rc={connack[3] if len(connack) >= 4 else 'short'}"
+        )
     return s
 
 
@@ -101,9 +102,14 @@ def _parse_mqtt_messages(data: bytes) -> list[tuple[str, dict]]:
     return messages
 
 
-async def venus_mqtt_loop(shared_ctx: dict) -> None:
+async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str) -> None:
     """Background task: subscribe to Venus OS MQTT and update settings in real-time."""
-    portal = PORTAL_ID
+    if not host:
+        logger.info("venus_mqtt_disabled", reason="no host configured")
+        shared_ctx["venus_mqtt_connected"] = False
+        return
+
+    portal = portal_id
     prefix = f"N/{portal}"
 
     # Topics to subscribe (wildcards for grid power)
@@ -176,8 +182,9 @@ async def venus_mqtt_loop(shared_ctx: dict) -> None:
 
     while True:
         try:
-            s = _mqtt_connect(VENUS_HOST)
-            logger.info("venus_mqtt_connected", host=VENUS_HOST)
+            s = _mqtt_connect(host, port)
+            logger.info("venus_mqtt_connected", host=host)
+            shared_ctx["venus_mqtt_connected"] = True
 
             _mqtt_subscribe(s, sub_topics)
 
@@ -204,6 +211,7 @@ async def venus_mqtt_loop(shared_ctx: dict) -> None:
                 await asyncio.sleep(0.1)
 
         except Exception as e:
+            shared_ctx["venus_mqtt_connected"] = False
             logger.debug("venus_mqtt_error", error=str(e))
 
         # Reconnect after 5s
