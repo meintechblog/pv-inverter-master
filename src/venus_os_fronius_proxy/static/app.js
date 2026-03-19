@@ -987,15 +987,15 @@ function updatePowerControl(data) {
     var source = ctrl.last_source || 'none';
     var enabled = ctrl.enabled;
     var limitKw = (ctrl.limit_pct / 100 * RATED_KW).toFixed(1);
-    if (source === 'venus_os') {
-        if (dot) dot.className = 've-dot ve-dot--warn';
+    if (source === 'venus_os' && ctrl.limit_pct < 100) {
+        if (dot) dot.className = 've-dot ve-dot--ok';  // Green = Venus OS actively regulating
         if (label) label.textContent = limitKw + ' kW';
     } else if (enabled && source === 'webapp') {
         if (dot) dot.className = 've-dot ve-dot--warn';
         if (label) label.textContent = limitKw + ' kW';
     } else {
-        if (dot) dot.className = 've-dot ve-dot--ok';
-        if (label) label.textContent = 'No limit';
+        if (dot) dot.className = 've-dot ve-dot--dim';  // Grey = no active regulation
+        if (label) label.textContent = limitKw + ' kW';
     }
 
     // Sync dropdown selections from snapshot (restored clamp values)

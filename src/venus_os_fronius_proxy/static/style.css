@@ -192,6 +192,10 @@ body {
     background: var(--ve-red);
 }
 
+.ve-dot--dim {
+    background: var(--ve-border);
+}
+
 /* ===== Pages ===== */
 .page {
     display: none;
