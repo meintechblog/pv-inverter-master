@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Setup & Onboarding
 status: active
-stopped_at: null
-last_updated: "2026-03-19"
-last_activity: 2026-03-19 — Roadmap created (4 phases, 9 requirements)
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-03-19T17:47:41.021Z"
+last_activity: 2026-03-19 — Completed 13-01 (VenusConfig + parameterized venus_reader)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v3.0 Setup & Onboarding — Phase 13 ready to plan
+**Current focus:** v3.0 Setup & Onboarding — Phase 13, Plan 01 complete
 
 ## Current Position
 
 Phase: 13 of 16 (MQTT Config Backend)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-03-19 — Roadmap created
+Plan: 1 of 2
+Status: Active — Plan 01 complete
+Last activity: 2026-03-19 — Completed 13-01 (VenusConfig + parameterized venus_reader)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -47,6 +47,8 @@ Progress: [░░░░░░░░░░] 0%
 - Lock duration hard-capped at 900s — safety-critical (11-01)
 - Locked writes silently accepted but NOT forwarded (11-01)
 - Override log collapsed by default with event count badge (12-01)
+- Empty venus host = not configured, proxy runs without MQTT (13-01)
+- CONNACK rejection raises ConnectionError with return code (13-01)
 
 ### Pending Todos
 
@@ -54,12 +56,12 @@ None.
 
 ### Blockers/Concerns
 
-- MQTT host + portal ID currently hardcoded in 5 locations — Phase 13 resolves this
-- CONNACK return code never parsed (silent false-positive) — Phase 13 resolves this
+- ~~MQTT host + portal ID currently hardcoded in 5 locations~~ — Resolved in 13-01
+- ~~CONNACK return code never parsed (silent false-positive)~~ — Resolved in 13-01
 - Install script YAML key mismatch (`solaredge:` vs `inverter:`) — Phase 16 resolves this
 
 ## Session Continuity
 
-Last session: 2026-03-19
-Stopped at: Roadmap created — Phase 13 ready to plan
+Last session: 2026-03-19T17:47:40.535Z
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None

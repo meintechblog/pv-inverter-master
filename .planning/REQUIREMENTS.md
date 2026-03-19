@@ -11,7 +11,7 @@ Requirements for Setup & Onboarding milestone. Each maps to roadmap phases.
 
 - [ ] **CFG-01**: Config Page zeigt vorausgefuellte Defaults (192.168.3.18:1502, Unit 1) beim ersten Besuch
 - [ ] **CFG-02**: "Test Connection" Button entfernt, ersetzt durch Live Connection-Bobble (gruen/rot/amber) nach Save & Apply
-- [ ] **CFG-03**: MQTT konfigurierbar — Venus OS IP, Port, Portal ID als Config-Felder statt hardcoded
+- [x] **CFG-03**: MQTT konfigurierbar — Venus OS IP, Port, Portal ID als Config-Felder statt hardcoded
 - [ ] **CFG-04**: Portal ID Auto-Discovery per MQTT Wildcard (`N/+/system/0/Serial`) wenn Portal ID leer
 
 ### Setup Flow
@@ -49,7 +49,7 @@ Requirements for Setup & Onboarding milestone. Each maps to roadmap phases.
 |-------------|-------|--------|
 | CFG-01 | Phase 14 | Pending |
 | CFG-02 | Phase 14 | Pending |
-| CFG-03 | Phase 13 | Pending |
+| CFG-03 | Phase 13 | Complete |
 | CFG-04 | Phase 13 | Pending |
 | SETUP-01 | Phase 15 | Pending |
 | SETUP-02 | Phase 14 | Pending |
