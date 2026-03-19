@@ -1124,9 +1124,11 @@ body {
 
 /* Responsive: Dashboard Grid - Tablet */
 @media (max-width: 1024px) {
-    .ve-dashboard-grid,
-.ve-dashboard-top {
+    .ve-dashboard-grid {
         grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+    .ve-dashboard-top {
+        grid-template-columns: 1fr 1fr;
     }
     .ve-gauge-card {
         grid-column: 1 / -1;
@@ -1135,8 +1137,7 @@ body {
 
 /* Responsive: Dashboard Grid - Mobile */
 @media (max-width: 768px) {
-    .ve-dashboard-grid,
-.ve-dashboard-top {
+    .ve-dashboard-grid {
         grid-template-columns: 1fr 1fr 1fr;
     }
     .ve-gauge-card {
