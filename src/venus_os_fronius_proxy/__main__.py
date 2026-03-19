@@ -154,7 +154,7 @@ def main():
             from venus_os_fronius_proxy.venus_reader import venus_reader_loop
             # TODO: make configurable — use the Venus OS with active ESS
             venus_task = asyncio.create_task(
-                venus_reader_loop(shared_ctx, host="192.168.3.146", interval=10.0)
+                venus_reader_loop(shared_ctx, host="192.168.3.146", interval=2.0)
             )
 
         # Start health heartbeat task
