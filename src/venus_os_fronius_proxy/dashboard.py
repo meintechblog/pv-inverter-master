@@ -238,6 +238,8 @@ class DashboardCollector:
                 "last_source": getattr(control_state, "last_source", "none"),
                 "last_change_ts": getattr(control_state, "last_change_ts", 0.0),
                 "revert_remaining_s": _revert_remaining(control_state),
+                "clamp_min_pct": getattr(control_state, "clamp_min_pct", 0),
+                "clamp_max_pct": getattr(control_state, "clamp_max_pct", 100),
             }
 
         # Build venus_os section (Phase 11: lock state)

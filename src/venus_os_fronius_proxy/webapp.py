@@ -519,6 +519,37 @@ async def power_limit_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": result.success, "error": result.error})
 
 
+async def power_clamp_handler(request: web.Request) -> web.Response:
+    """Set min/max power clamp for Venus OS regulation.
+
+    Body: {"min_kw": 3, "max_kw": 20}
+    Venus OS writes will be clamped to [min, max] kW range.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response(
+            {"success": False, "error": "Invalid JSON body"}, status=400,
+        )
+
+    shared_ctx = request.app["shared_ctx"]
+    control = shared_ctx["control_state"]
+
+    min_kw = body.get("min_kw", 0)
+    max_kw = body.get("max_kw", 30)
+
+    # Convert to percent of rated power
+    rated_kw = 30  # TODO: read from snapshot
+    control.clamp_min_pct = max(0, min(100, round(min_kw / rated_kw * 100)))
+    control.clamp_max_pct = max(0, min(100, round(max_kw / rated_kw * 100)))
+
+    # Enforce min <= max
+    if control.clamp_min_pct > control.clamp_max_pct:
+        control.clamp_min_pct = control.clamp_max_pct
+
+    return web.json_response({"success": True})
+
+
 async def venus_lock_handler(request: web.Request) -> web.Response:
     """Handle Venus OS lock toggle commands.
 
@@ -583,6 +614,7 @@ async def create_webapp(
     app.router.add_get("/api/registers", registers_handler)
     app.router.add_get("/api/dashboard", dashboard_handler)
     app.router.add_post("/api/power-limit", power_limit_handler)
+    app.router.add_post("/api/power-clamp", power_clamp_handler)
     app.router.add_post("/api/venus-lock", venus_lock_handler)
     app.router.add_get("/static/{filename}", static_handler)
 

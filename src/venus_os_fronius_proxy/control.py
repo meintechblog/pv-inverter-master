@@ -109,6 +109,9 @@ class ControlState:
         # Phase 11: Venus OS lock state
         self.is_locked: bool = False
         self.lock_expires_at: float | None = None   # time.monotonic() deadline
+        # Power clamp: min/max bounds for Venus OS regulation (in %)
+        self.clamp_min_pct: int = 0    # 0 = no floor (but proxy enforces min 1%)
+        self.clamp_max_pct: int = 100  # 100 = no ceiling
         # Load last Venus OS limit (survives restarts)
         self._load_last_limit()
 

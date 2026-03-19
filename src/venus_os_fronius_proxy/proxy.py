@@ -145,9 +145,11 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
                 raise Exception(f"ILLEGAL_VALUE: {error}")
 
             old_raw = self._control.wmaxlimpct_raw
-            # Clamp to minimum 1% — going to 0% shuts down the SE30K
-            # and it takes ~10s to restart, causing regulation bouncing
-            clamped = max(values[0], 1)
+            # Apply power clamp (min/max bounds set via webapp)
+            # Also enforce minimum 1% — 0% shuts down SE30K (~10s restart)
+            floor = max(self._control.clamp_min_pct, 1)
+            ceiling = self._control.clamp_max_pct
+            clamped = max(floor, min(ceiling, values[0]))
             self._control.update_wmaxlimpct(clamped)
             # Implicitly enable when a limit value is written (Venus OS
             # writes WMaxLimPct without setting WMaxLim_Ena separately)

@@ -120,7 +120,7 @@ function handleSnapshot(data) {
             dropdownPopulated = false;  // Rebuild dropdown
         }
         if (!dropdownPopulated) {
-            populatePowerDropdown(newRated);
+            populatePowerDropdowns(newRated);
             dropdownPopulated = true;
         }
     }
@@ -878,81 +878,93 @@ function dismissToast(toast) {
 
 // --- Populate kW Dropdown dynamically ---
 
-function populatePowerDropdown(maxKw) {
-    var dropdown = document.getElementById('ctrl-dropdown');
-    if (!dropdown) return;
-    var currentVal = dropdown.value;
-    dropdown.innerHTML = '<option value="off">Max</option>';
+var clampMin = 0;   // Current floor in kW (0 = no floor)
+var clampMax = null; // Current ceiling in kW (null = no ceiling = rated)
+
+function populatePowerDropdowns(maxKw) {
+    var minDD = document.getElementById('ctrl-min');
+    var maxDD = document.getElementById('ctrl-max');
+    if (!minDD || !maxDD) return;
+
+    var minVal = minDD.value;
+    var maxVal = maxDD.value;
+
+    // Min dropdown: 0 kW, 1 kW, ... (maxKw-1) kW
+    minDD.innerHTML = '';
+    for (var kw = 0; kw < maxKw; kw++) {
+        var opt = document.createElement('option');
+        opt.value = kw;
+        opt.textContent = kw + ' kW';
+        minDD.appendChild(opt);
+    }
+
+    // Max dropdown: (maxKw) kW ... 1 kW  (top = "Max" = rated)
+    maxDD.innerHTML = '<option value="max">Max</option>';
     for (var kw = maxKw - 1; kw >= 1; kw--) {
         var opt = document.createElement('option');
         opt.value = kw;
         opt.textContent = kw + ' kW';
-        dropdown.appendChild(opt);
+        maxDD.appendChild(opt);
     }
-    var minOpt = document.createElement('option');
-    minOpt.value = 'min';
-    minOpt.textContent = 'Min';
-    dropdown.appendChild(minOpt);
-    // Restore selection if it still exists
-    if (currentVal && dropdown.querySelector('option[value="' + currentVal + '"]')) {
-        dropdown.value = currentVal;
+
+    // Restore
+    if (minDD.querySelector('option[value="' + minVal + '"]')) minDD.value = minVal;
+    if (maxDD.querySelector('option[value="' + maxVal + '"]')) maxDD.value = maxVal;
+}
+
+function getClampValues() {
+    var minDD = document.getElementById('ctrl-min');
+    var maxDD = document.getElementById('ctrl-max');
+    var minKw = minDD ? parseInt(minDD.value) || 0 : 0;
+    var maxKw = (maxDD && maxDD.value !== 'max') ? parseInt(maxDD.value) : RATED_KW;
+    return { min: minKw, max: maxKw };
+}
+
+// --- Min/Max clamp dropdowns ---
+
+async function sendClamp(minKw, maxKw) {
+    try {
+        var res = await fetch('/api/power-clamp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ min_kw: minKw, max_kw: maxKw })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('Range: ' + minKw + '–' + maxKw + ' kW', 'success');
+        } else {
+            showToast(data.error || 'Failed', 'error');
+        }
+    } catch (e) {
+        showToast('Request failed: ' + e.message, 'error');
     }
 }
 
-// --- Dropdown Change → Set limit directly (no confirmation) ---
-
 (function() {
-    var dropdown = document.getElementById('ctrl-dropdown');
-    if (!dropdown) return;
+    var minDD = document.getElementById('ctrl-min');
+    var maxDD = document.getElementById('ctrl-max');
+    if (!minDD || !maxDD) return;
 
-    dropdown.addEventListener('change', async function() {
-        var val = dropdown.value;
-        try {
-            if (val === 'off') {
-                var res = await fetch('/api/power-limit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'disable' })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    showToast('Power limit off', 'success');
-                } else {
-                    showToast(data.error || 'Failed', 'error');
-                }
-            } else if (val === 'min') {
-                var pct = 1;
-                var res = await fetch('/api/power-limit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'set', limit_pct: pct })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    showToast('Limit: Min', 'success');
-                } else {
-                    showToast(data.error || 'Failed', 'error');
-                }
-            } else {
-                var kw = parseInt(val);
-                var pct = (kw / RATED_KW) * 100;
-                var res = await fetch('/api/power-limit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'set', limit_pct: pct })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    showToast('Limit: ' + kw + ' kW', 'success');
-                } else if (res.status === 409) {
-                    showToast('Venus OS is controlling', 'error');
-                } else {
-                    showToast(data.error || 'Failed', 'error');
-                }
-            }
-        } catch (e) {
-            showToast('Request failed: ' + e.message, 'error');
+    minDD.addEventListener('change', function() {
+        var minVal = parseInt(minDD.value) || 0;
+        var maxVal = (maxDD.value === 'max') ? RATED_KW : parseInt(maxDD.value);
+        // Enforce min <= max
+        if (minVal > maxVal) {
+            maxDD.value = minVal;
+            maxVal = minVal;
         }
+        sendClamp(minVal, maxVal);
+    });
+
+    maxDD.addEventListener('change', function() {
+        var minVal = parseInt(minDD.value) || 0;
+        var maxVal = (maxDD.value === 'max') ? RATED_KW : parseInt(maxDD.value);
+        // Enforce min <= max
+        if (maxVal < minVal) {
+            minDD.value = maxVal;
+            minVal = maxVal;
+        }
+        sendClamp(minVal, maxVal);
     });
 })();
 
@@ -966,18 +978,17 @@ function updatePowerControl(data) {
 
     var dot = document.getElementById('ctrl-dot');
     var label = document.getElementById('ctrl-label');
-    var dropdown = document.getElementById('ctrl-dropdown');
 
-    // Status dot and label (inside gauge card)
+    // Status dot and label (between min/max dropdowns)
     var source = ctrl.last_source || 'none';
     var enabled = ctrl.enabled;
     var limitKw = (ctrl.limit_pct / 100 * RATED_KW).toFixed(0);
     if (source === 'venus_os') {
-        if (dot) dot.className = 've-dot ve-dot--err';
-        if (label) label.textContent = 'Venus OS: ' + limitKw + ' kW';
+        if (dot) dot.className = 've-dot ve-dot--warn';
+        if (label) label.textContent = limitKw + ' kW';
     } else if (enabled && source === 'webapp') {
         if (dot) dot.className = 've-dot ve-dot--warn';
-        if (label) label.textContent = 'Manual: ' + limitKw + ' kW';
+        if (label) label.textContent = limitKw + ' kW';
     } else {
         if (dot) dot.className = 've-dot ve-dot--ok';
         if (label) label.textContent = 'No limit';
