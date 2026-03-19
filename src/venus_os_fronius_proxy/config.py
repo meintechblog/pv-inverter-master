@@ -44,11 +44,19 @@ class WebappConfig:
 
 
 @dataclass
+class VenusConfig:
+    host: str = ""           # Empty = not configured (proxy runs without MQTT)
+    port: int = 1883         # MQTT standard port
+    portal_id: str = ""      # Empty = auto-discover via N/+/system/0/Serial
+
+
+@dataclass
 class Config:
     inverter: InverterConfig = field(default_factory=InverterConfig)
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     night_mode: NightModeConfig = field(default_factory=NightModeConfig)
     webapp: WebappConfig = field(default_factory=WebappConfig)
+    venus: VenusConfig = field(default_factory=VenusConfig)
     log_level: str = "INFO"
 
 
@@ -78,6 +86,10 @@ def load_config(path: str | None = None) -> Config:
             k: v for k, v in data.get("webapp", {}).items()
             if k in WebappConfig.__dataclass_fields__
         }),
+        venus=VenusConfig(**{
+            k: v for k, v in data.get("venus", {}).items()
+            if k in VenusConfig.__dataclass_fields__
+        }),
         log_level=data.get("log_level", "INFO"),
     )
 
@@ -98,6 +110,19 @@ def validate_inverter_config(host: str, port: int, unit_id: int) -> str | None:
     if not (1 <= unit_id <= 247):
         return f"Unit ID must be 1-247, got {unit_id}"
 
+    return None
+
+
+def validate_venus_config(host: str, port: int) -> str | None:
+    """Validate Venus OS MQTT connection parameters. Returns None on success."""
+    if not host:
+        return None  # Empty host = not configured, which is valid
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return f"Invalid IP address: {host}"
+    if not (1 <= port <= 65535):
+        return f"Port must be 1-65535, got {port}"
     return None
 
 
