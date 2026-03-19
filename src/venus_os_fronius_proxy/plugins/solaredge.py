@@ -147,27 +147,28 @@ class SolarEdgePlugin(InverterPlugin):
         3. Commit: write 1 to register 61696 (CommitPowerControl) — optional,
            may timeout with concurrent connections but write still takes effect.
 
-        To disable: write int32 [0, 0] to register 61762.
+        To disable: set limit to 100% (full power, no throttle).
+        We keep EDPC enabled — disabling it (61762=[0,0]) causes the
+        inverter to drop to 0W and not recover.
         """
         if self._client is None or not self._client.connected:
             return WriteResult(success=False, error="Not connected")
         try:
-            # Step 1: Enable/disable EDPC (register 61762, int32 = 2 registers)
-            ena_value = [0, 1] if enable else [0, 0]
+            # Step 1: Always enable EDPC (register 61762, int32 = 2 registers)
             result = await self._client.write_registers(
-                61762, ena_value, device_id=self.unit_id,
+                61762, [0, 1], device_id=self.unit_id,
             )
             if result.isError():
                 return WriteResult(success=False, error=f"Enable write failed: {result}")
 
-            if enable:
-                # Step 2: Write limit percentage (register 61441, uint16)
-                pct_int = max(0, min(100, int(round(limit_pct))))
-                result = await self._client.write_registers(
-                    61441, [pct_int], device_id=self.unit_id,
-                )
-                if result.isError():
-                    return WriteResult(success=False, error=f"Limit write failed: {result}")
+            # Step 2: Write limit percentage (register 61441, uint16)
+            # If disabling, set to 100% (full power)
+            pct_int = max(0, min(100, int(round(limit_pct)))) if enable else 100
+            result = await self._client.write_registers(
+                61441, [pct_int], device_id=self.unit_id,
+            )
+            if result.isError():
+                return WriteResult(success=False, error=f"Limit write failed: {result}")
 
                 # Note: Register 61696 (commit) intentionally skipped —
                 # SE30K does not respond to writes on this register via TCP,
