@@ -124,7 +124,13 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         ):
             self._shared_ctx["venus_os_detected"] = True
             self._shared_ctx["venus_os_detected_ts"] = time.time()
-            logger.info("Venus OS detected: first Modbus write to Model 123")
+            # Promote tracked client IP as Venus OS IP
+            candidate_ip = self._shared_ctx.get("_last_modbus_client_ip", "")
+            if candidate_ip:
+                self._shared_ctx["venus_os_client_ip"] = candidate_ip
+                logger.info("Venus OS detected: first Modbus write to Model 123 from %s", candidate_ip)
+            else:
+                logger.info("Venus OS detected: first Modbus write to Model 123")
 
         if (
             self._control is not None
@@ -455,6 +461,30 @@ async def run_proxy(
         context=server_ctx,
         address=(host, port),
     )
+
+    # Patch server to track most recent Modbus TCP client IP
+    _orig_callback_new_connection = server.callback_new_connection
+
+    def _patched_callback_new_connection():
+        handler = _orig_callback_new_connection()
+        _orig_connection_made = handler.connection_made
+
+        def _capture_ip_connection_made(transport):
+            if shared_ctx is not None:
+                try:
+                    peername = transport.get_extra_info("peername")
+                    if peername:
+                        # Store as candidate — only promoted to venus_os_client_ip
+                        # when Model 123 write is detected in async_setValues
+                        shared_ctx["_last_modbus_client_ip"] = peername[0]
+                except Exception:
+                    pass
+            return _orig_connection_made(transport)
+
+        handler.connection_made = _capture_ip_connection_made
+        return handler
+
+    server.callback_new_connection = _patched_callback_new_connection
     logger.info(
         "Starting Modbus TCP server on %s:%d (unit ID %d)",
         host, port, PROXY_UNIT_ID,

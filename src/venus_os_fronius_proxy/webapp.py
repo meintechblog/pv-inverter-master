@@ -200,6 +200,7 @@ async def status_handler(request: web.Request) -> web.Response:
         "solaredge": conn_mgr.state.value,
         "venus_os": venus_status,
         "venus_os_detected": shared_ctx.get("venus_os_detected", False),
+        "venus_os_client_ip": shared_ctx.get("venus_os_client_ip", ""),
         "reconfiguring": request.app.get("reconfiguring", False),
     })
 

@@ -163,6 +163,10 @@ function updateAutoDetectBanner(snapshot) {
     var hostConfigured = venusHost && venusHost.value.trim() !== '';
     var shouldShow = snapshot.venus_os_detected && !hostConfigured;
     if (shouldShow && banner.style.display === 'none') {
+        // Auto-fill Venus OS IP from detected client connection
+        if (snapshot.venus_os_client_ip && venusHost && !venusHost.value.trim()) {
+            venusHost.value = snapshot.venus_os_client_ip;
+        }
         banner.style.display = '';
         banner.classList.add('ve-card--entering');
         setTimeout(function() { banner.classList.remove('ve-card--entering'); }, 300);
