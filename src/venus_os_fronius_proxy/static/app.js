@@ -967,24 +967,6 @@ function updatePowerControl(data) {
     }
 
     // Dropdown always enabled — manual limit is additive (min of webapp + venus wins)
-
-    // Revert countdown
-    if (revertDiv && revertTime) {
-        if (ctrl.revert_remaining_s != null && ctrl.revert_remaining_s > 0 && source === 'webapp') {
-            var secs = Math.ceil(ctrl.revert_remaining_s);
-            var mins = Math.floor(secs / 60);
-            var secPart = secs % 60;
-            revertTime.textContent = mins + ':' + (secPart < 10 ? '0' : '') + secPart;
-            revertDiv.style.display = 'block';
-        } else {
-            revertDiv.style.display = 'none';
-        }
-    }
-
-    // Override log
-    if (data.override_log) {
-        updateOverrideLog(data.override_log);
-    }
 }
 
 function formatRelativeTime(ts) {
