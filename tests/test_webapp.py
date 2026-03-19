@@ -429,11 +429,13 @@ async def test_config_save_venus_hot_reload(client, shared_ctx):
 
 async def test_config_save_venus_empty_host_clears(client, shared_ctx):
     """POST /api/config with venus.host='' clears MQTT state."""
-    # Set up existing venus state
+    # Set up existing venus state (simulate previously configured venus)
     old_task = MagicMock()
     old_task.done.return_value = False
     shared_ctx["venus_task"] = old_task
     shared_ctx["venus_mqtt_connected"] = True
+    # Set current config to have a non-empty host so the change is detected
+    client.app["config"].venus.host = "10.0.0.5"
 
     resp = await client.post("/api/config", json={
         "inverter": {"host": "192.168.3.18", "port": 1502, "unit_id": 1},

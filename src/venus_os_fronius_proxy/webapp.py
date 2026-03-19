@@ -12,12 +12,16 @@ import weakref
 
 from aiohttp import web
 
+import asyncio
+
 from venus_os_fronius_proxy.config import (
     Config,
     save_config,
     validate_inverter_config,
+    validate_venus_config,
 )
 from venus_os_fronius_proxy.control import validate_wmaxlimpct
+from venus_os_fronius_proxy.venus_reader import venus_mqtt_loop
 
 
 # SunSpec register layout for the register viewer.
@@ -183,9 +187,18 @@ async def status_handler(request: web.Request) -> web.Response:
     """Return SolarEdge connection state and Venus OS status."""
     shared_ctx = request.app["shared_ctx"]
     conn_mgr = shared_ctx["conn_mgr"]
+
+    venus_connected = shared_ctx.get("venus_mqtt_connected")
+    if venus_connected is True:
+        venus_status = "connected"
+    elif venus_connected is False:
+        venus_status = "disconnected"
+    else:
+        venus_status = "not configured"
+
     return web.json_response({
         "solaredge": conn_mgr.state.value,
-        "venus_os": "active",
+        "venus_os": venus_status,
         "reconfiguring": request.app.get("reconfiguring", False),
     })
 
@@ -216,23 +229,31 @@ async def health_handler(request: web.Request) -> web.Response:
 
 
 async def config_get_handler(request: web.Request) -> web.Response:
-    """Return current inverter configuration."""
+    """Return current inverter and Venus OS configuration."""
     config: Config = request.app["config"]
     return web.json_response({
-        "host": config.inverter.host,
-        "port": config.inverter.port,
-        "unit_id": config.inverter.unit_id,
+        "inverter": {
+            "host": config.inverter.host,
+            "port": config.inverter.port,
+            "unit_id": config.inverter.unit_id,
+        },
+        "venus": {
+            "host": config.venus.host,
+            "port": config.venus.port,
+            "portal_id": config.venus.portal_id,
+        },
     })
 
 
 async def config_save_handler(request: web.Request) -> web.Response:
-    """Save new inverter settings, trigger hot-reload."""
+    """Save inverter and Venus OS settings, trigger hot-reload as needed."""
     try:
         body = await request.json()
-        host = body["host"]
-        port = body["port"]
-        unit_id = body["unit_id"]
-    except (KeyError, ValueError) as e:
+        inv = body.get("inverter", {})
+        host = inv["host"]
+        port = inv["port"]
+        unit_id = inv["unit_id"]
+    except (KeyError, ValueError, TypeError) as e:
         return web.json_response(
             {"success": False, "error": f"Invalid request: {e}"},
             status=400,
@@ -245,17 +266,62 @@ async def config_save_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
+    # Parse venus config from body
+    venus_body = body.get("venus", {})
+    venus_host = venus_body.get("host", "")
+    venus_port = venus_body.get("port", 1883)
+    venus_portal_id = venus_body.get("portal_id", "")
+
+    error = validate_venus_config(venus_host, venus_port)
+    if error:
+        return web.json_response(
+            {"success": False, "error": error},
+            status=400,
+        )
+
     try:
         config: Config = request.app["config"]
+        shared_ctx = request.app["shared_ctx"]
+
+        # Detect venus config change
+        old_venus = (config.venus.host, config.venus.port, config.venus.portal_id)
+        new_venus = (venus_host, venus_port, venus_portal_id)
+        venus_changed = old_venus != new_venus
+
+        # Update inverter config
         config.inverter.host = host
         config.inverter.port = port
         config.inverter.unit_id = unit_id
+
+        # Update venus config
+        config.venus.host = venus_host
+        config.venus.port = venus_port
+        config.venus.portal_id = venus_portal_id
+
         save_config(request.app["config_path"], config)
 
+        # Hot-reload inverter
         request.app["reconfiguring"] = True
         plugin = request.app["plugin"]
         await plugin.reconfigure(host, port, unit_id)
         request.app["reconfiguring"] = False
+
+        # Hot-reload Venus MQTT if config changed
+        if venus_changed:
+            # Cancel old venus task if running
+            old_task = shared_ctx.get("venus_task")
+            if old_task is not None and not old_task.done():
+                old_task.cancel()
+
+            if venus_host:
+                # Start new venus MQTT loop
+                shared_ctx["venus_task"] = asyncio.ensure_future(
+                    venus_mqtt_loop(shared_ctx, venus_host, venus_port, venus_portal_id)
+                )
+            else:
+                # Venus disabled -- clear state
+                shared_ctx["venus_mqtt_connected"] = False
+                shared_ctx.pop("venus_task", None)
 
         return web.json_response({"success": True})
     except Exception as e:
