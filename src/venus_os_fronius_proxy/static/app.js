@@ -1323,16 +1323,9 @@ function updateVenusESS(snapshot) {
         feedInDD.value = closest;
     }
 
-    // 8. Limit Inverter Power
-    var invLimitToggle = document.getElementById('ess-limit-inverter');
-    var invLimitRow = document.getElementById('ess-max-inverter-row');
+    // 8. Max Inverter Power dropdown (always visible)
     var invLimitDD = document.getElementById('ess-max-inverter');
 
-    var invLimited = vs.max_inverter_w > 0 && vs.max_inverter_w < 30000;
-    if (invLimitToggle && notCooling(invLimitToggle)) invLimitToggle.checked = invLimited;
-    if (invLimitRow) invLimitRow.style.display = invLimited ? '' : 'none';
-
-    // Populate inverter power dropdown (1-30 kW in 1kW steps)
     if (invLimitDD && invLimitDD.options.length <= 1) {
         invLimitDD.innerHTML = '';
         for (var kw = 30; kw >= 1; kw--) {
@@ -1342,7 +1335,7 @@ function updateVenusESS(snapshot) {
             invLimitDD.appendChild(opt);
         }
     }
-    if (invLimitDD && !invLimitDD.matches(':focus') && invLimited) {
+    if (invLimitDD && !invLimitDD.matches(':focus') && vs.max_inverter_w > 0) {
         var closest = Math.round(vs.max_inverter_w / 1000) * 1000;
         invLimitDD.value = closest;
     }
@@ -1415,20 +1408,8 @@ async function writeESSSetting(register, value) {
         showToast('Max feed-in: ' + formatKw(watts), 'success');
     });
 
-    // Limit Inverter Power toggle
-    var invLimitToggle = document.getElementById('ess-limit-inverter');
+    // Max Inverter Power dropdown
     var invLimitDD = document.getElementById('ess-max-inverter');
-
-    if (invLimitToggle) invLimitToggle.addEventListener('change', function() {
-        invLimitToggle._userChangedAt = Date.now();
-        if (invLimitToggle.checked) {
-            writeESSSetting(2704, 2000);  // Default 20kW (raw=2000, *10=20000W)
-            showToast('Inverter limit: 20 kW', 'success');
-        } else {
-            writeESSSetting(2704, 3000);  // 30kW = rated power (effectively no limit)
-            showToast('Inverter limit: Off', 'success');
-        }
-    });
 
     if (invLimitDD) invLimitDD.addEventListener('change', function() {
         var watts = parseInt(invLimitDD.value);
