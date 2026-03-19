@@ -1189,17 +1189,18 @@ function stopCountdownInterval() {
 
     toggle.addEventListener('change', function() {
         toggle._userChangedAt = Date.now();
+        var now = Date.now();
         var wantAllow = toggle.checked;
         if (!wantAllow) {
-            // First disable = 15 min. If already disabled (toggle again within 5s) = permanent
-            var now = Date.now();
-            var permanent = isCurrentlyLocked && (now - lastDisableTs) < 5000;
+            // Disable: if toggled off again within 5s of last disable = permanent
+            var permanent = (now - lastDisableTs) < 5000 && lastDisableTs > 0;
             lastDisableTs = now;
-            isCurrentlyLocked = true;
             sendLockCommand(true, permanent);
         } else {
-            lastDisableTs = 0;
-            isCurrentlyLocked = false;
+            // Enable: only reset if it's been > 5s since last disable
+            if ((now - lastDisableTs) > 5000) {
+                lastDisableTs = 0;
+            }
             sendLockCommand(false, false);
         }
     });
