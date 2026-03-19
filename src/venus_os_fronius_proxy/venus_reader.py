@@ -38,7 +38,11 @@ async def read_venus_settings(host: str, port: int = 502) -> dict | None:
 
         max_feed_in_raw = regs[6]  # 2706, scale *100
         # raw=0 means unlimited (-1 on dbus), raw>0 means limit in hecto-watts
-        max_feed_in_w = -1 if max_feed_in_raw == 0 else s16(max_feed_in_raw) * 100
+        raw_signed = s16(max_feed_in_raw)
+        if raw_signed <= 0:
+            max_feed_in_w = -1  # Unlimited
+        else:
+            max_feed_in_w = raw_signed * 100
 
         # Grid power (unit 100, regs 808-810: L1/L2/L3 in 0.1W)
         grid_feed_in_w = 0.0
