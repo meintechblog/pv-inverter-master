@@ -823,8 +823,6 @@ body {
     min-width: 80px;
 }
 .ve-ess-group {
-    padding-left: 0.75rem;
-    border-left: 2px solid var(--ve-blue-dim);
     margin: 4px 0;
 }
 .ve-ess-sub {
