@@ -650,6 +650,8 @@ async def venus_dbus_handler(request: web.Request) -> web.Response:
     ALLOWED_PATHS = {
         "/Settings/CGwacs/MaxDischargePower",
         "/Settings/CGwacs/MaxFeedInPower",
+        "/Settings/CGwacs/PreventFeedback",
+        "/Settings/CGwacs/OvervoltageFeedIn",
     }
     if path not in ALLOWED_PATHS:
         return web.json_response({"success": False, "error": f"Path not allowed"}, status=400)

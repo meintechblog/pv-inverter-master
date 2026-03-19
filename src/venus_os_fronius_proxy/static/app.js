@@ -1398,14 +1398,14 @@ async function writeESSSetting(register, value) {
     // AC PV Excess (PreventFeedback: inverted — 0=allow, 1=block)
     if (acToggle) acToggle.addEventListener('change', function() {
         acToggle._userChangedAt = Date.now();
-        writeESSSetting(2708, acToggle.checked ? 0 : 1);
+        writeVenusDbus('/Settings/CGwacs/PreventFeedback', acToggle.checked ? 0 : 1);
         showToast('AC PV Excess: ' + (acToggle.checked ? 'On' : 'Off'), 'success');
     });
 
     // DC PV Excess (OvervoltageFeedIn: 1=feed, 0=don't)
     if (dcToggle) dcToggle.addEventListener('change', function() {
         dcToggle._userChangedAt = Date.now();
-        writeESSSetting(2707, dcToggle.checked ? 1 : 0);
+        writeVenusDbus('/Settings/CGwacs/OvervoltageFeedIn', dcToggle.checked ? 1 : 0);
         showToast('DC PV Excess: ' + (dcToggle.checked ? 'On' : 'Off'), 'success');
     });
 
@@ -1413,7 +1413,7 @@ async function writeESSSetting(register, value) {
     if (limitToggle) limitToggle.addEventListener('change', function() {
         limitToggle._userChangedAt = Date.now();
         if (limitToggle.checked) {
-            writeESSSetting(2706, 100);  // Default 10 kW
+            writeVenusDbus('/Settings/CGwacs/MaxFeedInPower', 10000);  // Default 10 kW
             showToast('Feed-in limit: 10 kW', 'success');
         } else {
             writeVenusDbus('/Settings/CGwacs/MaxFeedInPower', -1);
@@ -1424,8 +1424,7 @@ async function writeESSSetting(register, value) {
     // Max Feed-in value dropdown
     if (feedInDD) feedInDD.addEventListener('change', function() {
         var watts = parseInt(feedInDD.value);
-        var raw = Math.round(watts / 100);
-        writeESSSetting(2706, raw);
+        writeVenusDbus('/Settings/CGwacs/MaxFeedInPower', watts);
         showToast('Max feed-in: ' + formatKw(watts), 'success');
     });
 
@@ -1436,7 +1435,7 @@ async function writeESSSetting(register, value) {
     if (invLimitToggle) invLimitToggle.addEventListener('change', function() {
         invLimitToggle._userChangedAt = Date.now();
         if (invLimitToggle.checked) {
-            writeESSSetting(2704, 2000);  // Default 20 kW
+            writeVenusDbus('/Settings/CGwacs/MaxDischargePower', 20000);  // Default 20 kW
             showToast('Inverter limit: 20 kW', 'success');
         } else {
             writeVenusDbus('/Settings/CGwacs/MaxDischargePower', -1);
@@ -1446,8 +1445,7 @@ async function writeESSSetting(register, value) {
 
     if (invLimitDD) invLimitDD.addEventListener('change', function() {
         var watts = parseInt(invLimitDD.value);
-        var raw = Math.round(watts / 10);  // scale *10
-        writeESSSetting(2704, raw);
+        writeVenusDbus('/Settings/CGwacs/MaxDischargePower', watts);
         showToast('Max inverter: ' + formatKw(watts), 'success');
     });
 })();
