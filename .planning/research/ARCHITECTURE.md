@@ -1,338 +1,391 @@
-# Architecture Patterns: v2.1 Dashboard Redesign & Polish
+# Architecture: Setup & Onboarding Integration
 
-**Domain:** Embedded web dashboard for Modbus proxy (vanilla JS, aiohttp backend)
-**Researched:** 2026-03-18
+**Domain:** Modbus TCP proxy with web dashboard — setup/onboarding flow
+**Researched:** 2026-03-19
+**Confidence:** HIGH (all based on direct code analysis of existing codebase)
 
-## Current Architecture Summary
-
-```
-proxy.py (_poll_loop) --> dashboard.py (DashboardCollector.collect)
-                      --> webapp.py (broadcast_to_clients) --> WebSocket --> app.js
-
-app.js: handleSnapshot(data) updates all dashboard widgets
-        handleHistory(data) populates sparklines on connect
-
-index.html: 4 "pages" (show/hide sections):
-  - page-dashboard (gauge, phases, sparkline, inverter status, connection, health)
-  - page-config (SolarEdge IP/port form)
-  - page-registers (register viewer)
-  - page-power (power control: slider, toggle, override log)
-```
-
-### Data Flow (Current)
-1. `_poll_loop` polls SE30K every 1s via plugin
-2. On success: `DashboardCollector.collect()` produces snapshot dict
-3. `broadcast_to_clients()` pushes `{type: "snapshot", data: {...}}` to all WS clients
-4. `app.js handleSnapshot()` updates DOM elements by ID
-
-### Snapshot Structure (Current)
-```json
-{
-  "ts": 1710754800.0,
-  "inverter": { "ac_power_w", "ac_current_l1_a", ..., "status", "temperature_*", "dc_*", "daily_energy_wh" },
-  "control": { "enabled", "limit_pct", "last_source", "revert_remaining_s", ... },
-  "connection": { "state", "poll_success", "poll_total", "cache_stale" },
-  "override_log": [{ "ts", "source", "action", "value", "detail" }]
-}
-```
-
-## Recommended Architecture for v2.1
-
-### Principle: Minimal Backend Changes
-
-The existing snapshot already contains all data needed for most v2.1 features. The backend needs only two small additions (peak stats tracking, Venus OS details). Everything else is frontend restructuring.
-
-### Component Boundaries
-
-| Component | Responsibility | Changes for v2.1 |
-|-----------|---------------|-------------------|
-| `dashboard.py` (DashboardCollector) | Decode registers, produce snapshot | ADD: peak stats tracking (peak_kw, operating_hours, efficiency) |
-| `webapp.py` (routes + WS) | Serve API, push snapshots | ADD: Venus OS info fields to status endpoint OR snapshot |
-| `proxy.py` (_poll_loop) | Poll, broadcast | NO CHANGES |
-| `control.py` (ControlState) | Track power limit state | NO CHANGES |
-| `connection.py` (ConnectionManager) | Track SE30K connection | NO CHANGES -- already exposes state |
-| `index.html` | Page structure, HTML skeleton | RESTRUCTURE: merge power control into dashboard, add Venus OS widget, toast container |
-| `style.css` | Venus OS themed styles | ADD: animations, toast stacking, lock toggle, compact power control styles |
-| `app.js` | WS client, DOM updates | RESTRUCTURE: remove page-power nav, inline power control, add toast system, add Venus OS widget updates, add animations |
-
-### Data Flow Changes
+## Current Architecture Overview
 
 ```
-EXISTING (unchanged):
-  _poll_loop --> DashboardCollector.collect() --> broadcast --> WS --> handleSnapshot()
-
-NEW additions to snapshot:
-  DashboardCollector.collect() now also produces:
-    snapshot.inverter.peak_power_w      (tracked in-memory, reset on restart)
-    snapshot.inverter.operating_hours   (time when status=MPPT, in-memory)
-    snapshot.inverter.efficiency_pct    (ac_power/dc_power ratio)
-
-  snapshot.venus_os section (NEW):
-    Populated from shared_ctx data already available:
-    - control_state.last_source, last_change_ts  (already in snapshot.control)
-    - conn_mgr connection state for Venus OS side  (needs: track last Venus OS Modbus read)
+                        shared_ctx (dict)
+                              |
+    __main__.py ──────────────┼────────────────────────────
+        |                     |                            |
+   run_proxy()           create_webapp()           venus_mqtt_loop()
+   (proxy.py)            (webapp.py)               (venus_reader.py)
+        |                     |                            |
+   ┌────┴─────┐          aiohttp app                raw socket MQTT
+   │ poll_loop│          REST + WS + static         to 192.168.3.146
+   │ + server │              |                      (hardcoded)
+   └──────────┘         browser (vanilla JS)
 ```
 
-## Feature Integration Analysis
+**Key observation:** `shared_ctx` is the central nervous system. Every component reads/writes from it. This is the correct integration point for new features — no new messaging needed.
 
-### Feature 1: Unified Dashboard (Power Control Inline)
+## Integration Analysis: Feature by Feature
 
-**What changes:**
-- `index.html`: Remove `page-power` section entirely. Move its content (slider, toggle, override banner, revert countdown) into `page-dashboard` as a new card between sparkline and bottom grid.
-- `app.js`: Remove power control nav item click handler. Keep all `updatePowerControl()` logic -- it already updates by element ID regardless of which page section they are in. Remove the `page-power` nav-item event listener reference.
-- `style.css`: Add compact power control card styles (`.ve-ctrl-inline`). The existing power control CSS already works; just needs a compact variant for the inline card.
-- Sidebar nav: Remove "Power Control" nav-item from HTML. Keep Dashboard, Config, Registers.
+### 1. MQTT Host/Portal Configurable (venus_reader.py)
 
-**Backend changes:** NONE. The snapshot already includes `control` section and `override_log`.
+**Current state:** `VENUS_HOST = "192.168.3.146"` and `PORTAL_ID = "88a29ec1e5f4"` are module-level constants in venus_reader.py. Also hardcoded in webapp.py `venus_write_handler` (line 598) and `_mqtt_write_venus` / `venus_dbus_handler` (line 677).
 
-**Risk:** LOW. This is purely HTML restructuring. All JS functions update by element ID, not by page context.
+**Files modified:**
+| File | Change |
+|------|--------|
+| `config.py` | Add `VenusConfig` dataclass (host, port=1883, portal_id, enabled=false) to `Config` |
+| `venus_reader.py` | Accept `host` + `portal_id` as parameters to `venus_mqtt_loop()` instead of constants |
+| `webapp.py` | `venus_write_handler` and `_mqtt_write_venus` and `venus_dbus_handler` read venus host/portal from `request.app["config"]` instead of hardcoded |
+| `__main__.py` | Pass `config.venus.host` + `config.venus.portal_id` to `venus_mqtt_loop()`. Only start venus_task if `config.venus.enabled` or host is set |
+| `install.sh` | Add `venus:` section to default config template |
 
-### Feature 2: Venus OS Info Widget
+**New components:** None. Pure parameter threading.
 
-**What changes:**
-- `index.html`: Add a new card in dashboard bottom grid showing Venus OS connection info.
-- `dashboard.py`: Add Venus OS tracking fields to snapshot:
-  - `venus_os.last_read_ts`: timestamp of last Modbus read from Venus OS (track in StalenessAwareSlaveContext.getValues)
-  - `venus_os.connected`: bool (last read within ~10s)
-  - `venus_os.ip`: from last connection (if available from pymodbus server context)
-  - `venus_os.control_locked`: bool (new lock state, see Feature 3)
-- `proxy.py`: Track last Venus OS read timestamp in shared_ctx when `StalenessAwareSlaveContext.getValues()` is called. Add a `_last_venus_read_ts` attribute updated on each successful getValues call.
-- `webapp.py`: Include venus_os section in snapshot broadcast (or add to DashboardCollector).
-- `app.js`: New `updateVenusInfo(data.venus_os)` function to populate the widget.
-
-**Backend changes:** SMALL. Track Venus OS last-read timestamp in StalenessAwareSlaveContext and pass through shared_ctx to DashboardCollector.
-
-### Feature 3: Venus OS Lock Toggle
-
-**What changes:**
-- `control.py`: Add `venus_locked: bool` to ControlState. When locked=True, StalenessAwareSlaveContext._handle_control_write() rejects all Model 123 writes with a "locked" error.
-- `webapp.py`: New POST `/api/venus-lock` endpoint to toggle the lock state.
-- `index.html`: Apple-style toggle switch in the Venus OS info widget.
-- `app.js`: Toggle click handler calls `/api/venus-lock`, update visual state from snapshot.
-- `style.css`: Apple-style toggle component (`.ve-toggle`).
-
-**Backend changes:** SMALL. Add boolean to ControlState, guard in _handle_control_write, one new endpoint.
-
-### Feature 4: Peak Statistics
-
-**What changes:**
-- `dashboard.py`: Track in DashboardCollector:
-  - `_peak_power_w`: max(ac_power_w) seen since startup
-  - `_peak_power_ts`: timestamp of peak
-  - `_operating_seconds`: cumulative seconds where status == "MPPT"
-  - `_last_collect_ts`: for calculating operating time deltas
-  - Efficiency: computed per-snapshot as `ac_power_w / dc_power_w * 100` (only when dc_power > 0)
-- Emit in snapshot under `inverter.peak_power_w`, `inverter.peak_power_ts`, `inverter.operating_hours`, `inverter.efficiency_pct`.
-- `index.html`: Stats card in dashboard (or extend daily energy widget with additional stats).
-- `app.js`: New `updatePeakStats(inv)` function.
-
-**Backend changes:** SMALL. All tracking is in-memory in DashboardCollector, same reset-on-restart pattern as daily energy.
-
-### Feature 5: Smooth Animations
-
-**What changes:**
-- `style.css`:
-  - Gauge arc: already has `transition: stroke-dashoffset 0.8s ease-out` -- verified working.
-  - Phase card values: add CSS number transitions via `transition: opacity` on value flash.
-  - Card entrance: add `@keyframes ve-card-enter` for initial page load.
-  - Sparkline: add smooth path morphing via `transition` on polyline (limited -- SVG polyline transitions don't interpolate points natively; use JS-based lerp for smooth sparkline updates).
-- `app.js`:
-  - Gauge: add easing function for smooth needle animation (currently direct DOM update, which already triggers CSS transition -- may just need tuning).
-  - Value counter: optional `animateValue(el, from, to)` for the main kW display.
-  - Sparkline: lerp between old and new point arrays for smooth updates.
-
-**Backend changes:** NONE. Purely frontend CSS/JS.
-
-### Feature 6: Smart Toast Notifications
-
-**What changes:**
-- Current state: `showToast()` already exists in app.js (used for power control feedback). Toasts are created dynamically, auto-remove after 3s. CSS for `.ve-toast` with slide-in animation exists.
-- Missing:
-  - Toast stacking (multiple simultaneous toasts pile up at same position)
-  - Event-driven toasts from snapshot changes (override detected, fault, temp warning, night mode)
-  - Toast container for proper stacking
-- `index.html`: Add `<div id="toast-container"></div>` for stacked toast positioning.
-- `style.css`: Toast container with flexbox column-reverse for bottom-up stacking. Add slide-out animation.
-- `app.js`:
-  - Refactor `showToast()` to append to toast container instead of body.
-  - Add event detection in `handleSnapshot()`:
-    - Override: if `control.last_source` changes to `venus_os` -> toast "Venus OS took control"
-    - Fault: if `inverter.status` changes to `FAULT` -> toast with error style
-    - Temperature: if `temperature_sink_c > 75` (or configurable threshold) -> toast warning
-    - Night mode: if `connection.state` changes to `night_mode` -> toast info
-  - Track previous snapshot values to detect changes (partial: `lastControlState` already exists for power control).
-
-**Backend changes:** NONE. All detection is frontend-side by comparing consecutive snapshots.
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: New WebSocket Message Types for Each Feature
-**What:** Adding new WS message types like `type: "venus_info"`, `type: "peak_stats"`.
-**Why bad:** Fragments the data flow. The snapshot already goes out every poll cycle (1s). Adding more message types means more handlers, more race conditions, more complexity.
-**Instead:** Extend the existing snapshot dict with new sections. One message, one handler, one truth.
-
-### Anti-Pattern 2: Separate REST Endpoints for Dashboard Data
-**What:** Adding `/api/venus-info`, `/api/peak-stats` etc. and polling them.
-**Why bad:** The WebSocket already pushes all data. Polling REST endpoints adds latency and complexity.
-**Instead:** All live data goes through the snapshot via WebSocket. REST endpoints only for actions (power-limit, venus-lock, config).
-
-### Anti-Pattern 3: Separate Animation Library
-**What:** Adding a JS animation library (GSAP, anime.js) for smooth transitions.
-**Why bad:** Violates zero-dependency constraint. CSS transitions handle 90% of the cases.
-**Instead:** CSS `transition` for most animations. Small inline JS `requestAnimationFrame` loop for the gauge counter animation and sparkline lerp.
-
-### Anti-Pattern 4: Breaking the Single-File Pattern
-**What:** Splitting app.js into multiple JS files (toast.js, animations.js, etc.).
-**Why bad:** No build tooling means manual script ordering in HTML. The current 3-file pattern (HTML+CSS+JS) works with importlib.resources serving.
-**Instead:** Use clear section comments (already the pattern in app.js). Keep everything in one JS file with well-separated IIFE blocks.
-
-## Patterns to Follow
-
-### Pattern 1: Extend Snapshot, Not Add Messages
-**What:** All new data (peak stats, Venus OS info) added as new keys in the existing snapshot dict.
-**When:** Any time you need to show live data in the dashboard.
-**Example:**
-```python
-# In DashboardCollector.collect():
-snapshot = {
-    "ts": time.time(),
-    "inverter": {**inverter, "peak_power_w": self._peak_power_w, ...},
-    "control": control,
-    "connection": connection,
-    "venus_os": {                          # NEW section
-        "last_read_ts": shared_ctx.get("venus_last_read_ts"),
-        "connected": ...,
-        "control_locked": control_state.venus_locked if control_state else False,
-    },
-    "override_log": ...,
-}
+**Data flow change:**
+```
+Before: venus_reader.py -> hardcoded HOST -> socket.connect()
+After:  config.yaml -> Config.venus -> venus_mqtt_loop(host, portal_id) -> socket.connect()
 ```
 
-### Pattern 2: Detect Changes by Comparing Previous Snapshot
-**What:** Track `previousSnapshot` in app.js, compare fields to trigger toasts.
-**When:** Event-driven notifications from continuous data stream.
-**Example:**
-```javascript
-let previousSnapshot = null;
+**Design decision: `enabled` flag vs empty host.** Use empty string as "not configured" (no separate enabled flag). Reason: simpler config file for users, one less concept. `venus_mqtt_loop` simply does not start if host is empty. The webapp shows "MQTT not configured" state.
 
-function handleSnapshot(data) {
-    if (previousSnapshot) {
-        detectEvents(previousSnapshot, data);
-    }
-    // ... existing update logic ...
-    previousSnapshot = data;
-}
+### 2. MQTT Connection State in shared_ctx
 
-function detectEvents(prev, curr) {
-    // Override detection
-    if (prev.control.last_source !== 'venus_os' && curr.control.last_source === 'venus_os') {
-        showToast('Venus OS took control', 'error');
-    }
-    // Fault detection
-    if (prev.inverter.status !== 'FAULT' && curr.inverter.status === 'FAULT') {
-        showToast('Inverter FAULT detected!', 'error');
-    }
-}
+**Current state:** `venus_mqtt_loop` writes `shared_ctx["venus_settings"]` on every message. If MQTT fails, it reconnects after 5s but never clears or signals the disconnect. The dashboard has no concept of "MQTT disconnected."
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `venus_reader.py` | Write `shared_ctx["venus_mqtt_connected"] = True/False` on connect/disconnect/error |
+| `dashboard.py` | Include `venus_mqtt_connected` in snapshot |
+| `webapp.py` | Include `venus_mqtt_connected` in status_handler and broadcast |
+| `app.js` | Read `venus_mqtt_connected` from snapshot, grey out Venus-dependent UI elements |
+
+**New components:** None.
+
+**Data flow:**
+```
+venus_reader.py -> shared_ctx["venus_mqtt_connected"] = bool
+    |
+dashboard.py snapshot -> { ..., venus_mqtt_connected: true/false }
+    |
+WebSocket broadcast -> browser
+    |
+app.js -> toggle CSS class "mqtt-disconnected" on Venus widgets
 ```
 
-### Pattern 3: CSS-First Animations
-**What:** Use CSS transitions and @keyframes for all visual transitions.
-**When:** Any animation that involves a simple property change.
-**Example:**
-```css
-/* Gauge fill already uses this pattern */
-#gauge-fill {
-    transition: stroke-dashoffset 0.8s ease-out, stroke 0.5s ease;
-}
+**Which UI elements get greyed out:**
+- Venus OS Lock toggle
+- Venus OS Override indicator
+- Venus ESS Settings (MaxFeedIn, PreventFeedback, etc.)
+- Grid power display
 
-/* Extend to value updates */
-.ve-live-value {
-    transition: color 0.3s ease, opacity 0.15s ease;
-}
+**Which elements stay active (inverter-only, no MQTT needed):**
+- Power gauge + phase details
+- Inverter status
+- Power control slider
+- Sparklines
+- Peak statistics
+- Today's performance
 
-/* Card entrance */
-.ve-card {
-    animation: ve-card-enter 0.3s ease-out;
-}
-@keyframes ve-card-enter {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+**CSS approach:** Single `.mqtt-disconnected` class on a parent container. Child elements inherit opacity + pointer-events via CSS. No per-element JS toggling.
+
+### 3. Config Page with Defaults + Connection Status Bobble
+
+**Current state:** Config page exists at `#page-config` with inverter host/port/unit_id form, test button, and save. No Venus OS config. No live connection indicators.
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `config.py` | Add `VenusConfig` dataclass (already done in feature 1) |
+| `webapp.py` | Extend `config_get_handler` to return venus config. Extend `config_save_handler` to accept venus fields. Add `POST /api/config/venus-test` endpoint for MQTT connection test |
+| `index.html` | Add Venus OS section to config page: host, portal_id fields. Add connection status bobbles (green/red dots) next to SolarEdge and Venus OS sections |
+| `app.js` | Fetch connection status, animate bobbles, handle venus config save |
+| `style.css` | Status bobble styles (green pulse, red static, grey unknown) |
+
+**New REST endpoints:**
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `POST /api/config/venus-test` | POST | Test MQTT connection to provided host:1883 |
+
+**Status bobble data source:** The existing `/api/status` endpoint already returns `solaredge` state. Extend it to include `venus_mqtt: "connected" / "disconnected" / "not_configured"`.
+
+**Connection bobble states:**
+```
+Green (pulsing)  = connected
+Red (static)     = configured but disconnected
+Grey (static)    = not configured
 ```
 
-### Pattern 4: Compact Inline Control
-**What:** Power control as a collapsible card within the dashboard, not a separate page.
-**When:** Moving power control inline.
-**Structure:**
+### 4. Venus OS Auto-Config After Modbus Connection
+
+**Current state:** When Venus OS connects to the proxy's Modbus server on port 502, the proxy has no awareness of who connected. pymodbus `ModbusTcpServer` does not expose client connection events.
+
+**Approach: Detect first Modbus write to Model 123.**
+
+Venus OS writes `WMaxLimPct` (register 40154) within seconds of connecting. The `StalenessAwareSlaveContext.async_setValues` already intercepts these. This is the detection point — no network-level connection tracking needed.
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `proxy.py` | In `_handle_control_write`, on first Venus OS write, if venus config is empty, set `shared_ctx["venus_autodetect_triggered"] = True` |
+| `webapp.py` | New `GET /api/venus-autodetect` endpoint returns autodetect status. New `POST /api/venus-autodetect/apply` saves detected config |
+| `app.js` | Poll autodetect status or receive via WebSocket. Show banner: "Venus OS detected! Configure MQTT to enable full integration." with one-click setup |
+| `index.html` | Auto-config banner component in config page |
+
+**What auto-detect can determine:**
+- Venus OS is connected (it wrote to our Modbus server) -- YES
+- Venus OS IP address -- NO (pymodbus does not expose client IP in async_setValues context)
+- Portal ID -- NO (requires MQTT discovery or user input)
+
+**Realistic auto-detect flow:**
+1. Venus OS writes to Model 123 registers
+2. Proxy detects first write, sets flag in shared_ctx
+3. Config page shows: "Venus OS is connected to your proxy! To enable full dashboard features, enter Venus OS IP and Portal ID below."
+4. User enters Venus OS IP (they know it — it is their Victron device)
+5. Proxy attempts MQTT connection to that IP, reads portal ID from MQTT topic prefix
+6. If successful, saves config and starts venus_mqtt_loop
+
+**Portal ID auto-discovery:** Connect to MQTT, subscribe to `N/+/system/0/Serial`, read the portal ID from the topic. This avoids user needing to know the hex portal ID.
+
+**Files modified (additional):**
+| File | Change |
+|------|--------|
+| `venus_reader.py` | Add `discover_portal_id(host: str) -> str | None` function: connect MQTT, subscribe wildcard, parse portal ID from first N/ topic |
+| `webapp.py` | `POST /api/config/venus-test` also calls `discover_portal_id` and returns it |
+
+### 5. Dashboard Element Grey-out (MQTT not connected)
+
+Covered in feature 2 above. Implementation detail:
+
+**HTML structure change:**
 ```html
-<!-- In page-dashboard, after sparkline, before bottom grid -->
-<div class="ve-card ve-ctrl-card">
-    <h2 class="ve-card-title">
-        Power Control
-        <span class="ve-badge ve-badge--test">Manual</span>
-    </h2>
-    <!-- Compact: override banner, status dot+label, slider, buttons in tighter layout -->
-    <!-- Override log as collapsible section -->
+<!-- Wrap Venus-dependent widgets -->
+<div id="venus-widgets" class="venus-dependent">
+  <!-- Lock toggle, Override, ESS settings, Grid power -->
 </div>
 ```
 
+**JS logic:**
+```javascript
+// In snapshot handler
+const venusSection = document.getElementById('venus-widgets');
+if (snapshot.venus_mqtt_connected) {
+    venusSection.classList.remove('mqtt-disconnected');
+} else {
+    venusSection.classList.add('mqtt-disconnected');
+}
+```
+
+**CSS:**
+```css
+.mqtt-disconnected {
+    opacity: 0.35;
+    pointer-events: none;
+    position: relative;
+}
+.mqtt-disconnected::after {
+    content: 'MQTT not connected';
+    /* overlay text */
+}
+```
+
+### 6. Install Script Improvements
+
+**Current gaps identified:**
+- Config template uses `solaredge:` key but `config.py` expects `inverter:` key (mismatch on line 94 of install.sh vs config.py dataclass)
+- No Venus OS section in config template
+- No version pinning or update mechanism
+- No pre-flight check for port 502 availability
+- Starts service immediately without user editing config first
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `install.sh` | Fix config key mismatch. Add venus section. Add port check. Print setup URL at end. |
+
+## Component Boundary Map
+
+```
++-----------------------------------------------------------+
+|                    __main__.py                             |
+|  Orchestrator: loads config, starts tasks, shutdown       |
+|  MODIFIED: conditional venus_mqtt_loop start              |
++------+----------------+------------------+----------------+
+       |                |                  |
++------v------+  +------v------+  +-------v--------+
+|  proxy.py   |  |  webapp.py  |  | venus_reader.py|
+|             |  |             |  |                |
+| poll_loop   |  | REST API    |  | MQTT subscribe |
+| ModbusTCP   |  | WebSocket   |  | MQTT publish   |
+| server      |  | Static files|  |                |
+|             |  |             |  | NEW: discover  |
+| MODIFIED:   |  | MODIFIED:   |  | portal_id()    |
+| autodetect  |  | venus config|  |                |
+| flag on     |  | endpoints   |  | MODIFIED:      |
+| first write |  | venus-test  |  | parameterized  |
+|             |  | autodetect  |  | host/portal    |
+|             |  | status API  |  | connection     |
++-------------+  +-------------+  | state flag     |
+                                   +----------------+
+       |                |                  |
+       +----------------+------------------+
+                        |
+                 shared_ctx (dict)
+                        |
+           +------------+----------------+
+           |            |                |
+    +------v------+  +--v-----+  +------v------+
+    |  config.py  |  |app.js  |  | index.html  |
+    |             |  |        |  |             |
+    | MODIFIED:   |  |MODIFIED|  | MODIFIED:   |
+    | +VenusConfig|  |venus UI|  | venus config|
+    |             |  |greyout |  | section     |
+    |             |  |bobbles |  | bobbles     |
+    |             |  |autodet |  | autodetect  |
+    +-------------+  +--------+  | banner      |
+                                  +-------------+
+```
+
+## New vs Modified Components
+
+### New Components: NONE
+No new Python modules needed. All features integrate into existing files.
+
+### New Functions (within existing modules):
+| Module | Function | Purpose |
+|--------|----------|---------|
+| `venus_reader.py` | `discover_portal_id(host: str) -> str \| None` | Connect to MQTT, sniff portal ID from topic prefix |
+| `webapp.py` | `venus_test_handler()` | Test MQTT connectivity + discover portal ID |
+| `webapp.py` | `venus_autodetect_handler()` | Return autodetect status |
+
+### Modified Functions:
+| Module | Function | Change |
+|--------|----------|--------|
+| `config.py` | `Config` dataclass | Add `venus: VenusConfig` field |
+| `config.py` | `load_config()` | Parse `venus:` section |
+| `venus_reader.py` | `venus_mqtt_loop()` | Accept host/portal params, write connection state to shared_ctx |
+| `webapp.py` | `config_get_handler()` | Return venus config fields |
+| `webapp.py` | `config_save_handler()` | Accept/save venus config fields |
+| `webapp.py` | `status_handler()` | Include `venus_mqtt` connection state |
+| `webapp.py` | `venus_write_handler()` | Read host from config instead of hardcoded |
+| `webapp.py` | `_mqtt_write_venus()` | Read host/portal from config |
+| `webapp.py` | `venus_dbus_handler()` | Read host/portal from config |
+| `proxy.py` | `_handle_control_write()` | Set autodetect flag on first Venus write |
+| `__main__.py` | `run_with_shutdown()` | Conditional venus_mqtt_loop start |
+| `dashboard.py` | `collect()` | Include `venus_mqtt_connected` in snapshot |
+
+### Frontend Changes:
+| File | Change |
+|------|--------|
+| `index.html` | Venus config section in config page, connection bobbles, autodetect banner, `.venus-dependent` wrapper |
+| `app.js` | Venus config form handling, bobble animation, grey-out logic, autodetect polling |
+| `style.css` | Bobble styles, `.mqtt-disconnected` styles, autodetect banner styles |
+
 ## Suggested Build Order
 
-Dependencies drive the order. Each step is independently testable.
+Build order is driven by dependency chains and testability:
 
+### Phase 1: Config Foundation (backend only, no UI)
+**What:** Add `VenusConfig` to config.py, parameterize venus_reader.py, thread config through __main__.py
+**Why first:** Everything else depends on venus config being in the config system. Pure backend, easy to test in isolation.
+**Files:** config.py, venus_reader.py, __main__.py
+**Test:** Unit test config loading with venus section, verify venus_mqtt_loop accepts params
+
+### Phase 2: MQTT Connection State
+**What:** Write `shared_ctx["venus_mqtt_connected"]` in venus_reader.py, include in dashboard snapshot
+**Why second:** Required by UI grey-out and config bobbles. Small change, high value.
+**Files:** venus_reader.py, dashboard.py
+**Test:** Unit test state transitions (connected/disconnected/reconnecting)
+
+### Phase 3: De-hardcode webapp.py
+**What:** Replace all hardcoded `192.168.3.146` and `88a29ec1e5f4` in webapp.py with config reads
+**Why third:** Depends on Phase 1 config being available. Eliminates all hardcoded references.
+**Files:** webapp.py
+**Test:** Verify venus_write_handler, venus_dbus_handler use config values
+
+### Phase 4: Config Page UI (venus section + bobbles)
+**What:** Add Venus OS fields to config page, connection status bobbles, venus-test endpoint
+**Why fourth:** Depends on Phases 1-3. This is the primary user-facing setup experience.
+**Files:** index.html, app.js, style.css, webapp.py (new endpoint)
+**Test:** Manual — fill in Venus IP, test connection, save, verify MQTT starts
+
+### Phase 5: Portal ID Auto-Discovery
+**What:** `discover_portal_id()` function, integrate into venus-test endpoint
+**Why fifth:** Quality-of-life improvement. User enters IP, portal ID is found automatically.
+**Files:** venus_reader.py, webapp.py
+**Test:** Integration test against real Venus OS MQTT broker
+
+### Phase 6: Dashboard Grey-out
+**What:** CSS grey-out for Venus-dependent widgets when MQTT disconnected
+**Why sixth:** Depends on Phase 2 (connection state in snapshot). Pure frontend.
+**Files:** index.html, app.js, style.css
+**Test:** Manual — disconnect MQTT, verify widgets grey out
+
+### Phase 7: Venus OS Auto-Detect Banner
+**What:** Detect first Modbus write, show banner in config page prompting MQTT setup
+**Why seventh:** Nice-to-have onboarding hint. Depends on Phases 4-5.
+**Files:** proxy.py, webapp.py, app.js, index.html
+**Test:** Manual — connect Venus OS to proxy without MQTT config, verify banner appears
+
+### Phase 8: Install Script Polish
+**What:** Fix config key mismatch, add venus section, port check, setup URL
+**Why last:** Independent of code changes. Can be done anytime but makes sense after config format is finalized.
+**Files:** install.sh
+**Test:** Fresh install on clean Debian 13 LXC
+
+## Patterns to Follow
+
+### Pattern: Config Hot-Reload for Venus Settings
+The existing inverter config hot-reload pattern (`config_save_handler` -> `plugin.reconfigure()`) should be replicated for Venus config. When user saves new Venus host/portal:
+1. Save to config.yaml (atomic write)
+2. Cancel existing venus_mqtt_loop task
+3. Start new venus_mqtt_loop with updated params
+
+**Implementation:** Store the venus_task reference in `shared_ctx["venus_task"]`. On config save, cancel it and create a new one.
+
+### Pattern: shared_ctx as State Bus
+Every new state flows through shared_ctx. Do not create parallel state channels.
+```python
+# Good
+shared_ctx["venus_mqtt_connected"] = True
+
+# Bad -- new WebSocket message type
+await ws.send_json({"type": "mqtt_status", "connected": True})
 ```
-Step 1: Peak Stats (backend-only, no HTML changes needed yet)
-  dashboard.py: add _peak_power_w, _operating_seconds, efficiency tracking
-  Tests: unit test DashboardCollector with mock data
-  WHY FIRST: Pure backend addition, no restructuring, validates data flow extension pattern
 
-Step 2: Unified Dashboard Layout (frontend-only restructuring)
-  index.html: move power control HTML into page-dashboard, remove page-power
-  index.html: remove Power Control nav-item from sidebar
-  app.js: remove page-power references from navigation (nav-item click handlers still work)
-  style.css: add compact power control card styles
-  WHY SECOND: Biggest structural change. Do it early while code is stable.
+This follows the existing "client-side event detection" decision: extend the snapshot, not the protocol.
 
-Step 3: Venus OS Info Widget (small backend + frontend)
-  proxy.py: track Venus OS last-read in StalenessAwareSlaveContext
-  control.py: add venus_locked boolean
-  dashboard.py: add venus_os section to snapshot
-  webapp.py: add /api/venus-lock endpoint
-  index.html: add Venus OS info card + lock toggle in dashboard
-  app.js: updateVenusInfo() + lock toggle handler
-  style.css: lock toggle component
-  WHY THIRD: Depends on dashboard layout being finalized (Step 2).
+### Pattern: Graceful Degradation
+The proxy must work fully without Venus MQTT. Current hardcoded values break the app if Venus OS is unreachable. After this milestone:
+- No Venus config = proxy runs fine, dashboard shows inverter data only
+- Venus config set but MQTT down = dashboard shows inverter data, Venus widgets greyed out
+- Venus config set and MQTT up = full dashboard
 
-Step 4: Toast System Enhancement (frontend-only)
-  index.html: add toast container
-  style.css: toast stacking, slide-out animation
-  app.js: refactor showToast(), add event detection from snapshot diffs
-  WHY FOURTH: Builds on top of all data being in snapshot (Steps 1+3).
+## Anti-Patterns to Avoid
 
-Step 5: Smooth Animations (frontend polish, last)
-  style.css: card entrance animations, value transition polish
-  app.js: gauge counter animation, sparkline lerp
-  WHY LAST: Polish layer. Everything must work first, then make it smooth.
-```
+### Anti-Pattern: New Python Module for Auto-Detect
+Do not create a separate `autodetect.py` module. The detection is a single flag set in `_handle_control_write`. Keep it inline.
 
-## File Change Matrix
+### Anti-Pattern: Polling for Connection Status
+Do not add a separate polling loop for MQTT status. The existing `venus_mqtt_loop` already runs continuously — just have it write status to shared_ctx.
 
-| File | Step 1 | Step 2 | Step 3 | Step 4 | Step 5 |
-|------|--------|--------|--------|--------|--------|
-| `dashboard.py` | MODIFY (peak stats) | -- | MODIFY (venus_os section) | -- | -- |
-| `proxy.py` | -- | -- | MODIFY (track venus read ts) | -- | -- |
-| `control.py` | -- | -- | MODIFY (venus_locked) | -- | -- |
-| `webapp.py` | -- | -- | MODIFY (venus-lock endpoint) | -- | -- |
-| `index.html` | -- | RESTRUCTURE | MODIFY (venus widget) | MODIFY (toast container) | -- |
-| `style.css` | -- | MODIFY (compact ctrl) | MODIFY (toggle) | MODIFY (toast stack) | MODIFY (animations) |
-| `app.js` | -- | MODIFY (remove nav) | MODIFY (venus info) | MODIFY (toast refactor) | MODIFY (animations) |
+### Anti-Pattern: WebSocket Message Types for Status
+Do not add `{"type": "mqtt_status"}` WebSocket messages. Include `venus_mqtt_connected` in the existing snapshot. This follows the locked decision "extend snapshot, not protocol."
 
-## Scalability Considerations
+### Anti-Pattern: Frontend Framework for Config Page
+Keep vanilla JS. The config page is a simple form. No React/Vue/Svelte needed.
 
-Not applicable -- this is a single-user embedded dashboard on a LAN device. The WebSocket serves 1-3 concurrent browsers at most. The in-memory data resets on restart by design.
+## Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Config key mismatch (install.sh `solaredge:` vs code `inverter:`) already exists | CERTAIN | Medium — fresh installs broken | Fix in Phase 8, or immediately |
+| MQTT reconnect race condition when hot-reloading venus config | Medium | Low — worst case is duplicate MQTT connections | Cancel old task before starting new one, use asyncio.Event for clean shutdown |
+| Portal ID discovery fails (Venus OS MQTT not accessible) | Low | Low — user can enter manually | Show "could not auto-discover" message, provide manual field |
+| pymodbus does not expose client IP in write handlers | CERTAIN | Low — auto-detect can only detect "someone connected" not "who" | Detect via first write, prompt user for Venus IP |
 
 ## Sources
 
-- Direct code analysis of existing codebase (HIGH confidence)
-- All architecture recommendations derived from actual file contents and data flow patterns
-- No external sources needed -- this is integration architecture for an existing system
+- Direct code analysis of all source files in the repository (HIGH confidence)
+- Existing architecture decisions documented in PROJECT.md (HIGH confidence)
+- pymodbus 3.x API (ModbusTcpServer, ModbusDeviceContext) — verified via code usage patterns (HIGH confidence)
+- Venus OS MQTT topic structure — verified from existing venus_reader.py subscriptions: `N/{portal}/...`, `R/{portal}/...`, `W/{portal}/...` (HIGH confidence)

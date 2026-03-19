@@ -1,173 +1,315 @@
-# Domain Pitfalls
+# Domain Pitfalls: Setup & Onboarding (v3.0)
 
-**Domain:** Dashboard Redesign & Polish for vanilla JS industrial monitoring proxy
-**Researched:** 2026-03-18
+**Domain:** IoT proxy setup/onboarding — config hot-reload, MQTT reconnection, connection status, install scripts
+**Researched:** 2026-03-19
+**Applies to:** v3.0 milestone (adding setup flow to existing running system)
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, performance degradation, or safety incidents.
+Mistakes that cause data loss, broken inverter control, or bricked installs.
 
-### Pitfall 1: Animation Jank from Layout Thrashing on Every WebSocket Update
+### Pitfall 1: Config Hot-Reload Mutates Shared State Mid-Operation
 
-**What goes wrong:** The current `flashValue()` function adds/removes a CSS class every 300ms on value changes, and `renderSparkline()` rebuilds SVG point strings on every 1/s snapshot. Adding CSS transitions/animations to more elements (gauge arc, phase cards, stat counters) while simultaneously updating `textContent` causes the browser to interleave style recalculation, layout, and paint on every WebSocket frame. On a data-heavy dashboard with 15+ animated elements updating at 1Hz, this produces visible jank -- especially on the LXC-hosted dashboard viewed from lower-powered devices.
+**What goes wrong:** The existing `config_save_handler` in `webapp.py` (lines 248-265) mutates the live `Config` dataclass in-place (`config.inverter.host = host`) and then calls `plugin.reconfigure()`. If the reconfigure fails partway through, the in-memory config has the new values but the running connection is in a broken state. Adding MQTT config hot-reload multiplies this risk -- the MQTT loop reads `VENUS_HOST` and `PORTAL_ID` as module-level constants, so "reconfigure" currently means restarting the whole loop task.
 
-**Why it happens:** Each `textContent` change invalidates layout. Adding `classList.add/remove` for flash animations forces style recalculation. If CSS transitions are applied to properties that trigger layout (width, height, padding, top/left), every update causes a full layout-paint-composite cycle instead of just a composite.
+**Why it happens:** Mutable shared state without transactional semantics. The current code sets `reconfiguring = True` as a flag but has no rollback path if `plugin.reconfigure()` throws.
 
-**Consequences:** Dashboard feels sluggish. CPU spikes on every WebSocket update. Mobile/tablet users see stuttering gauge animations. The smooth experience intended by animations becomes worse than having none.
-
-**Prevention:**
-1. **Only animate composite-layer properties:** `transform` and `opacity` exclusively. The gauge arc `stroke-dashoffset` transition (already in CSS line 617) is fine because SVG stroke changes are paint-only. But never animate `width`, `height`, `margin`, `padding`, or `top/left`.
-2. **Batch DOM reads before writes:** The current `handleSnapshot()` reads `data` then writes to 15+ DOM elements sequentially -- this is acceptable because there are no interleaved reads. Keep it that way. Never read `offsetWidth`/`getBoundingClientRect()` between writes (the existing `void row.offsetWidth` in `updateRegisterValues` line 611 is a deliberate reflow-trigger for re-animation, which is fine for the register page since it is not on the main dashboard).
-3. **Use `requestAnimationFrame` for sparkline rendering:** Wrap `renderSparkline()` in `requestAnimationFrame` to coalesce updates and prevent painting incomplete frames. The sparkline rebuilds an SVG polyline points string of 3600 entries every second -- this should be deferred to the next paint frame.
-4. **Cap animation concurrency:** If 10 values change simultaneously, 10 flash animations start. Use a single `ve-updating` class on the parent container with a CSS transition, rather than per-element flash classes.
-5. **Test with CPU throttling:** Chrome DevTools > Performance > CPU 4x slowdown simulates the experience on lower-powered devices accessing the dashboard.
-
-**Detection:** Open Chrome DevTools Performance tab. Record 10 seconds of dashboard updates. Look for purple (layout) bars exceeding 16ms per frame. If layout events appear on every WebSocket message, animation is causing layout thrashing.
-
-### Pitfall 2: Venus OS Lock Toggle Without Sufficient Safety Guard
-
-**What goes wrong:** An Apple-style toggle for "Lock Venus OS Control" could accidentally disable Venus OS's ability to control the inverter. If the user toggles it on (locking out Venus OS) and forgets, Venus OS can no longer enforce grid feed-in limits. In Germany/Austria, this violates Einspeiseregelung requirements. The system currently has a 60-second Venus OS priority window -- a toggle that overrides this permanently is a safety regression.
-
-**Why it happens:** Toggle switches invite casual interaction. Unlike the existing power limit slider (which has a confirmation dialog AND auto-revert after 5 minutes), a toggle feels reversible and low-stakes. Users toggle it "to test" and forget.
-
-**Consequences:** Venus OS cannot enforce grid compliance. The inverter runs at full power without feed-in regulation. Potential grid operator violations. In worst case, grid operator disconnects the installation.
+**Consequences:**
+- Dashboard shows "reconfiguring" forever if exception is swallowed
+- MQTT reconnects to old host while config file says new host (config/runtime drift)
+- Venus OS loses power control during a botched reconfigure
 
 **Prevention:**
-1. **Never permanently lock out Venus OS.** The toggle should only suppress Venus OS control temporarily, with a mandatory auto-unlock timer (max 15 minutes, same principle as the existing 5-minute power limit revert).
-2. **Require confirmation dialog** identical to the power limit confirmation: "Lock Venus OS control for 15 minutes? Venus OS will not be able to limit power during this time. Auto-unlock at HH:MM."
-3. **Visual urgency indicator:** When locked, the toggle area should show a persistent red warning banner (similar to the existing `ctrl-override-banner`), not just a subtle toggle state change.
-4. **Backend enforcement:** The lock state must live in `ControlState` (Python), not just in the frontend. The backend should refuse to honor the lock after the timeout expires, regardless of what the frontend shows. The `edpc_refresh_loop` already checks control state every 30 seconds -- add lock timeout checking there.
-5. **WebSocket broadcast on lock state change:** All connected browser tabs must see the lock state change immediately. The current broadcast mechanism (`broadcast_to_clients`) already handles this pattern.
+- Apply config changes atomically: build a NEW config object, validate it, swap the reference. Keep the old config for rollback on failure.
+- For MQTT: cancel the existing `venus_mqtt_loop` task and create a new one with updated host/portal_id rather than trying to hot-patch module globals.
+- Set a timeout on reconfigure operations (e.g., 10s). If timeout expires, rollback to previous config.
+- The `save_config()` function already uses atomic file write (temp + `os.replace`). Match this pattern for in-memory state.
 
-**Detection:** If the toggle has no timeout and no confirmation dialog, it is a safety issue. If the lock state is frontend-only (localStorage or JS variable), it is a safety issue.
+**Detection:** Config file and runtime state diverge. Add a `/api/config/effective` endpoint that returns what is actually running (not just what was loaded).
 
-### Pitfall 3: Merging Power Control Page Into Dashboard Breaks Existing Element IDs
+**Phase:** Config page implementation (earliest phase). Must be designed before building the UI.
 
-**What goes wrong:** The Power Control page (lines 224-273 of index.html) uses element IDs like `ctrl-slider`, `ctrl-apply`, `ctrl-dot`, `ctrl-override-banner`. The Dashboard page uses IDs like `gauge-fill`, `power-gauge`, `daily-energy`. When merging Power Control inline into the Dashboard page, developers copy the HTML but accidentally create duplicate IDs (by keeping the original page for backwards compatibility), or they break the JavaScript event handlers (lines 682-737 of app.js) that use `document.getElementById()` and IIFE patterns that bind on page load.
+---
 
-**Why it happens:** The current architecture uses display:none pages with a single HTML file. Power Control JavaScript initializes with IIFEs that bind to elements on DOMContentLoaded. If those elements are moved to a different page div, or if the original page-power div is removed, the bindings break silently (getElementById returns null, and the existing null-checks like `if (!slider || !sliderValue) return` cause the entire feature to silently fail).
+### Pitfall 2: MQTT Raw Socket Reconnection Loses Subscriptions Silently
 
-**Consequences:** Power control slider stops responding. Apply button does nothing. No error visible to user. Or worse: dual elements with same ID cause JavaScript to bind to the wrong one, sending power limit commands from a hidden element.
+**What goes wrong:** The current `venus_reader.py` reconnects after any exception with a 5s delay (line 209-210), re-subscribes and re-requests initial values. The dangerous edge case: the socket TCP handshake succeeds but MQTT CONNACK indicates session-rejected. In the current raw socket implementation, the CONNACK response (line 32: `s.recv(4)`) is read but **never parsed** -- a rejected connection or error code is silently ignored.
 
-**Prevention:**
-1. **Remove the original `page-power` div entirely** when merging into dashboard. Do not keep both. There must be exactly one instance of each control element ID.
-2. **Move the event bindings out of IIFEs** and into a single `initPowerControl()` function called after the DOM is ready. This makes it testable and relocatable.
-3. **Update the navigation:** Remove the "Power Control" nav item from the sidebar. The dashboard is now the single source of truth.
-4. **Test the merge incrementally:** First move just the HTML, verify all JS bindings still work, then adjust layout/styling. Do not combine layout changes with functional changes.
-5. **Keep `updatePowerControl(data)` unchanged** -- it already uses getElementById and does not depend on which page-div the elements are in.
+**Why it happens:** Raw socket MQTT implementation skips protocol-level error handling. The 4-byte CONNACK has a return code at byte 4 that must be checked (0x00 = accepted, anything else = rejected). Current code assumes success.
 
-**Detection:** After merging, open the dashboard and check: Does the slider move? Does Apply show a confirmation dialog? Does the Venus OS override banner appear when Venus OS writes? If any of these are broken, the merge was incomplete.
-
-### Pitfall 4: Toast Notification Stacking and Fatigue
-
-**What goes wrong:** The current `showToast()` (line 670-678) creates a fixed-position div at `top: 16px; right: 16px` with a 3-second auto-dismiss. When v2.1 adds toast notifications for override events, fault alerts, temperature warnings, AND night mode transitions, multiple toasts fire simultaneously (e.g., inverter goes to fault + Venus OS override happens at the same time). All toasts render at the exact same position, stacking on top of each other and becoming unreadable. Over time, users learn to ignore all toasts ("notification fatigue"), defeating the purpose.
-
-**Why it happens:** The current toast implementation has no stacking logic, no duplicate suppression, and no rate limiting. Each toast is independently positioned at the same fixed coordinates.
-
-**Consequences:** Overlapping toasts obscure each other. Users cannot read the important fault notification because a routine "night mode" toast covers it. Users start ignoring all toasts. Critical alerts go unnoticed.
+**Consequences:**
+- MQTT appears "connected" but receives no messages
+- Dashboard shows stale Venus OS settings (last known values from `shared_ctx["venus_settings"]`)
+- Venus OS lock/override detection stops working -- user thinks system is active but MQTT is dead
+- No log entry for the actual failure since `s.recv(4)` does not validate
 
 **Prevention:**
-1. **Toast container with vertical stacking:** Create a `#toast-container` fixed at top-right. Each toast is appended as a child and gets `margin-top` based on existing toasts. When a toast is dismissed, remaining toasts animate upward.
-2. **Priority levels:** Critical toasts (fault, temperature warning) should be persistent (require manual dismiss) and visually distinct (red background, dismiss button). Info toasts (night mode, routine status) auto-dismiss in 3 seconds.
-3. **Duplicate suppression:** If the same message text is already showing, do not create another toast. Increment a counter badge instead: "Venus OS override (x3)".
-4. **Rate limiting:** Maximum 3 visible toasts at once. If a 4th arrives, dismiss the oldest info-level toast to make room. Never auto-dismiss critical toasts.
-5. **Exit animation:** The current implementation has `ve-toast-in` animation but removes the element instantly with `toast.remove()`. Add a fade-out animation before removal so users see the toast leaving.
-6. **Accessibility:** Add `role="alert"` and `aria-live="assertive"` to the toast container so screen readers announce notifications. The current implementation has no ARIA attributes.
+- Parse CONNACK return code: `connack = s.recv(4); if connack[3] != 0: raise ConnectionError(f"MQTT rejected: {connack[3]}")`
+- Add an MQTT connection status field to `shared_ctx` (e.g., `shared_ctx["mqtt_connected"] = True/False` with timestamp)
+- Surface this status in the dashboard -- this is exactly what the "greyed-out elements" feature needs
+- Add a keepalive watchdog: if no MQTT message received for 60s (including PINGRESP), force reconnect
 
-**Detection:** Trigger 3+ events simultaneously (disconnect + reconnect + override). If toasts overlap or become unreadable, the stacking logic is missing.
+**Detection:** Dashboard elements that depend on MQTT data show stale timestamps. Add `mqtt_last_message_ts` to the status API.
+
+**Phase:** MQTT configurable phase. Fix CONNACK parsing as prerequisite before making host/portal configurable.
+
+---
+
+### Pitfall 3: Venus OS Auto-Discovery Race Between Modbus Accept and MQTT Setup
+
+**What goes wrong:** The plan is to auto-detect Venus OS by watching for incoming Modbus connections. But the proxy server starts before MQTT is configured. If Venus OS connects via Modbus, the proxy detects it and tries to auto-configure MQTT to the same IP -- but the MQTT connection attempt might happen while Venus OS is still in its own startup sequence (MQTT broker not yet ready). The auto-config "succeeds" (saves to config) but MQTT fails silently.
+
+**Why it happens:** Temporal coupling -- Modbus TCP connection arriving does not guarantee MQTT readiness on the same host. Venus OS boots Modbus client before MQTT broker in some firmware versions.
+
+**Consequences:**
+- Config saved with correct Venus OS IP but MQTT never connects
+- User sees "Venus OS detected" success message but dashboard elements stay greyed out
+- User has to manually trigger reconnect or restart service
+
+**Prevention:**
+- Auto-discovery should detect the Modbus connection source IP but NOT immediately save it as confirmed config
+- Show the detected IP as a "suggestion" with a "Test & Apply" button
+- MQTT connection test (connect + subscribe + receive at least one message within 5s) must succeed before marking as configured
+- Implement retry with backoff specifically for the initial MQTT setup (separate from the main reconnect loop)
+
+**Detection:** Add a `setup_state` enum: `unconfigured -> detected -> testing -> confirmed -> failed`. Expose in status API and UI.
+
+**Phase:** Venus OS auto-discovery phase. Design the state machine before implementing detection.
+
+---
+
+### Pitfall 4: Install Script curl|bash Overwrites User Config on Update
+
+**What goes wrong:** The current `install.sh` (line 88) only creates config if missing (`if [ ! -f ... ]`), which is correct for fresh installs. But when adding MQTT config fields to `config.yaml`, existing users who update via `curl | bash` keep their old config without the new `mqtt:` section. The app then falls back to hardcoded defaults (`VENUS_HOST = "192.168.3.146"`) -- but once those hardcoded values are removed (the whole point of making MQTT configurable), the app crashes or silently uses wrong defaults.
+
+**Why it happens:** Config schema evolution without migration. The install script preserves existing config (good) but has no mechanism to merge new fields into existing config (bad).
+
+**Consequences:**
+- Existing users who update get a broken MQTT setup
+- New users get a config with MQTT section, existing users do not -- inconsistent behavior
+- If defaults are removed from code (to force config), existing installs break
+
+**Prevention:**
+- Keep all defaults in the `Config` dataclass (as currently done) -- never remove fallback defaults from code
+- Add a config migration step to `install.sh`: check if `mqtt:` section exists in existing config, append it if missing
+- Better: have the app detect missing config sections and show a setup wizard in the UI ("New: MQTT configuration available -- configure now")
+- Version the config schema (add `version: 2` field). App detects old version and prompts for update.
+
+**Detection:** Log a warning at startup for each config section that uses defaults: `"mqtt section missing from config, using defaults"`. This makes the issue visible in `journalctl`.
+
+**Phase:** Install script polish phase. Must be coordinated with config page implementation.
+
+---
+
+### Pitfall 5: Connection Status Bobble Shows False Positives During Transient States
+
+**What goes wrong:** The config page plans a "live connection bobble" (green/red indicator). The existing `status_handler` returns `solaredge: conn_mgr.state.value` and `venus_os: "active"` (hardcoded!). Multiple race conditions:
+
+1. **SolarEdge status during reconfigure:** `reconfiguring` flag is set (line 255) but the bobble might poll status between disconnect and reconnect, showing "reconnecting" briefly even on successful reconfigure
+2. **Venus OS always "active":** Currently hardcoded to `"active"` -- adding real MQTT status creates a period where the bobble flips between states during normal MQTT keepalive cycles
+3. **Frontend polling vs WebSocket:** If the config page polls `/api/status` while the dashboard uses WebSocket, they can show contradictory connection states
+
+**Why it happens:** Connection status is inherently a lagging indicator. The proxy checks connectivity via poll results, not via a dedicated health check. Network state changes are async -- the status API returns a snapshot that may be milliseconds stale.
+
+**Consequences:**
+- User sees green bobble, saves config, inverter is actually unreachable
+- Bobble flickers red/green during normal operation (MQTT keepalive timeout = 1s in current code)
+- User loses trust in the status indicator and ignores real failures
+
+**Prevention:**
+- Debounce status transitions: require 3 consecutive failed polls (3s) before showing "disconnected". Show "checking..." during transitions.
+- Replace hardcoded `venus_os: "active"` with actual MQTT connection state from `shared_ctx`
+- Use WebSocket for status updates on the config page too (not polling) -- single source of truth
+- Add "last successful communication" timestamps for both SolarEdge and MQTT, show relative time ("2s ago", "45s ago")
+
+**Detection:** If `last_successful_poll` age > 5s but status shows "connected", something is wrong. Add a consistency check.
+
+**Phase:** Config page phase. Design the status model before building the bobble UI.
 
 ## Moderate Pitfalls
 
-### Pitfall 5: Venus OS Info Widget Polling Creates Additional Modbus Overhead
+### Pitfall 6: MQTT Topic Prefix Breaks When Portal ID Is Wrong
 
-**What goes wrong:** The Venus OS Info widget needs data about Venus OS (connection status, IP, last contact time, firmware version). Developers might add a second Modbus polling loop that reads Venus OS-specific registers, doubling the Modbus traffic on the bus. The SolarEdge SE30K has limited Modbus throughput, and additional polling can cause timeouts on the primary data path.
-
-**Prevention:**
-1. **Do not add new Modbus polling.** Venus OS info should come from existing data: the `conn_mgr` state (already tracked), the Venus OS write detection (already in `ControlState.set_from_venus_os()`), and the proxy's own knowledge of Venus OS IP (from config or from the source address of incoming Modbus connections).
-2. **Track Venus OS contact passively:** When Venus OS reads registers (which it does every ~3 seconds), record the source IP and timestamp in the proxy's Modbus server handler. This costs zero additional Modbus traffic.
-3. **Expose via existing snapshot:** Add `venus_os` section to the `DashboardCollector.collect()` snapshot dict, alongside `inverter`, `control`, and `connection`. The WebSocket broadcast already pushes snapshots at 1Hz.
-
-**Detection:** If a new `asyncio.create_task` appears with a Modbus read loop for Venus OS data, the overhead is being added. The information should be derived from passive observation of Venus OS's existing Modbus reads.
-
-### Pitfall 6: Peak Statistics Accumulate Memory Indefinitely
-
-**What goes wrong:** Peak statistics (peak kW today, operating hours, efficiency) require tracking values over time. A naive implementation stores every sample to compute peaks. With 1 sample/second, that is 86,400 samples per day. If the peak tracking does not reset daily, or if it stores full sample history instead of just the running max, memory grows continuously.
+**What goes wrong:** Venus OS portal ID (`88a29ec1e5f4`) is currently hardcoded. When making it configurable, if the user enters the wrong portal ID, MQTT subscribes to topics that don't exist. No error -- just silence. MQTT wildcard subscriptions succeed even for nonexistent topic prefixes.
 
 **Prevention:**
-1. **Running max, not sample history:** For peak kW, store a single float `peak_w` that updates via `peak_w = max(peak_w, current_w)`. Do not store the history of all samples.
-2. **Daily reset tied to inverter status:** Reset peak stats when inverter status transitions from SLEEPING/OFF to STARTING/MPPT (indicating a new day). The existing `DashboardCollector._energy_at_start` already uses this pattern for daily energy.
-3. **Operating hours as monotonic counter:** Increment a counter by 1 each second when `status == MPPT`. Store as a single integer, not a list of timestamps.
-4. **Efficiency as derived value:** `efficiency = daily_energy_wh / (peak_w * operating_hours_s / 3600)`. Compute on-demand from the other tracked values, do not store separately.
+- After subscribing, wait 5s for at least one message. If nothing received, warn the user that the portal ID might be wrong.
+- Auto-detect portal ID: subscribe to `N/+/system/0/Serial` (wildcard for any portal ID), extract the portal ID from the first message received. This is the strongly recommended approach over manual entry.
+- Show the detected portal ID in the config UI for confirmation.
 
-**Detection:** If peak tracking code contains a list/deque that appends every sample, memory will grow. It should contain only scalar values (peak, hours_count, etc.).
+**Phase:** MQTT configurable phase. Auto-detection strongly recommended over manual entry.
 
-### Pitfall 7: CSS Grid Layout Regression When Adding Inline Power Control
+---
 
-**What goes wrong:** The dashboard currently uses `ve-dashboard-grid` (4-column: gauge + 3 phase cards) and `ve-dashboard-bottom` (3-column: inverter status + connection + health). Adding Power Control inline below the gauge means inserting a new section between row 1 (gauge+phases) and row 2 (sparkline). This breaks the visual rhythm and the responsive breakpoints. On mobile (single column), the power control section pushes the sparkline far down, making the core monitoring data invisible without scrolling.
+### Pitfall 7: Config Page Save While Venus OS Is Actively Writing Power Limits
 
-**Prevention:**
-1. **Compact power control section:** Do not replicate the full power control page. Show only: status dot + current limit % + slider + apply button, in a single horizontal row. The override log and detailed readout can remain in an expandable/collapsible section.
-2. **Place it inside the gauge card, below the daily energy widget.** This keeps it visually grouped with power output (logical association) and does not disrupt the grid layout.
-3. **Test all three breakpoints:** Desktop (1024+), tablet (768-1024), mobile (<768). The current responsive CSS is well-structured -- maintain the same grid-template-columns patterns.
-4. **Do not add a new grid row.** Keep the existing 3-row structure (gauge+phases, sparkline, status cards). Power control becomes a sub-section of the gauge card.
-
-**Detection:** After adding power control, check mobile view. If the sparkline and status cards are not visible without scrolling past the fold, the layout is too tall.
-
-### Pitfall 8: Smooth Gauge Animation Conflicts with 1/s Data Updates
-
-**What goes wrong:** The gauge arc has `transition: stroke-dashoffset 0.8s ease-out` (style.css line 617). With 1-second WebSocket updates, the 0.8s transition barely completes before the next value arrives. If the new value arrives mid-transition, the browser must interrupt and start a new transition from the current interpolated position. This causes the gauge to never fully settle, creating a "always chasing" visual effect that looks jerky rather than smooth.
+**What goes wrong:** User opens config page, changes SolarEdge IP, hits save. `plugin.reconfigure()` disconnects from the old inverter and connects to the new one. During this window (1-5s), Venus OS writes a power limit via Modbus. `StalenessAwareSlaveContext.async_setValues()` tries to forward via `self._plugin.write_power_limit()`, but the plugin is mid-reconnection. Exception propagates as Modbus error to Venus OS.
 
 **Prevention:**
-1. **Reduce transition duration to 0.5s** to ensure it completes well before the next 1s update arrives, leaving a 0.5s settled period.
-2. **Use CSS `transition-timing-function: ease-out`** (already present) -- this front-loads the visual change so the gauge appears to reach its target quickly even if a new value arrives.
-3. **Skip transition for small changes:** If the power change is less than 50W (noise), do not update the gauge at all. Add a `deadband` in `updateGauge()`: `if (Math.abs(newPower - lastPower) < 50) return;`. This prevents the gauge from jittering on measurement noise.
-4. **Never use `transition: all`** -- this would animate background-color, opacity, and any other properties that change on the gauge card, causing unexpected visual artifacts.
+- Queue incoming Venus OS writes during reconfiguration (buffer for max 10s)
+- Return Modbus "device busy" (exception code 0x06) during reconfigure instead of 0x04
+- Replay buffered writes after reconnection succeeds
+- Alternatively: disable reconfigure if `control_state.last_source == "venus_os"` and limit was written < 60s ago. Force user to wait.
 
-**Detection:** Watch the gauge for 30 seconds with live data. If the arc never stops moving (even when power is stable at, say, 10.0 kW), the transition duration is too long or the deadband is missing.
+**Phase:** Config page phase. Add reconfigure guard before implementing save handler.
+
+---
+
+### Pitfall 8: Greyed-Out Dashboard Elements Re-Enable Before MQTT Is Stable
+
+**What goes wrong:** Plan says "grey out dashboard elements until MQTT connected." If the implementation checks `shared_ctx["mqtt_connected"]` and MQTT connects briefly then drops, the UI enables elements, user interacts, then elements grey out again mid-interaction (e.g., while dragging the power clamp slider).
+
+**Prevention:**
+- Require MQTT to be connected for at least 10s before enabling dependent UI elements
+- Use a "stable connection" flag: connected AND received at least 3 messages AND no disconnects in last 10s
+- When MQTT drops after being stable, show a toast notification instead of immediately greying out (give 30s grace period)
+- Disable interactive controls (Lock, Override, Venus Settings write) immediately on MQTT loss, but keep read-only display elements visible with a "stale" indicator
+
+**Phase:** MQTT setup guide / greyed-out elements phase. Define the state machine before CSS.
+
+---
+
+### Pitfall 9: Blocking Socket Operations in Async Event Loop
+
+**What goes wrong:** The current `venus_reader.py` uses blocking `socket.socket` calls inside an async function with `await asyncio.sleep(0.1)` between reads. This works when MQTT is the only consumer, but adding config test connections, MQTT connection tests for auto-discovery, and concurrent status checks increases the chance of blocking the event loop. The `s.settimeout(1)` means each `s.recv()` can block for up to 1 second.
+
+**Prevention:**
+- Wrap blocking socket calls in `asyncio.get_event_loop().run_in_executor(None, ...)` for the MQTT reader
+- Better: for new MQTT connections (config test, auto-discovery), use `asyncio.open_connection()` instead of raw `socket.socket`. Keep the existing raw socket for the main reader to avoid regression risk.
+- For config test connections (`config_test_handler`), already uses `AsyncModbusTcpClient` which is correct. Apply the same async pattern to MQTT test connections.
+
+**Phase:** MQTT configurable phase. Address when adding MQTT connection testing.
+
+---
+
+### Pitfall 10: Three Hardcoded Venus OS IPs and Two Hardcoded Portal IDs
+
+**What goes wrong:** Venus OS connection details are scattered across three locations:
+1. `venus_reader.py` line 19: `VENUS_HOST = "192.168.3.146"`
+2. `webapp.py` line 598: `AsyncModbusTcpClient("192.168.3.146", port=502)` in `venus_write_handler`
+3. `webapp.py` line 677: `_mqtt_write_venus("192.168.3.146", "88a29ec1e5f4", ...)` in `venus_dbus_handler`
+
+And two portal IDs:
+1. `venus_reader.py` line 18: `PORTAL_ID = "88a29ec1e5f4"`
+2. `webapp.py` line 677: same hardcoded string
+
+If only some of these are updated to read from config, the system uses different hosts for different operations. The MQTT reader connects to the configured host, but `venus_dbus_handler` still writes to the hardcoded IP.
+
+**Prevention:**
+- Make MQTT config a first-class `MqttConfig` dataclass (host, port, portal_id) on the `Config` object
+- Pass `config.mqtt` to all consumers through their constructors or through `shared_ctx`
+- Search for all occurrences of `192.168.3.146` and `88a29ec1e5f4` before considering the task complete
+- Add a grep-test in CI: `grep -r "192.168.3" src/ && exit 1` to prevent future hardcoding
+
+**Phase:** MQTT configurable phase. This IS the core task -- enumerate all locations first.
 
 ## Minor Pitfalls
 
-### Pitfall 9: IIFE Event Bindings Silently Fail When DOM Structure Changes
+### Pitfall 11: Config YAML Key Mismatch Between Install Script and Code
 
-**What goes wrong:** The power control JavaScript uses three IIFEs (lines 682-697, 723-737, 741-772) that bind event handlers on script load. If the DOM structure is changed (e.g., the slider is wrapped in a new container div, or it is moved to a different page section), `document.getElementById('ctrl-slider')` might return null during the IIFE execution (if the script runs before that DOM element exists). The `if (!slider || !sliderValue) return` guard silently exits without any error logging.
+**What goes wrong:** The install script template (line 94) uses `solaredge:` as the YAML key, but `config.py` uses `inverter:`. Fresh installs from the script create configs that don't match what the code expects. The app falls back to defaults silently (because of the `data.get("inverter", {})` pattern), so it appears to work but uses the hardcoded default IP instead of what the user configured.
 
-**Prevention:** Add `console.warn('Power control elements not found, skipping initialization')` to the early-return guards. During development, this surfaces broken bindings immediately instead of requiring manual testing of every feature.
+**Prevention:**
+- Align the install script template with `config.py` field names immediately
+- Add a startup log that prints the effective config: `log.info("loaded_config", inverter_host=config.inverter.host, ...)`
+- Add a config validation step that warns about unknown top-level keys (e.g., `solaredge` is unknown)
 
-### Pitfall 10: WebSocket Reconnect Sends Stale Snapshot on Reconnect
+**Phase:** Install script polish phase. Quick fix, do first.
 
-**What goes wrong:** When the WebSocket reconnects (after a temporary disconnect), the server sends the latest cached snapshot. If the dashboard also has local state (e.g., a toast showing "disconnected"), the reconnect snapshot triggers `handleSnapshot()` which updates all UI elements. But if the user had been dragging the power limit slider during the disconnect (`ctrlSliderDragging === true`), the slider position is not updated on reconnect (line 830), which is correct. However, the local `sparklineData` array keeps its pre-disconnect data and continues appending post-reconnect data, potentially creating a time gap in the sparkline that appears as a flat line.
+---
 
-**Prevention:** On WebSocket reconnect (`ws.onopen`), clear `sparklineData` and wait for the server's `history` message to repopulate it. The server already sends downsampled history on connect (webapp.py lines 402-415).
+### Pitfall 12: WebSocket Clients Miss Config Change Events
 
-### Pitfall 11: Toast z-index Conflicts with Modal Dialog
+**What goes wrong:** When config is saved via the config page, the dashboard clients connected via WebSocket don't know the proxy is reconfiguring. They continue showing old data. If the new SolarEdge IP is unreachable, dashboard clients see stale data until the cache staleness timeout (30s) triggers.
 
-**What goes wrong:** The toast has `z-index: 2000` and the modal overlay has `z-index: 1000`. This means a toast appearing during a confirmation dialog will render above the modal. If the toast is an error toast ("Venus OS has control"), it partially obscures the modal content, confusing the user who is trying to confirm a power limit change.
+**Prevention:**
+- Broadcast a `{"type": "reconfiguring"}` message to all WebSocket clients when config save starts
+- Broadcast `{"type": "reconfigured", "success": true/false}` when complete
+- Config page and dashboard should both be WebSocket clients that react to these events
 
-**Prevention:** Suppress toast creation while a modal dialog is visible. Add a simple check: `if (document.querySelector('.ve-modal-overlay')) return;` at the top of `showToast()`. Alternatively, queue toasts and show them after the modal is dismissed.
+**Phase:** Config page phase.
+
+---
+
+### Pitfall 13: venus_mqtt_loop Task Is Fire-and-Forget
+
+**What goes wrong:** The MQTT loop is started as `asyncio.create_task()` in `__main__.py` line 155, but the task reference (`venus_task`) is stored in a local variable, never in `shared_ctx`. To make MQTT reconfigurable (stop the old loop, start a new one with different host), you need a reference to cancel the task. Without it, you either leak tasks or have two MQTT loops running concurrently to the same broker.
+
+**Prevention:**
+- Store the task in `shared_ctx["venus_task"]` immediately after creation
+- Add a `restart_mqtt(shared_ctx, new_host, new_portal_id)` helper that cancels the old task, waits for cancellation, and creates a new one
+- Guard against concurrent restarts with a lock or a "restarting" flag
+
+**Phase:** MQTT configurable phase. Prerequisite for MQTT hot-reload.
+
+---
+
+### Pitfall 14: Install Script Runs apt-get update on Every Update
+
+**What goes wrong:** The install script always runs `apt-get update -qq` (line 47), even on updates where dependencies haven't changed. On slow connections or rate-limited mirrors, this adds 30-60s to every update. On airgapped or custom-repo systems, it can fail entirely.
+
+**Prevention:**
+- Skip `apt-get update` if all required packages are already installed: `dpkg -l python3 python3-venv git 2>/dev/null | grep -q "^ii" && skip_apt=true`
+- Add a `--skip-deps` flag for updates
+- Better: separate "install" and "update" code paths in the script
+
+**Phase:** Install script polish phase.
+
+---
+
+### Pitfall 15: Service User Permissions for New Config Files
+
+**What goes wrong:** Adding new files to `/etc/venus-os-fronius-proxy/` (like `mqtt_state.json`, auto-discovered settings) may fail if the `fronius-proxy` service user doesn't have write permissions. The install script sets `chown -R` (line 121) at install time but not after updates add new file patterns.
+
+**Prevention:**
+- Ensure the service user owns the config directory itself (not just existing files)
+- Use the existing `tempfile.mkstemp(dir=config_dir)` pattern from `save_config()` for all new state files
+- The existing `last_limit.json` and `ui_state.json` already write to this directory -- verify they work after a fresh install
+
+**Phase:** Install script polish phase.
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Layout Merge (Power Control into Dashboard) | Pitfall 3: Duplicate IDs, broken event bindings | Remove original page-power, single source of truth |
-| Layout Merge (Power Control into Dashboard) | Pitfall 7: Grid layout regression on mobile | Place control inside gauge card, test all breakpoints |
-| CSS Animations | Pitfall 1: Layout thrashing at 1Hz updates | Only animate transform/opacity, rAF for sparkline |
-| CSS Animations | Pitfall 8: Gauge transition never settles | Reduce to 0.5s, add power deadband |
-| Toast Notifications | Pitfall 4: Stacking, fatigue, accessibility | Container with stacking, priority levels, ARIA |
-| Toast Notifications | Pitfall 11: z-index conflict with modal | Suppress toasts during modal or queue them |
-| Venus OS Info Widget | Pitfall 5: Extra Modbus polling overhead | Passive tracking from existing connections |
-| Venus OS Lock Toggle | Pitfall 2: Safety regression without timeout | Mandatory auto-unlock timer, confirmation dialog |
-| Peak Statistics | Pitfall 6: Memory growth from sample history | Running max scalars, daily reset on status transition |
-| General JS Architecture | Pitfall 9: Silent IIFE binding failures | Add console.warn to early-return guards |
-| WebSocket Reconnect | Pitfall 10: Sparkline time gap | Clear sparklineData on reconnect, rely on server history |
+| Config page with defaults | In-memory config mutation without rollback (Pitfall 1) | Atomic config swap pattern |
+| Config page live bobble | False positive status during transients (Pitfall 5) | Debounce + timestamps |
+| Config page save | Venus OS writes during reconfigure (Pitfall 7) | Queue writes, return "device busy" |
+| Config page save | WebSocket clients unaware of reconfigure (Pitfall 12) | Broadcast reconfigure events |
+| Venus OS auto-discovery | Race between Modbus detect and MQTT ready (Pitfall 3) | Detect -> suggest -> test -> confirm flow |
+| MQTT configurable | Silent subscription failure on wrong portal ID (Pitfall 6) | Auto-detect portal ID via wildcard |
+| MQTT configurable | CONNACK not parsed, silent failure (Pitfall 2) | Parse return code before declaring connected |
+| MQTT configurable | Three hardcoded IPs, two hardcoded portal IDs (Pitfall 10) | Enumerate all, make first-class config |
+| MQTT configurable | Fire-and-forget task not cancellable (Pitfall 13) | Store task ref in shared_ctx |
+| MQTT configurable | Blocking sockets in async loop (Pitfall 9) | Use executor or asyncio streams for new code |
+| MQTT setup guide + greyed-out | UI flicker on MQTT reconnect (Pitfall 8) | Stable-connection threshold (10s + 3 messages) |
+| Install script polish | Config schema drift on updates (Pitfall 4) | Keep code defaults, log missing sections |
+| Install script polish | YAML key mismatch solaredge vs inverter (Pitfall 11) | Fix immediately, add unknown-key warning |
+| Install script polish | apt-get on every update (Pitfall 14) | Skip if deps present |
+| Install script polish | Permissions for new config files (Pitfall 15) | chown directory, use tempfile pattern |
+
+## Codebase-Specific Observations
+
+Patterns in the existing code that will interact with v3.0 features:
+
+1. **`shared_ctx` is an untyped dict:** As more features add keys (`mqtt_connected`, `setup_state`, `venus_host`, `venus_task`), this becomes error-prone. Consider a `@dataclass SharedContext` before adding more keys. Every v3.0 feature adds at least one new key.
+
+2. **No config change notification mechanism:** The webapp holds `app["config"]` as a direct reference. There is no observer pattern for "config changed." When MQTT config is added, the venus_reader needs to know config changed. Currently the only way is to cancel and recreate the task.
+
+3. **`_mqtt_write_venus` is a synchronous blocking function** (webapp.py lines 625-655) that creates a new TCP connection for every single Venus OS dbus write, including a `time.sleep(0.5)`. This blocks the aiohttp event loop for 500ms+ per write. It should be wrapped in `run_in_executor` or rewritten to use the existing MQTT connection from `venus_reader`.
+
+4. **Dual MQTT paths exist:** `venus_reader.py` maintains a long-lived MQTT connection for reading. `_mqtt_write_venus` in `webapp.py` creates a new throwaway connection for each write. Making MQTT configurable means both paths need the same host/portal_id. Consider consolidating into a single MQTT client that handles both reads and writes.
 
 ## Sources
 
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/static/app.js` (945 lines)
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/static/style.css` (998 lines)
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/static/index.html` (280 lines)
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/webapp.py` (broadcast, WebSocket, power limit handler)
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/dashboard.py` (DashboardCollector, snapshot structure)
-- Direct codebase analysis of `/Users/hulki/codex/venus os fronius proxy/src/venus_os_fronius_proxy/control.py` (ControlState, OverrideLog, EDPC refresh)
-- CSS rendering pipeline knowledge: composite-only properties avoid layout thrashing (HIGH confidence, well-established browser behavior)
-- Einspeiseregelung safety requirements for German/Austrian grid compliance (HIGH confidence, regulatory requirement referenced in PROJECT.md)
+- Direct code analysis of the existing codebase (HIGH confidence -- primary source)
+- `venus_reader.py`: raw socket MQTT implementation, reconnection logic, hardcoded constants
+- `webapp.py`: config save handler, status handler, venus_dbus_handler, MQTT write function
+- `config.py`: dataclass schema, save_config atomic write, validation
+- `control.py`: ControlState, lock, clamp, persist patterns
+- `proxy.py`: StalenessAwareSlaveContext, poll loop, shared_ctx population
+- `__main__.py`: task creation, shutdown handling, task lifecycle
+- `install.sh`: install/update flow, config template, permissions
+- `config.example.yaml`: config schema (vs install script template mismatch)
+- MQTT 3.1.1 specification for CONNACK return codes (HIGH confidence)
+- asyncio documentation for blocking call patterns (HIGH confidence)
