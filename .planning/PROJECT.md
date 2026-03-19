@@ -39,7 +39,23 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie ei
 
 ### Active
 
-(None — next milestone requirements TBD via /gsd:new-milestone)
+- [ ] Config Page mit Defaults, Save & Apply mit Live-Connection-Bobble
+- [ ] Venus OS Auto-Config nach eingehender Modbus-Verbindung
+- [ ] MQTT konfigurierbar (Venus OS IP + Portal ID aus Config statt hardcoded)
+- [ ] MQTT Setup Guide mit Hinweis + ausgegraute Dashboard-Elemente bis MQTT connected
+- [ ] Install Script polieren (curl one-liner)
+- [ ] README aktualisieren mit neuem Setup-Flow
+
+## Current Milestone: v3.0 Setup & Onboarding
+
+**Goal:** Neuen Usern einen reibungslosen Setup-Flow bieten — von Install bis volle Venus OS Integration in wenigen Minuten.
+
+**Target features:**
+- Config Page mit sinnvollen Defaults und Live-Connection-Status
+- Automatische Venus OS Config-Erkennung nach Modbus-Verbindung
+- MQTT konfigurierbar machen + Setup Guide wenn MQTT fehlt
+- Dashboard-Elemente ausgegraut bis MQTT connected (Lock, Override, Venus Settings)
+- Install Script und README polieren
 
 ### Out of Scope
 
@@ -97,4 +113,4 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket), structlog, P
 | Gauge 50W Deadband | Verhindert Jitter bei 1Hz Updates | ✓ Good — smooth Industrial feel |
 
 ---
-*Last updated: 2026-03-18 after v2.1 milestone*
+*Last updated: 2026-03-19 after v3.0 milestone start*

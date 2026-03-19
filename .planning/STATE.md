@@ -1,36 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: Dashboard Redesign & Polish
-status: completed
-stopped_at: Completed 12-01-PLAN.md — v2.1 Milestone DONE
-last_updated: "2026-03-18T21:53:05.180Z"
-last_activity: 2026-03-18 — Completed 12-01 Unified dashboard layout (v2.1 DONE)
+milestone: v3.0
+milestone_name: Setup & Onboarding
+status: active
+stopped_at: null
+last_updated: "2026-03-19"
+last_activity: 2026-03-19 — Milestone v3.0 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-18)
+See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v2.1 Milestone Complete
+**Current focus:** v3.0 Setup & Onboarding
 
 ## Current Position
 
-Phase: 12 of 12 (Unified Dashboard Layout)
-Plan: 1 of 1 (complete)
-Status: Milestone Complete
-Last activity: 2026-03-18 — Completed 12-01 Unified dashboard layout (v2.1 DONE)
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-19 — Milestone v3.0 started
 
 ## Performance Metrics
 
@@ -67,11 +65,11 @@ None.
 
 ### Blockers/Concerns
 
-- Venus OS Modbus TCP must be enabled manually in Venus OS settings (for Phase 11)
-- Venus OS register addresses need validation against running v3.71 instance (Phase 11)
+- Venus OS Modbus TCP must be enabled manually in Venus OS settings (for MQTT)
+- Venus OS register addresses need validation against running v3.71 instance
+- MQTT host + portal ID currently hardcoded — v3.0 will make configurable
 
 ## Session Continuity
 
-Last session: 2026-03-18T21:47:00.000Z
-Stopped at: Completed 12-01-PLAN.md — v2.1 Milestone DONE
-Resume file: .planning/phases/12-unified-dashboard-layout/12-01-SUMMARY.md
+Last session: 2026-03-19
+Stopped at: Milestone v3.0 started — defining requirements
