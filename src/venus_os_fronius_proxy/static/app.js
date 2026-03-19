@@ -713,6 +713,54 @@ async function pollHealth() {
 
 // ===== Config Loading =====
 
+// Track original config values for dirty-checking
+var _cfgOriginal = { inverter: {}, venus: {} };
+
+var _cfgFields = {
+    inverter: ['se-host', 'se-port', 'se-unit'],
+    venus: ['venus-host', 'venus-port', 'venus-portal-id']
+};
+
+function _cfgIsDirty(section) {
+    var fields = _cfgFields[section];
+    for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i]);
+        if (el && el.value !== _cfgOriginal[section][fields[i]]) return true;
+    }
+    return false;
+}
+
+function _cfgUpdateSaveBtn(section) {
+    var btnId = section === 'inverter' ? 'btn-save-se' : 'btn-save-venus';
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.style.display = _cfgIsDirty(section) ? '' : 'none';
+}
+
+function _cfgStoreOriginals() {
+    for (var section in _cfgFields) {
+        var fields = _cfgFields[section];
+        for (var i = 0; i < fields.length; i++) {
+            var el = document.getElementById(fields[i]);
+            if (el) _cfgOriginal[section][fields[i]] = el.value;
+        }
+    }
+}
+
+// Attach input listeners for dirty-checking
+(function() {
+    for (var section in _cfgFields) {
+        _cfgFields[section].forEach(function(fieldId) {
+            var el = document.getElementById(fieldId);
+            if (el) {
+                el.addEventListener('input', (function(sec) {
+                    return function() { _cfgUpdateSaveBtn(sec); };
+                })(section));
+            }
+        });
+    }
+})();
+
 async function loadConfig() {
     try {
         var res = await fetch('/api/config');
@@ -723,50 +771,64 @@ async function loadConfig() {
         document.getElementById('venus-host').value = data.venus.host;
         document.getElementById('venus-port').value = data.venus.port;
         document.getElementById('venus-portal-id').value = data.venus.portal_id;
+        _cfgStoreOriginals();
+        _cfgUpdateSaveBtn('inverter');
+        _cfgUpdateSaveBtn('venus');
     } catch (e) {
         console.error('Config load failed:', e);
     }
 }
 
-// ===== Save Config =====
+// ===== Save Config (per section) =====
 
-document.getElementById('config-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    var btnSave = document.getElementById('btn-save');
-    var origText = btnSave.textContent;
-    btnSave.textContent = 'Saving...';
-    btnSave.disabled = true;
+async function saveConfigSection(section) {
+    var btn = document.getElementById(section === 'inverter' ? 'btn-save-se' : 'btn-save-venus');
+    var origText = btn.textContent;
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+
+    // Build full payload (API expects both sections)
+    var payload = {
+        inverter: {
+            host: document.getElementById('se-host').value,
+            port: parseInt(document.getElementById('se-port').value),
+            unit_id: parseInt(document.getElementById('se-unit').value)
+        },
+        venus: {
+            host: document.getElementById('venus-host').value.trim(),
+            port: parseInt(document.getElementById('venus-port').value) || 1883,
+            portal_id: document.getElementById('venus-portal-id').value.trim()
+        }
+    };
 
     try {
         var res = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                inverter: {
-                    host: document.getElementById('se-host').value,
-                    port: parseInt(document.getElementById('se-port').value),
-                    unit_id: parseInt(document.getElementById('se-unit').value)
-                },
-                venus: {
-                    host: document.getElementById('venus-host').value.trim(),
-                    port: parseInt(document.getElementById('venus-port').value) || 1883,
-                    portal_id: document.getElementById('venus-portal-id').value.trim()
-                }
-            })
+            body: JSON.stringify(payload)
         });
         var data = await res.json();
         if (data.success) {
             showToast('Configuration saved. Reconnecting...', 'success');
+            _cfgStoreOriginals();
+            _cfgUpdateSaveBtn('inverter');
+            _cfgUpdateSaveBtn('venus');
         } else {
             showToast('Save failed: ' + data.error, 'error');
         }
     } catch (err) {
         showToast('Save failed: ' + err.message, 'error');
     } finally {
-        btnSave.textContent = origText;
-        btnSave.disabled = false;
+        btn.textContent = origText;
+        btn.disabled = false;
     }
-});
+}
+
+document.getElementById('btn-save-se').addEventListener('click', function() { saveConfigSection('inverter'); });
+document.getElementById('btn-save-venus').addEventListener('click', function() { saveConfigSection('venus'); });
+
+// Prevent form submit (no global save button anymore)
+document.getElementById('config-form').addEventListener('submit', function(e) { e.preventDefault(); });
 
 // ===== Register Viewer =====
 
