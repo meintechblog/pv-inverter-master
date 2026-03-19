@@ -731,10 +731,32 @@ function _cfgIsDirty(section) {
 }
 
 function _cfgUpdateSaveBtn(section) {
-    var btnId = section === 'inverter' ? 'btn-save-se' : 'btn-save-venus';
-    var btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.style.display = _cfgIsDirty(section) ? '' : 'none';
+    var pairId = section === 'inverter' ? 'btn-pair-se' : 'btn-pair-venus';
+    var pair = document.getElementById(pairId);
+    if (!pair) return;
+    var dirty = _cfgIsDirty(section);
+    pair.style.display = dirty ? '' : 'none';
+    // Per-field dirty highlight
+    var fields = _cfgFields[section];
+    for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i]);
+        if (el) {
+            if (el.value !== _cfgOriginal[section][fields[i]]) {
+                el.classList.add('ve-input--dirty');
+            } else {
+                el.classList.remove('ve-input--dirty');
+            }
+        }
+    }
+}
+
+function _cfgCancel(section) {
+    var fields = _cfgFields[section];
+    for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i]);
+        if (el) el.value = _cfgOriginal[section][fields[i]];
+    }
+    _cfgUpdateSaveBtn(section);
 }
 
 function _cfgStoreOriginals() {
@@ -826,6 +848,8 @@ async function saveConfigSection(section) {
 
 document.getElementById('btn-save-se').addEventListener('click', function() { saveConfigSection('inverter'); });
 document.getElementById('btn-save-venus').addEventListener('click', function() { saveConfigSection('venus'); });
+document.getElementById('btn-cancel-se').addEventListener('click', function() { _cfgCancel('inverter'); });
+document.getElementById('btn-cancel-venus').addEventListener('click', function() { _cfgCancel('venus'); });
 
 // Prevent form submit (no global save button anymore)
 document.getElementById('config-form').addEventListener('submit', function(e) { e.preventDefault(); });

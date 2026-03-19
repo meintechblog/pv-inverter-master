@@ -328,24 +328,41 @@ body {
     font-size: 0.75rem;
     border-radius: 4px;
 }
+.ve-btn-pair {
+    display: inline-flex;
+    gap: 6px;
+    animation: ve-fade-in 0.2s ease;
+}
 .ve-btn--save {
     background: #72B84C;
     color: #fff;
     border: none;
     cursor: pointer;
     font-weight: 600;
-    transition: opacity 0.2s, transform 0.15s;
-    animation: ve-fade-in 0.2s ease;
+    transition: opacity 0.15s, transform 0.15s;
 }
-.ve-btn--save:hover {
-    opacity: 0.85;
+.ve-btn--save:hover { opacity: 0.85; }
+.ve-btn--save:active { transform: scale(0.95); }
+.ve-btn--cancel {
+    background: transparent;
+    color: var(--ve-text-dim);
+    border: 1px solid rgba(100, 99, 95, 0.5);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
 }
-.ve-btn--save:active {
-    transform: scale(0.95);
+.ve-btn--cancel:hover {
+    color: #F35C58;
+    border-color: #F35C58;
 }
 @keyframes ve-fade-in {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dirty field highlight */
+.ve-input--dirty {
+    border-color: rgba(114, 184, 76, 0.5) !important;
+    box-shadow: 0 0 0 1px rgba(114, 184, 76, 0.15);
 }
 
 /* Config page grid */
@@ -1162,7 +1179,7 @@ body {
         grid-template-columns: 1fr 1fr 1fr 1fr;
     }
     .ve-dashboard-top {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
     }
     .ve-gauge-card {
         grid-column: 1 / -1;
@@ -1198,8 +1215,7 @@ body {
     .ve-config-grid {
         grid-template-columns: 1fr;
     }
-    .ve-dashboard-grid,
-.ve-dashboard-top {
+    .ve-dashboard-grid {
         grid-template-columns: 1fr;
     }
     .ve-phase-card {
