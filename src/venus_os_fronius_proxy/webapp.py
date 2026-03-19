@@ -433,6 +433,12 @@ async def broadcast_to_clients(app: web.Application, snapshot: dict) -> None:
     if not clients:
         return
 
+    # Attach Venus OS ESS settings if available
+    shared_ctx = app.get("shared_ctx") or {}
+    venus_settings = shared_ctx.get("venus_settings")
+    if venus_settings:
+        snapshot["venus_settings"] = venus_settings
+
     payload = json.dumps({"type": "snapshot", "data": snapshot})
     for ws in set(clients):
         try:

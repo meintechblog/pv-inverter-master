@@ -716,10 +716,10 @@ body {
     margin-bottom: 1rem;
 }
 
-/* Row 2: Connection + Performance */
+/* Row 2: Connection + Venus ESS + Performance */
 .ve-dashboard-row3 {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
     margin-bottom: 1rem;
 }

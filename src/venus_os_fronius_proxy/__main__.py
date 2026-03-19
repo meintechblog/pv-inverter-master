@@ -148,6 +148,18 @@ def main():
             await site.start()
             log.info("webapp_started", port=config.webapp.port)
 
+        # Start Venus OS settings reader (polls ESS config from Venus OS Modbus TCP)
+        venus_task = None
+        if shared_ctx:
+            from venus_os_fronius_proxy.venus_reader import venus_reader_loop
+            # Venus OS is typically on the same network; try common IPs
+            # TODO: make configurable
+            venus_hosts = ["192.168.3.146", "192.168.3.11"]
+            for vh in venus_hosts:
+                venus_task = asyncio.create_task(
+                    venus_reader_loop(shared_ctx, host=vh, interval=10.0)
+                )
+
         # Start health heartbeat task
         heartbeat_task = None
         if shared_ctx:

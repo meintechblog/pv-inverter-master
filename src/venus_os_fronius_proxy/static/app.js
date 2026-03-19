@@ -160,6 +160,9 @@ function handleSnapshot(data) {
     // Update Venus OS info widget
     updateVenusInfo(data);
 
+    // Update Venus OS ESS settings
+    updateVenusESS(data);
+
     previousSnapshot = data;
 
     // Update top-bar dots from connection state
@@ -1241,3 +1244,38 @@ document.addEventListener('DOMContentLoaded', () => {
         pollRegisters();
     }, POLL_INTERVAL);
 });
+
+// --- Venus OS ESS Settings ---
+
+function updateVenusESS(snapshot) {
+    var vs = snapshot.venus_settings;
+    var feedInEl = document.getElementById('ess-feed-in');
+    var preventEl = document.getElementById('ess-prevent-feedback');
+    var limiterEl = document.getElementById('ess-limiter-active');
+
+    if (!vs) {
+        if (feedInEl) feedInEl.textContent = '--';
+        if (preventEl) preventEl.textContent = '--';
+        if (limiterEl) limiterEl.textContent = '--';
+        return;
+    }
+
+    if (feedInEl) {
+        if (vs.max_feed_in_w < 0) {
+            feedInEl.textContent = 'Unlimited';
+        } else {
+            var kw = vs.max_feed_in_w / 1000;
+            feedInEl.textContent = (kw === Math.floor(kw) ? kw.toFixed(0) : kw.toFixed(1)) + ' kW';
+        }
+    }
+
+    if (preventEl) {
+        preventEl.textContent = vs.prevent_feedback ? 'Blocked' : 'Allowed';
+        preventEl.style.color = vs.prevent_feedback ? 'var(--ve-red)' : 'var(--ve-green)';
+    }
+
+    if (limiterEl) {
+        limiterEl.textContent = vs.limiter_active ? 'Active' : 'Inactive';
+        limiterEl.style.color = vs.limiter_active ? 'var(--ve-green)' : 'var(--ve-text-dim)';
+    }
+}
