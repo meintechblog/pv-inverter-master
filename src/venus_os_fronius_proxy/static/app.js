@@ -224,12 +224,8 @@ function detectEvents(prev, curr) {
         showToast('Inverter waking up - producing power', 'success');
     }
 
-    // Detect auto-unlock event: was locked, now unlocked
-    if (prev.venus_os && curr.venus_os) {
-        if (prev.venus_os.is_locked && !curr.venus_os.is_locked) {
-            showToast('Venus OS control re-enabled (auto)', 'info');
-        }
-    }
+    // Note: auto-unlock detection removed — the toggle UI update is sufficient,
+    // and the manual unlock already shows its own toast.
 }
 
 // ===== History Handler =====
