@@ -1328,7 +1328,7 @@ function updateVenusESS(snapshot) {
     var invLimitRow = document.getElementById('ess-max-inverter-row');
     var invLimitDD = document.getElementById('ess-max-inverter');
 
-    var invLimited = vs.max_inverter_w > 0;
+    var invLimited = vs.max_inverter_w > 0 && vs.max_inverter_w < 30000;
     if (invLimitToggle && notCooling(invLimitToggle)) invLimitToggle.checked = invLimited;
     if (invLimitRow) invLimitRow.style.display = invLimited ? '' : 'none';
 
@@ -1425,7 +1425,7 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2704, 2000);  // Default 20kW (raw=2000, *10=20000W)
             showToast('Inverter limit: 20 kW', 'success');
         } else {
-            writeESSSetting(2704, 32767);  // Max int16 = unlimited
+            writeESSSetting(2704, 3000);  // 30kW = rated power (effectively no limit)
             showToast('Inverter limit: Off', 'success');
         }
     });
