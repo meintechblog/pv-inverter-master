@@ -46,6 +46,7 @@ def main():
         inverter_host=config.inverter.host,
         inverter_port=config.inverter.port,
         proxy_port=config.proxy.port,
+        venus_host=config.venus.host or "(disabled)",
         log_level=config.log_level,
     )
 
@@ -148,16 +149,17 @@ def main():
             await site.start()
             log.info("webapp_started", port=config.webapp.port)
 
-        # Start Venus OS settings reader (polls ESS config from Venus OS Modbus TCP)
+        # Start Venus OS MQTT reader only if host is configured
         venus_task = None
-        if shared_ctx:
+        if config.venus.host:
             from venus_os_fronius_proxy.venus_reader import venus_mqtt_loop
-            venus_task = asyncio.create_task(venus_mqtt_loop(
-                shared_ctx,
-                host=config.venus.host,
-                port=config.venus.port,
-                portal_id=config.venus.portal_id,
-            ))
+            venus_task = asyncio.create_task(
+                venus_mqtt_loop(shared_ctx, config.venus.host, config.venus.port, config.venus.portal_id)
+            )
+            shared_ctx["venus_task"] = venus_task
+        else:
+            log.info("venus_mqtt_skipped", reason="no venus.host in config")
+            shared_ctx["venus_mqtt_connected"] = False
 
         # Start health heartbeat task
         heartbeat_task = None

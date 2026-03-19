@@ -295,6 +295,7 @@ class DashboardCollector:
             "venus_os": venus_os,
             "connection": connection,
             "override_log": override_log.get_all() if override_log else [],
+            "venus_mqtt_connected": shared_ctx.get("venus_mqtt_connected", False) if shared_ctx else False,
         }
 
         # Feed time series buffers

@@ -431,6 +431,55 @@ def test_snapshot_venus_os_section():
     assert vo["lock_remaining_s"] is None
 
 
+# --- Venus MQTT connected (Phase 13) ---
+
+
+def test_snapshot_includes_venus_mqtt_connected():
+    """Snapshot includes venus_mqtt_connected=True when shared_ctx has the key."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 1000
+    overrides[40084] = 0
+
+    cache = _make_cache_with_values(overrides)
+    ctx = {"venus_mqtt_connected": True, "last_se_poll": None}
+    snapshot = collector.collect(cache, shared_ctx=ctx)
+
+    assert snapshot["venus_mqtt_connected"] is True
+
+
+def test_snapshot_venus_mqtt_default_false():
+    """venus_mqtt_connected defaults to False when key not in shared_ctx."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 1000
+    overrides[40084] = 0
+
+    cache = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache, shared_ctx={})
+
+    assert snapshot["venus_mqtt_connected"] is False
+
+
+def test_snapshot_venus_mqtt_no_shared_ctx():
+    """venus_mqtt_connected is False when shared_ctx is None."""
+    collector = DashboardCollector()
+    overrides = _zero_sf_overrides()
+    overrides[40093] = [0, 0]
+    overrides[40095] = 0
+    overrides[40083] = 1000
+    overrides[40084] = 0
+
+    cache = _make_cache_with_values(overrides)
+    snapshot = collector.collect(cache, shared_ctx=None)
+
+    assert snapshot["venus_mqtt_connected"] is False
+
+
 def test_snapshot_venus_os_locked():
     """When locked, venus_os section shows is_locked=True and lock_remaining_s > 0."""
     collector = DashboardCollector()
