@@ -8,6 +8,7 @@ All frontend code follows the Venus OS gui-v2 dark theme. Every new element MUST
 
 | Token | Value | Usage |
 |-------|-------|-------|
+| `--ve-accent` | `var(--ve-blue)` | Generic accent — decoded column, spinner accent |
 | `--ve-blue` | `#387DC5` | Primary accent, active states, links, gauge fill |
 | `--ve-blue-light` | `#73A2D3` | Hover states |
 | `--ve-blue-dim` | `#27588A` | Active nav background |
@@ -26,7 +27,11 @@ All frontend code follows the Venus OS gui-v2 dark theme. Every new element MUST
 | `--ve-error` | `var(--ve-red)` | Alias: error state |
 | `--ve-success` | `var(--ve-green)` | Alias: success state |
 
+| `--ve-radius` | `12px` | Default border radius for cards/panels |
+| `--ve-radius-sm` | `6px` | Buttons, inputs, small elements |
+
 **Rule:** NEVER use hardcoded hex colors. Always use `var(--ve-*)`. Exception: `#fff` / `#000` for high-contrast toggle knobs only.
+**Rule:** Use `var(--ve-duration-*)` and `var(--ve-easing-*)` for transitions, not hardcoded values.
 
 ### Typography
 
@@ -155,6 +160,17 @@ All classes use `ve-` prefix (Venus Energy):
 ### URL Navigation
 
 Pages persist via `window.location.hash` (`#dashboard`, `#config`, `#registers`). On load, hash is read and correct page restored.
+
+### Known Technical Debt
+
+These exist from organic growth. Fix when touching the relevant code:
+
+1. **Three status dot components:** `ve-dot` (12px), `ve-status-indicator` (10px), `ve-status-dot` (10px) — should consolidate to one
+2. **Two toggle implementations:** `ve-toggle` (pseudo-element knob, bounce easing) vs `ve-switch` (explicit knob element) — should consolidate
+3. **Missing `ve-` prefix:** `sidebar`, `nav-item`, `hamburger`, `content`, `page`, `mqtt-gated`, `venus-dependent`, `sparkline-line/fill` — legacy names, don't rename without updating all references
+4. **Mixed units:** spacing uses mix of `px`/`rem`/`em` — prefer `px` for spacing, `rem` for font sizes
+5. **Hardcoded transition durations:** many use literal `0.15s` instead of `var(--ve-duration-fast)` — fix when editing
+6. **Inline `style="display:none"`:** several HTML elements use inline styles for initial hide — should use CSS class
 
 ## Code Conventions
 
