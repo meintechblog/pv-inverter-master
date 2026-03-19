@@ -163,7 +163,7 @@ class SolarEdgePlugin(InverterPlugin):
 
             # Step 2: Write limit percentage (register 61441, uint16)
             # If disabling, set to 100% (full power)
-            pct_int = max(0, min(100, int(round(limit_pct)))) if enable else 100
+            pct_int = max(1, min(100, int(round(limit_pct)))) if enable else 100
             result = await self._client.write_registers(
                 61441, [pct_int], device_id=self.unit_id,
             )

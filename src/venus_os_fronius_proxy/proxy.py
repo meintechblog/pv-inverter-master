@@ -145,7 +145,10 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
                 raise Exception(f"ILLEGAL_VALUE: {error}")
 
             old_raw = self._control.wmaxlimpct_raw
-            self._control.update_wmaxlimpct(values[0])
+            # Clamp to minimum 1% — going to 0% shuts down the SE30K
+            # and it takes ~10s to restart, causing regulation bouncing
+            clamped = max(values[0], 1)
+            self._control.update_wmaxlimpct(clamped)
             # Implicitly enable when a limit value is written (Venus OS
             # writes WMaxLimPct without setting WMaxLim_Ena separately)
             self._control.update_wmaxlim_ena(1)
@@ -160,7 +163,7 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
                 return
 
             # Skip SE30K write if value unchanged (Venus OS refreshes every 5s)
-            if values[0] == old_raw and self._control.is_enabled:
+            if clamped == old_raw and self._control.is_enabled:
                 self._update_model_123_readback()
                 return
 
