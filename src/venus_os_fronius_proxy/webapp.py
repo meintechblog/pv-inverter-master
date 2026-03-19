@@ -549,6 +549,22 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
         control.clamp_min_pct = control.clamp_max_pct
 
     control.save_ui_state()
+
+    # Immediately write the clamped limit to SE30K
+    plugin = request.app["plugin"]
+    effective_pct = max(control.clamp_min_pct, 1)  # At least 1%
+    if control.clamp_max_pct < 100:
+        effective_pct = min(effective_pct, control.clamp_max_pct)
+        # If no active limit or current limit exceeds max, apply max clamp
+        if not control.is_enabled or control.wmaxlimpct_float > control.clamp_max_pct:
+            effective_pct = control.clamp_max_pct
+    control.update_wmaxlimpct(effective_pct)
+    control.update_wmaxlim_ena(1)
+    control.last_source = "webapp"
+    control.last_change_ts = __import__("time").time()
+    control.webapp_revert_at = None  # No auto-revert for clamp
+    await plugin.write_power_limit(True, effective_pct)
+
     return web.json_response({"success": True})
 
 
