@@ -568,10 +568,17 @@ async def venus_lock_handler(request: web.Request) -> web.Response:
     control = shared_ctx["control_state"]
     override_log = shared_ctx.get("override_log")
 
+    plugin = request.app["plugin"]
+
     if action == "lock":
         control.lock(duration_s=900.0)
+        # Reset limit to 100% so inverter runs at full power while locked
+        control.update_wmaxlimpct(100)
+        control.update_wmaxlim_ena(0)
+        control.last_source = "none"
+        await plugin.write_power_limit(True, 100.0)
         if override_log is not None:
-            override_log.append("webapp", "lock", None, "Venus OS writes blocked")
+            override_log.append("webapp", "lock", None, "Venus OS writes blocked, limit reset to 100%")
     else:
         control.unlock()
         if override_log is not None:
