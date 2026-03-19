@@ -1361,6 +1361,20 @@ function updateVenusESS(snapshot) {
 
 // --- ESS Write Handler ---
 
+async function writeVenusDbus(path, value) {
+    try {
+        var res = await fetch('/api/venus-dbus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path, value: value })
+        });
+        var data = await res.json();
+        if (!data.success) showToast(data.error || 'Write failed', 'error');
+    } catch (e) {
+        showToast('Request failed: ' + e.message, 'error');
+    }
+}
+
 async function writeESSSetting(register, value) {
     try {
         var res = await fetch('/api/venus-write', {
@@ -1402,7 +1416,7 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2706, 100);  // Default 10 kW
             showToast('Feed-in limit: 10 kW', 'success');
         } else {
-            writeESSSetting(2706, 32767);  // Unlimited
+            writeVenusDbus('/Settings/CGwacs/MaxFeedInPower', -1);
             showToast('Feed-in limit: Off', 'success');
         }
     });
@@ -1425,8 +1439,8 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2704, 2000);  // Default 20 kW
             showToast('Inverter limit: 20 kW', 'success');
         } else {
-            writeESSSetting(2704, 3000);  // 30kW rated = effectively no limit
-            showToast('Inverter limit: 30 kW (max)', 'success');
+            writeVenusDbus('/Settings/CGwacs/MaxDischargePower', -1);
+            showToast('Inverter limit: Off', 'success');
         }
     });
 

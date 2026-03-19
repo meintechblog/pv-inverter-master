@@ -605,6 +605,60 @@ async def venus_write_handler(request: web.Request) -> web.Response:
         )
 
 
+def _mqtt_write_venus(host: str, portal_id: str, path: str, value) -> bool:
+    """Write a dbus value to Venus OS via MQTT (for values Modbus can't set)."""
+    import socket, struct, json as _json
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect((host, 1883))
+        # MQTT CONNECT
+        cid = b"pv-proxy"
+        payload = struct.pack("!H", 4) + b"MQTT" + bytes([4, 2, 0, 60])
+        payload += struct.pack("!H", len(cid)) + cid
+        s.send(bytes([0x10, len(payload)]) + payload)
+        s.recv(4)  # CONNACK
+        # MQTT PUBLISH
+        topic = f"W/{portal_id}/settings/0{path}".encode()
+        msg = _json.dumps({"value": value}).encode()
+        rem = 2 + len(topic) + len(msg)
+        hdr = bytearray([0x30])
+        while rem > 0:
+            b = rem % 128
+            rem //= 128
+            if rem > 0:
+                b |= 0x80
+            hdr.append(b)
+        s.send(bytes(hdr) + struct.pack("!H", len(topic)) + topic + msg)
+        import time; time.sleep(0.5)
+        s.send(bytes([0xE0, 0x00]))  # DISCONNECT
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
+async def venus_dbus_handler(request: web.Request) -> web.Response:
+    """Write a dbus value to Venus OS via MQTT (for values Modbus can't handle)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"success": False, "error": "Invalid JSON"}, status=400)
+
+    path = body.get("path")
+    value = body.get("value")
+    ALLOWED_PATHS = {
+        "/Settings/CGwacs/MaxDischargePower",
+        "/Settings/CGwacs/MaxFeedInPower",
+    }
+    if path not in ALLOWED_PATHS:
+        return web.json_response({"success": False, "error": f"Path not allowed"}, status=400)
+
+    # TODO: make host + portal_id configurable
+    ok = _mqtt_write_venus("192.168.3.146", "88a29ec1e5f4", path, value)
+    return web.json_response({"success": ok, "error": None if ok else "MQTT write failed"})
+
+
 async def venus_lock_handler(request: web.Request) -> web.Response:
     """Handle Venus OS lock toggle commands.
 
@@ -681,6 +735,7 @@ async def create_webapp(
     app.router.add_post("/api/power-limit", power_limit_handler)
     app.router.add_post("/api/power-clamp", power_clamp_handler)
     app.router.add_post("/api/venus-write", venus_write_handler)
+    app.router.add_post("/api/venus-dbus", venus_dbus_handler)
     app.router.add_post("/api/venus-lock", venus_lock_handler)
     app.router.add_get("/static/{filename}", static_handler)
 
