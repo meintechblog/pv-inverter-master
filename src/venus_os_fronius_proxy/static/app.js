@@ -1299,7 +1299,7 @@ function updateVenusESS(snapshot) {
     if (limitRow) limitRow.style.display = excessActive ? '' : 'none';
 
     // 4. Limit Feed-in toggle (MaxFeedInPower >= 0 and < 30000 = limited)
-    var feedInLimited = vs.max_feed_in_w >= 0 && vs.max_feed_in_w < 30000;
+    var feedInLimited = vs.max_feed_in_w >= 0;
     if (limitToggle && notCooling(limitToggle)) limitToggle.checked = feedInLimited;
 
     // 5. Show Max Feed-in dropdown when limit is active
@@ -1378,7 +1378,7 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2706, 100);  // Default 10 kW
             showToast('Feed-in limit: 10 kW', 'success');
         } else {
-            writeESSSetting(2706, 300);  // 30 kW = effectively off
+            writeESSSetting(2706, 32767);  // Max int16 = Venus OS unlimited (-1)
             showToast('Feed-in limit: Off', 'success');
         }
     });
