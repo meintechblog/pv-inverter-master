@@ -189,26 +189,30 @@
                 <label>DC PV Excess</label>
                 <label class="ve-toggle"><input type="checkbox" id="ess-dc-excess"><span class="ve-toggle-track"></span></label>
               </div>
-              <div class="ve-ess-row ve-ess-sub" id="ess-max-feedin-row" style="display:none">
-              <label>Max Feed-in</label>
-              <div class="ve-ess-value-control">
-                <span class="ve-live-value ve-ess-actual" id="ess-feed-in-actual">--</span>
-                <span class="ve-text-dim">/</span>
-                <select id="ess-feed-in" class="ve-ctrl-dropdown ve-ess-dropdown"></select>
+              <div class="ve-ess-row ve-ess-sub" id="ess-limit-row" style="display:none">
+                <label>Limit Feed-in</label>
+                <label class="ve-toggle"><input type="checkbox" id="ess-limit-feedin"><span class="ve-toggle-track"></span></label>
+              </div>
+              <div class="ve-ess-row ve-ess-sub2" id="ess-max-feedin-row" style="display:none">
+                <label>Max Feed-in</label>
+                <div class="ve-ess-value-control">
+                  <span class="ve-live-value ve-ess-actual" id="ess-feed-in-actual">--</span>
+                  <span class="ve-text-dim">/</span>
+                  <select id="ess-feed-in" class="ve-ctrl-dropdown ve-ess-dropdown"></select>
+                </div>
+              </div>
+              <div class="ve-ess-row">
+                <label>Feed-in Limiting</label>
+                <span class="ve-live-value" id="ess-limiter-value">--</span>
               </div>
             </div>
-            </div>
-            <div class="ve-ess-row">
+            <div class="ve-ess-row" style="margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--ve-border);">
               <label>Limit Inverter Power</label>
               <label class="ve-toggle"><input type="checkbox" id="ess-limit-inverter"><span class="ve-toggle-track"></span></label>
             </div>
             <div class="ve-ess-row ve-ess-sub" id="ess-max-inverter-row" style="display:none">
               <label>Max Inverter Power</label>
               <select id="ess-max-inverter" class="ve-ctrl-dropdown ve-ess-dropdown"></select>
-            </div>
-            <div class="ve-ess-row">
-              <label>Feed-in Limiting</label>
-              <span class="ve-live-value" id="ess-limiter-value">--</span>
             </div>
           </div>
           <div class="ve-card" id="peak-stats-panel">

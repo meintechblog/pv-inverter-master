@@ -1292,9 +1292,18 @@ function updateVenusESS(snapshot) {
     var dcOn = vs.overvoltage_feed_in;
     if (dcToggle && notCooling(dcToggle)) dcToggle.checked = dcOn;
 
-    // 3. Show Max Feed-in dropdown when AC or DC is on
+    // 3. Show "Limit Feed-in" when AC OR DC is on
     var excessActive = acOn || dcOn;
-    if (maxRow) maxRow.style.display = excessActive ? '' : 'none';
+    var limitRow = document.getElementById('ess-limit-row');
+    var limitToggle = document.getElementById('ess-limit-feedin');
+    if (limitRow) limitRow.style.display = excessActive ? '' : 'none';
+
+    // 4. Limit Feed-in toggle
+    var feedInLimited = vs.max_feed_in_w >= 0;
+    if (limitToggle && notCooling(limitToggle)) limitToggle.checked = feedInLimited;
+
+    // 5. Show Max Feed-in when limit is active AND excess is on
+    if (maxRow) maxRow.style.display = (excessActive && feedInLimited) ? '' : 'none';
 
     // 6. Feed-in actual (current grid export)
     if (feedInActual) {
@@ -1369,6 +1378,7 @@ async function writeESSSetting(register, value) {
 (function() {
     var acToggle = document.getElementById('ess-ac-excess');
     var dcToggle = document.getElementById('ess-dc-excess');
+    var limitToggle = document.getElementById('ess-limit-feedin');
     var feedInDD = document.getElementById('ess-feed-in');
 
     // AC PV Excess (PreventFeedback: inverted — 0=allow, 1=block)
@@ -1383,6 +1393,18 @@ async function writeESSSetting(register, value) {
         dcToggle._userChangedAt = Date.now();
         writeESSSetting(2707, dcToggle.checked ? 1 : 0);
         showToast('DC PV Excess: ' + (dcToggle.checked ? 'On' : 'Off'), 'success');
+    });
+
+    // Limit Feed-in toggle
+    if (limitToggle) limitToggle.addEventListener('change', function() {
+        limitToggle._userChangedAt = Date.now();
+        if (limitToggle.checked) {
+            writeESSSetting(2706, 100);  // Default 10 kW
+            showToast('Feed-in limit: 10 kW', 'success');
+        } else {
+            writeESSSetting(2706, 32767);  // Unlimited
+            showToast('Feed-in limit: Off', 'success');
+        }
     });
 
     // Max Feed-in value dropdown
