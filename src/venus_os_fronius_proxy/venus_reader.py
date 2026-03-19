@@ -69,7 +69,11 @@ async def read_venus_settings(host: str, port: int = 502) -> dict | None:
 
         # Max inverter/discharge power (reg 2704, scale *10)
         max_inverter_raw = s16(regs[4])  # 2704
-        max_inverter_w = max_inverter_raw * 10 if max_inverter_raw > 0 else -1
+        # raw <= 0 = dbus -1 (unlimited), raw >= 32767 = effectively unlimited
+        if max_inverter_raw <= 0 or max_inverter_raw >= 32000:
+            max_inverter_w = -1
+        else:
+            max_inverter_w = max_inverter_raw * 10
 
         return {
             "ac_setpoint_w": s16(regs[0]),          # 2700: Grid setpoint

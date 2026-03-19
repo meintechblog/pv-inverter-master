@@ -1425,9 +1425,8 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2704, 2000);  // Default 20 kW
             showToast('Inverter limit: 20 kW', 'success');
         } else {
-            // Venus OS can't disable this via Modbus (requires dbus -1)
-            invLimitToggle.checked = true;  // Revert
-            showToast('Disable via Venus OS interface', 'warning');
+            writeESSSetting(2704, 32767);  // 327kW = effectively unlimited for 30kW inverter
+            showToast('Inverter limit: Off', 'success');
         }
     });
 
