@@ -14,6 +14,12 @@ proxy:
   poll_interval: 1.0     # Seconds between SE30K polls
   staleness_timeout: 30.0  # Seconds before cache is considered stale
 
+# Venus OS MQTT connection (optional)
+venus:
+  host: ""                # Venus OS IP (empty = MQTT disabled, proxy runs standalone)
+  port: 1883              # MQTT standard port
+  portal_id: ""           # Leave empty for auto-discovery via N/+/system/0/Serial
+
 # Night mode (inverter offline/sleeping)
 night_mode:
   threshold_seconds: 300.0  # Seconds of failure before entering night mode (5 min)

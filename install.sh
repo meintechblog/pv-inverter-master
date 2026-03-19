@@ -2,7 +2,7 @@
 # PV-Inverter Proxy — One-Line Installer
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash
 #
 # What it does:
 #   1. Creates fronius-proxy service user
@@ -41,6 +41,17 @@ echo ""
 
 [ "$(id -u)" -eq 0 ] || fail "Must run as root"
 command -v apt-get >/dev/null 2>&1 || fail "apt-get not found — Debian/Ubuntu required"
+
+# Check if port 502 is already in use
+if ss -tlnp 2>/dev/null | grep -q ':502 '; then
+    echo ""
+    echo -e "${BLUE}  Note: Port 502 is currently in use.${NC}"
+    ss -tlnp 2>/dev/null | grep ':502 '
+    echo ""
+    echo -e "  The proxy needs port 502. If this is a previous installation,"
+    echo -e "  it will be restarted automatically. Otherwise stop the conflicting service first."
+    echo ""
+fi
 
 # --- Step 1: System dependencies ---
 info "Installing system dependencies..."
@@ -89,16 +100,23 @@ if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     info "Creating default config..."
     cat > "$CONFIG_DIR/config.yaml" << 'YAML'
 # PV-Inverter Proxy Configuration
-#
+# Docs: https://github.com/meintechblog/pv-inverter-proxy
+
 # SolarEdge inverter connection
-solaredge:
-  host: "192.168.3.18"
-  port: 1502
-  unit_id: 1
+inverter:
+  host: "192.168.3.18"    # Your SolarEdge inverter IP
+  port: 1502              # Modbus TCP port
+  unit_id: 1              # Modbus unit/slave ID
 
 # Modbus proxy server (Venus OS connects here)
 proxy:
   port: 502
+
+# Venus OS MQTT (optional — leave host empty to disable)
+venus:
+  host: ""                # Venus OS / Cerbo GX IP address
+  port: 1883              # MQTT port (default 1883)
+  portal_id: ""           # Leave empty for auto-discovery
 
 # Web dashboard
 webapp:
@@ -113,6 +131,16 @@ YAML
     echo -e "  nano $CONFIG_DIR/config.yaml"
     echo ""
 else
+    if grep -q '^solaredge:' "$CONFIG_DIR/config.yaml" 2>/dev/null; then
+        echo ""
+        echo -e "${RED}  WARNING: Your config uses the old 'solaredge:' key.${NC}"
+        echo -e "  The proxy now expects 'inverter:' instead."
+        echo -e "  Please update your config:"
+        echo -e "    nano $CONFIG_DIR/config.yaml"
+        echo -e "  Change 'solaredge:' to 'inverter:' and add a 'venus:' section."
+        echo -e "  Reference: $INSTALL_DIR/config/config.example.yaml"
+        echo ""
+    fi
     ok "Config exists at $CONFIG_DIR/config.yaml"
 fi
 
@@ -155,5 +183,5 @@ echo "  Logs:       journalctl -u $SERVICE_NAME -f"
 echo "  Status:     systemctl status $SERVICE_NAME"
 echo ""
 echo "  To update later:"
-echo "    curl -sSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash"
+echo "    curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash"
 echo ""
