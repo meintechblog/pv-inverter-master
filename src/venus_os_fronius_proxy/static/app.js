@@ -1425,8 +1425,8 @@ async function writeESSSetting(register, value) {
             writeESSSetting(2704, 2000);  // Default 20 kW
             showToast('Inverter limit: 20 kW', 'success');
         } else {
-            writeESSSetting(2704, 32767);  // 327kW = effectively unlimited for 30kW inverter
-            showToast('Inverter limit: Off', 'success');
+            writeESSSetting(2704, 3000);  // 30kW rated = effectively no limit
+            showToast('Inverter limit: 30 kW (max)', 'success');
         }
     });
 
