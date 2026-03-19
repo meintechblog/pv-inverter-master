@@ -889,6 +889,10 @@ function populatePowerDropdown(maxKw) {
         opt.textContent = kw + ' kW';
         dropdown.appendChild(opt);
     }
+    var minOpt = document.createElement('option');
+    minOpt.value = 'min';
+    minOpt.textContent = 'Min';
+    dropdown.appendChild(minOpt);
     // Restore selection if it still exists
     if (currentVal && dropdown.querySelector('option[value="' + currentVal + '"]')) {
         dropdown.value = currentVal;
@@ -913,6 +917,19 @@ function populatePowerDropdown(maxKw) {
                 var data = await res.json();
                 if (data.success) {
                     showToast('Power limit off', 'success');
+                } else {
+                    showToast(data.error || 'Failed', 'error');
+                }
+            } else if (val === 'min') {
+                var pct = 1;
+                var res = await fetch('/api/power-limit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set', limit_pct: pct })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    showToast('Limit: Min', 'success');
                 } else {
                     showToast(data.error || 'Failed', 'error');
                 }
