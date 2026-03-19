@@ -139,29 +139,43 @@ class SolarEdgePlugin(InverterPlugin):
         return regs
 
     async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
-        """Write power limit to the SE30K via proprietary registers.
+        """Write power limit to the SE30K via EDPC registers.
 
-        Writes enable/disable to 0xF300 and Float32 power limit to 0xF322-0xF323.
+        Protocol (from SolarEdge documentation):
+        1. Enable EDPC: write int32 [0, 1] to register 61762 (AdvancedPwrControlEn)
+        2. Set limit: write uint16 percentage to register 61441 (ActivePowerLimit)
+        3. Commit: write 1 to register 61696 (CommitPowerControl) — optional,
+           may timeout with concurrent connections but write still takes effect.
+
+        To disable: write int32 [0, 0] to register 61762.
         """
         if self._client is None or not self._client.connected:
             return WriteResult(success=False, error="Not connected")
         try:
-            # Write enable/disable to 0xF300 (62208)
-            result = await self._client.write_register(
-                0xF300, int(enable), device_id=self.unit_id,
+            # Step 1: Enable/disable EDPC (register 61762, int32 = 2 registers)
+            ena_value = [0, 1] if enable else [0, 0]
+            result = await self._client.write_registers(
+                61762, ena_value, device_id=self.unit_id,
             )
             if result.isError():
                 return WriteResult(success=False, error=f"Enable write failed: {result}")
 
             if enable:
-                # Write Float32 power limit to 0xF322-0xF323 (62242-62243)
-                packed = struct.pack(">f", limit_pct)
-                hi, lo = struct.unpack(">HH", packed)
+                # Step 2: Write limit percentage (register 61441, uint16)
+                pct_int = max(0, min(100, int(round(limit_pct))))
                 result = await self._client.write_registers(
-                    0xF322, [hi, lo], device_id=self.unit_id,
+                    61441, [pct_int], device_id=self.unit_id,
                 )
                 if result.isError():
                     return WriteResult(success=False, error=f"Limit write failed: {result}")
+
+                # Step 3: Commit (register 61696) — best-effort, may timeout
+                try:
+                    await self._client.write_registers(
+                        61696, [1], device_id=self.unit_id,
+                    )
+                except Exception:
+                    pass  # Commit timeout is normal with concurrent polling
 
             return WriteResult(success=True)
         except Exception as e:
