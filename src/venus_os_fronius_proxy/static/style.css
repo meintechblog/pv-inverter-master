@@ -1432,6 +1432,30 @@ body {
     border-radius: var(--ve-radius, 8px);
 }
 
+/* ===== Spinner ===== */
+.ve-spinner-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 48px 0;
+}
+.ve-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(100, 99, 95, 0.3);
+    border-top-color: var(--ve-accent);
+    border-radius: 50%;
+    animation: ve-spin 0.8s linear infinite;
+}
+.ve-spinner-label {
+    color: var(--ve-text-dim);
+    font-size: 0.85rem;
+}
+@keyframes ve-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ===== Hint Card ===== */
 .ve-hint-card {
     background: rgba(240, 150, 46, 0.12);

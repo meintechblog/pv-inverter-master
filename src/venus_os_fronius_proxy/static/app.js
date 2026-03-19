@@ -762,6 +762,8 @@ async function pollRegisters() {
         const container = document.getElementById('register-models');
         if (container.children.length === 0) {
             buildRegisterViewer(container, models);
+            var spinner = document.getElementById('register-spinner');
+            if (spinner) spinner.style.display = 'none';
         } else {
             updateRegisterValues(models);
         }
