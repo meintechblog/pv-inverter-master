@@ -845,12 +845,12 @@ var SUNSPEC_DECODE = {
     40158: { enum: { 0: 'Disabled', 1: 'Enabled' }, label: 'Power limit enable' },
 };
 
-// SunSpec model documentation links
+// SunSpec model documentation links (GitHub model definitions)
 var SUNSPEC_DOCS = {
-    'Common (Model 1)': 'https://sunspec.org/wp-content/uploads/2021/12/SunSpec_Information_Model_Specification_v1.9_12212021.pdf',
-    'Inverter (Model 103)': 'https://sunspec.org/wp-content/uploads/2021/12/SunSpec_Information_Model_Specification_v1.9_12212021.pdf',
-    'Nameplate (Model 120)': 'https://sunspec.org/wp-content/uploads/2021/12/SunSpec_Information_Model_Specification_v1.9_12212021.pdf',
-    'Controls (Model 123)': 'https://sunspec.org/wp-content/uploads/2021/12/SunSpec_Information_Model_Specification_v1.9_12212021.pdf',
+    'Common (Model 1)': 'https://github.com/sunspec/models/blob/master/json/model_1.json',
+    'Inverter (Model 103)': 'https://github.com/sunspec/models/blob/master/json/model_103.json',
+    'Nameplate (Model 120)': 'https://github.com/sunspec/models/blob/master/json/model_120.json',
+    'Controls (Model 123)': 'https://github.com/sunspec/models/blob/master/json/model_123.json',
 };
 
 // Cache for scale factor values (populated on first build, updated on poll)
