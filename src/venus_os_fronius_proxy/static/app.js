@@ -1139,17 +1139,25 @@ function updateVenusInfo(snapshot) {
         countdownDiv.style.display = 'none';
         venusLockRemaining = null;
         stopCountdownInterval();
+        var timerEl = document.getElementById('lock-timer');
+        if (timerEl) timerEl.textContent = '';
     }
 }
 
 function updateCountdownDisplay() {
-    var el = document.getElementById('lock-countdown-time');
-    if (!el || venusLockRemaining == null) return;
+    var el = document.getElementById('lock-timer');
+    var oldEl = document.getElementById('lock-countdown-time');
+    if (venusLockRemaining == null) {
+        if (el) el.textContent = '';
+        return;
+    }
     var elapsed = Date.now() / 1000 - venusLockSnapshotTs;
     var remaining = Math.max(0, venusLockRemaining - elapsed);
     var min = Math.floor(remaining / 60);
     var sec = Math.floor(remaining % 60);
-    el.textContent = min + ':' + (sec < 10 ? '0' : '') + sec;
+    var text = min + ':' + (sec < 10 ? '0' : '') + sec;
+    if (el) el.textContent = text;
+    if (oldEl) oldEl.textContent = text;
 }
 
 function startCountdownInterval() {
@@ -1169,42 +1177,43 @@ function stopCountdownInterval() {
 (function() {
     var toggle = document.getElementById('venus-lock-toggle');
     if (!toggle) return;
-    toggle.addEventListener('change', function(e) {
-        e.preventDefault();
-        // Inverted: checked = Venus OS allowed, unchecked = blocked
+    var lastDisableTs = 0;
+
+    toggle.addEventListener('change', function() {
         var wantAllow = toggle.checked;
         if (!wantAllow) {
-            // User wants to BLOCK Venus OS
-            toggle.checked = true;  // Revert until confirmed
-            var unlockTime = new Date(Date.now() + 15 * 60 * 1000);
-            var timeStr = unlockTime.getHours() + ':' + (unlockTime.getMinutes() < 10 ? '0' : '') + unlockTime.getMinutes();
-            showConfirmDialog(
-                'Disable Venus OS control for <strong>15 minutes</strong>?<br>' +
-                'Auto-enable at ' + timeStr + '.',
-                function() { sendLockCommand(true); }
-            );
+            // Check for rapid double-toggle: off-on-off within 3s = permanent
+            var now = Date.now();
+            var permanent = (now - lastDisableTs) < 3000;
+            lastDisableTs = now;
+            sendLockCommand(true, permanent);
         } else {
-            // User wants to ALLOW Venus OS
-            sendLockCommand(false);
+            lastDisableTs = 0;
+            sendLockCommand(false, false);
         }
     });
 })();
 
-async function sendLockCommand(lock) {
+async function sendLockCommand(lock, permanent) {
     try {
+        var body = { action: lock ? 'lock' : 'unlock' };
+        if (permanent) body.permanent = true;
         var res = await fetch('/api/venus-lock', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: lock ? 'lock' : 'unlock' })
+            body: JSON.stringify(body)
         });
         var data = await res.json();
         if (data.success) {
-            showToast(
-                lock ? 'Venus OS control disabled (15 min)' : 'Venus OS control enabled',
-                lock ? 'warning' : 'success'
-            );
+            if (lock && permanent) {
+                showToast('Venus OS control disabled (permanent)', 'warning');
+            } else if (lock) {
+                showToast('Venus OS control disabled (15 min)', 'warning');
+            } else {
+                showToast('Venus OS control enabled', 'success');
+            }
         } else {
-            showToast(data.error || 'Failed to change lock state', 'error');
+            showToast(data.error || 'Failed', 'error');
         }
     } catch (e) {
         showToast('Request failed: ' + e.message, 'error');

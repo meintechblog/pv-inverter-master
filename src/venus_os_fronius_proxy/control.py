@@ -228,13 +228,17 @@ class ControlState:
         self.webapp_revert_at = None  # Cancel any webapp revert timer
 
     def lock(self, duration_s: float = 900.0) -> None:
-        """Lock Venus OS power control writes for duration_s (max 900s).
+        """Lock Venus OS power control writes.
 
-        HARD CAP: duration is capped at 900s (15 minutes) regardless of input.
+        duration_s=0 means permanent (no auto-unlock).
+        Otherwise capped at 900s (15 minutes).
         """
-        duration_s = min(duration_s, 900.0)
         self.is_locked = True
-        self.lock_expires_at = time.monotonic() + duration_s
+        if duration_s <= 0:
+            self.lock_expires_at = None  # Permanent — no auto-unlock
+        else:
+            duration_s = min(duration_s, 900.0)
+            self.lock_expires_at = time.monotonic() + duration_s
 
     def unlock(self) -> None:
         """Unlock Venus OS power control writes."""

@@ -572,7 +572,8 @@ async def venus_lock_handler(request: web.Request) -> web.Response:
     plugin = request.app["plugin"]
 
     if action == "lock":
-        control.lock(duration_s=900.0)
+        permanent = body.get("permanent", False)
+        control.lock(duration_s=0 if permanent else 900.0)
         # Reset limit to 100% so inverter runs at full power while locked
         control.update_wmaxlimpct(100)
         control.update_wmaxlim_ena(0)
