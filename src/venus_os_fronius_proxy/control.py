@@ -226,18 +226,20 @@ async def edpc_refresh_loop(
     plugin: object,
     control_state: ControlState,
     override_log: OverrideLog,
-    interval: float = 30.0,
+    interval: float = 5.0,
     broadcast_fn: object | None = None,
 ) -> None:
-    """Periodically refresh power limit to prevent SE30K EDPC timeout revert.
+    """Periodically refresh power limit on SE30K EDPC registers.
 
-    Also checks the auto-revert deadline for webapp-initiated limits.
+    Runs every 5s to keep our limit active even when Venus OS writes
+    competing values directly to the inverter. Also checks auto-revert
+    deadline and lock expiry.
 
     Args:
         plugin: InverterPlugin with write_power_limit(enable, limit_pct).
         control_state: Shared ControlState instance.
         override_log: Shared OverrideLog for event recording.
-        interval: Seconds between refresh cycles (default 30, = CommandTimeout/2).
+        interval: Seconds between refresh cycles (default 5).
         broadcast_fn: Optional async callable to push snapshot updates.
     """
     while True:
