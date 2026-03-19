@@ -182,10 +182,12 @@ body {
 
 .ve-dot--ok {
     background: var(--ve-green);
+    animation: ve-pulse 2s ease-in-out infinite;
 }
 
 .ve-dot--warn {
     background: var(--ve-orange);
+    animation: ve-pulse 1.5s ease-in-out infinite;
 }
 
 .ve-dot--err {
@@ -1399,6 +1401,73 @@ body {
     }
 }
 
+/* ===== Connection Bobble Pulse ===== */
+@keyframes ve-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ===== MQTT Gate ===== */
+.mqtt-gated {
+    position: relative;
+    opacity: 0.35;
+    pointer-events: none;
+    transition: opacity var(--ve-duration-normal) var(--ve-easing-default);
+}
+.mqtt-gated::after {
+    content: 'Requires Venus OS MQTT';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--ve-text-dim);
+    font-size: 0.85rem;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* ===== Hint Card ===== */
+.ve-hint-card {
+    background: rgba(240, 150, 46, 0.12);
+    border: 1px solid rgba(240, 150, 46, 0.25);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 16px;
+}
+.ve-hint-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ve-orange);
+    margin-bottom: 12px;
+}
+.ve-hint-header h3 {
+    margin: 0;
+    font-size: 1em;
+    font-weight: 600;
+}
+.ve-hint-card ol {
+    margin: 0 0 12px 20px;
+    padding: 0;
+    color: var(--ve-text);
+    font-size: 0.9em;
+    line-height: 1.8;
+}
+.ve-hint-subtext {
+    margin: 0;
+    font-size: 0.85em;
+    color: var(--ve-text-dim);
+}
+
+/* ===== Inline Dot in Panel Headings ===== */
+.ve-panel h2 .ve-dot,
+.ve-panel h2 > .ve-dot {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
 /* ===== Accessibility: Reduced Motion ===== */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1407,4 +1476,5 @@ body {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
+    .ve-dot--ok, .ve-dot--warn { animation: none; }
 }

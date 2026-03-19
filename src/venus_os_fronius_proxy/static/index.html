@@ -104,7 +104,7 @@
               </span>
               <select id="ctrl-max" class="ve-ctrl-dropdown" title="Maximum power (ceiling)"></select>
             </div>
-            <div class="ve-gauge-venus-toggle">
+            <div class="ve-gauge-venus-toggle venus-dependent">
               <span class="ve-text-dim">Venus OS Control</span>
               <label class="ve-toggle" id="venus-lock-container">
                 <input type="checkbox" id="venus-lock-toggle" checked>
@@ -174,7 +174,7 @@
               <span id="ws-label">WebSocket: --</span>
             </div>
           </div>
-          <div class="ve-card" id="venus-ess-panel">
+          <div class="ve-card venus-dependent" id="venus-ess-panel">
             <h2 class="ve-card-title">Venus OS ESS</h2>
             <div class="ve-ess-group">
               <div class="ve-ess-row">
@@ -251,9 +251,9 @@
 
       <!-- Config Page -->
       <div id="page-config" class="page">
-        <div class="ve-panel">
-          <h2>Inverter Configuration</h2>
-          <form id="config-form">
+        <form id="config-form">
+          <div class="ve-panel">
+            <h2><span class="ve-dot ve-dot--dim" id="cfg-se-dot"></span> SolarEdge Inverter</h2>
             <div class="ve-form-group">
               <label for="se-host">SolarEdge IP</label>
               <input type="text" id="se-host" class="ve-input" placeholder="192.168.3.18">
@@ -266,13 +266,43 @@
               <label for="se-unit">Unit ID</label>
               <input type="number" id="se-unit" class="ve-input" placeholder="1" min="1" max="247">
             </div>
-            <div class="ve-button-group">
-              <button type="button" id="btn-test" class="ve-btn">Test Connection</button>
-              <button type="submit" id="btn-save" class="ve-btn ve-btn--primary">Save &amp; Apply</button>
+          </div>
+          <div class="ve-panel">
+            <h2><span class="ve-dot ve-dot--dim" id="cfg-venus-dot"></span> Venus OS Configuration</h2>
+            <div class="ve-form-group">
+              <label for="venus-host">Venus OS IP</label>
+              <input type="text" id="venus-host" class="ve-input" placeholder="e.g. 192.168.1.1">
             </div>
-            <div id="config-message" class="ve-message"></div>
-          </form>
-        </div>
+            <div class="ve-form-group">
+              <label for="venus-port">MQTT Port</label>
+              <input type="number" id="venus-port" class="ve-input" placeholder="1883" min="1" max="65535">
+            </div>
+            <div class="ve-form-group">
+              <label for="venus-portal-id">Portal ID</label>
+              <input type="text" id="venus-portal-id" class="ve-input" placeholder="leave blank for auto-discovery">
+            </div>
+          </div>
+          <div id="mqtt-setup-guide" class="ve-hint-card" style="display:none">
+            <div class="ve-hint-header">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink:0">
+                <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <path d="M10 9v5M10 6.5v.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <h3>Enable MQTT on Venus OS</h3>
+            </div>
+            <ol>
+              <li>Open Venus OS Remote Console</li>
+              <li>Go to Settings &gt; Services</li>
+              <li>Enable "MQTT on LAN"</li>
+              <li>Return here and click Save &amp; Apply</li>
+            </ol>
+            <p class="ve-hint-subtext">MQTT allows the proxy to read grid data and control ESS settings on your Venus OS device.</p>
+          </div>
+          <div class="ve-button-group">
+            <button type="submit" id="btn-save" class="ve-btn ve-btn--primary">Save &amp; Apply</button>
+          </div>
+          <div id="config-message" class="ve-message"></div>
+        </form>
       </div>
 
       <!-- Registers Page -->

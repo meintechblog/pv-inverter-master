@@ -105,6 +105,56 @@ function connectWebSocket() {
     return ws;
 }
 
+// ===== MQTT Gate & Config Bobbles =====
+
+function updateMqttGate(snapshot) {
+    var mqttConnected = snapshot.venus_mqtt_connected;
+    var gatedEls = document.querySelectorAll('.venus-dependent');
+    for (var i = 0; i < gatedEls.length; i++) {
+        if (mqttConnected) {
+            gatedEls[i].classList.remove('mqtt-gated');
+            gatedEls[i].removeAttribute('aria-disabled');
+        } else {
+            gatedEls[i].classList.add('mqtt-gated');
+            gatedEls[i].setAttribute('aria-disabled', 'true');
+        }
+    }
+}
+
+function updateConfigBobbles(snapshot) {
+    // SolarEdge bobble on config page
+    var seDot = document.getElementById('cfg-se-dot');
+    if (seDot) {
+        var seState = snapshot.connection ? snapshot.connection.state : 'disconnected';
+        seDot.className = 've-dot ' + (seState === 'connected' ? 've-dot--ok' : seState === 'reconnecting' ? 've-dot--warn' : 've-dot--err');
+    }
+    // Venus OS bobble on config page
+    var venusDot = document.getElementById('cfg-venus-dot');
+    if (venusDot) {
+        var venusHost = document.getElementById('venus-host');
+        var hostConfigured = venusHost && venusHost.value.trim() !== '';
+        if (!hostConfigured) {
+            venusDot.className = 've-dot ve-dot--dim';
+        } else if (snapshot.venus_mqtt_connected) {
+            venusDot.className = 've-dot ve-dot--ok';
+        } else {
+            venusDot.className = 've-dot ve-dot--err';
+        }
+    }
+}
+
+function updateSetupGuide(snapshot) {
+    var guide = document.getElementById('mqtt-setup-guide');
+    if (!guide) return;
+    var venusHost = document.getElementById('venus-host');
+    var hostConfigured = venusHost && venusHost.value.trim() !== '';
+    if (!snapshot.venus_mqtt_connected && hostConfigured) {
+        guide.style.display = '';
+    } else {
+        guide.style.display = 'none';
+    }
+}
+
 // ===== Snapshot Handler =====
 
 function handleSnapshot(data) {
@@ -162,6 +212,11 @@ function handleSnapshot(data) {
 
     // Update Venus OS ESS settings
     updateVenusESS(data);
+
+    // Update MQTT gate, config bobbles, setup guide
+    updateMqttGate(data);
+    updateConfigBobbles(data);
+    updateSetupGuide(data);
 
     previousSnapshot = data;
 
@@ -544,12 +599,15 @@ async function pollStatus() {
         let vosDotMod = '';
         let vosText = 'Venus OS: --';
 
-        if (data.venus_os === 'active') {
+        if (data.venus_os === 'connected') {
             vosDotMod = 've-dot--ok';
-            vosText = 'Venus OS: Active';
+            vosText = 'Venus OS: Connected';
+        } else if (data.venus_os === 'disconnected') {
+            vosDotMod = 've-dot--err';
+            vosText = 'Venus OS: Disconnected';
         } else {
-            vosDotMod = 've-dot--warn';
-            vosText = 'Venus OS: ' + (data.venus_os || 'Unknown');
+            vosDotMod = 've-dot--dim';
+            vosText = 'Venus OS: Not Configured';
         }
 
         if (vosDot) vosDot.className = seClass + (vosDotMod ? ' ' + vosDotMod : '');
@@ -590,72 +648,56 @@ async function pollHealth() {
 
 async function loadConfig() {
     try {
-        const res = await fetch('/api/config');
-        const data = await res.json();
-        document.getElementById('se-host').value = data.host;
-        document.getElementById('se-port').value = data.port;
-        document.getElementById('se-unit').value = data.unit_id;
+        var res = await fetch('/api/config');
+        var data = await res.json();
+        document.getElementById('se-host').value = data.inverter.host;
+        document.getElementById('se-port').value = data.inverter.port;
+        document.getElementById('se-unit').value = data.inverter.unit_id;
+        document.getElementById('venus-host').value = data.venus.host;
+        document.getElementById('venus-port').value = data.venus.port;
+        document.getElementById('venus-portal-id').value = data.venus.portal_id;
     } catch (e) {
         console.error('Config load failed:', e);
     }
 }
 
-// ===== Test Connection =====
-
-document.getElementById('btn-test').addEventListener('click', async () => {
-    const msg = document.getElementById('config-message');
-    msg.className = 've-message';
-    msg.style.display = 'block';
-    msg.textContent = 'Testing connection...';
-    msg.style.color = 'var(--ve-text-dim)';
-    msg.style.background = 'var(--ve-bg)';
-
-    try {
-        const res = await fetch('/api/config/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                host: document.getElementById('se-host').value,
-                port: parseInt(document.getElementById('se-port').value),
-                unit_id: parseInt(document.getElementById('se-unit').value)
-            })
-        });
-        const data = await res.json();
-        msg.className = 've-message ' + (data.success ? 'success' : 'error');
-        msg.textContent = data.success ? 'Connection successful!' : 'Connection failed: ' + data.error;
-    } catch (e) {
-        msg.className = 've-message error';
-        msg.textContent = 'Test request failed: ' + e.message;
-    }
-});
-
 // ===== Save Config =====
 
 document.getElementById('config-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const msg = document.getElementById('config-message');
-    msg.className = 've-message';
-    msg.style.display = 'block';
-    msg.textContent = 'Saving...';
-    msg.style.color = 'var(--ve-text-dim)';
-    msg.style.background = 'var(--ve-bg)';
+    var btnSave = document.getElementById('btn-save');
+    var origText = btnSave.textContent;
+    btnSave.textContent = 'Saving...';
+    btnSave.disabled = true;
 
     try {
-        const res = await fetch('/api/config', {
+        var res = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                host: document.getElementById('se-host').value,
-                port: parseInt(document.getElementById('se-port').value),
-                unit_id: parseInt(document.getElementById('se-unit').value)
+                inverter: {
+                    host: document.getElementById('se-host').value,
+                    port: parseInt(document.getElementById('se-port').value),
+                    unit_id: parseInt(document.getElementById('se-unit').value)
+                },
+                venus: {
+                    host: document.getElementById('venus-host').value.trim(),
+                    port: parseInt(document.getElementById('venus-port').value) || 1883,
+                    portal_id: document.getElementById('venus-portal-id').value.trim()
+                }
             })
         });
-        const data = await res.json();
-        msg.className = 've-message ' + (data.success ? 'success' : 'error');
-        msg.textContent = data.success ? 'Saved and applied!' : 'Save failed: ' + data.error;
-    } catch (e) {
-        msg.className = 've-message error';
-        msg.textContent = 'Save request failed: ' + e.message;
+        var data = await res.json();
+        if (data.success) {
+            showToast('Configuration saved. Reconnecting...', 'success');
+        } else {
+            showToast('Save failed: ' + data.error, 'error');
+        }
+    } catch (err) {
+        showToast('Save failed: ' + err.message, 'error');
+    } finally {
+        btnSave.textContent = origText;
+        btnSave.disabled = false;
     }
 });
 
