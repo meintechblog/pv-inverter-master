@@ -727,16 +727,16 @@ async function pollHealth() {
 
 // ===== Config Loading =====
 
-// Track original config values for dirty-checking
-var _cfgOriginal = { inverter: {}, venus: {} };
+// Track original config values for dirty-checking (Venus only)
+var _cfgOriginal = { venus: {} };
 
 var _cfgFields = {
-    inverter: ['se-host', 'se-port', 'se-unit'],
     venus: ['venus-host', 'venus-port', 'venus-portal-id']
 };
 
 function _cfgIsDirty(section) {
     var fields = _cfgFields[section];
+    if (!fields) return false;
     for (var i = 0; i < fields.length; i++) {
         var el = document.getElementById(fields[i]);
         if (el && el.value !== _cfgOriginal[section][fields[i]]) return true;
@@ -745,13 +745,13 @@ function _cfgIsDirty(section) {
 }
 
 function _cfgUpdateSaveBtn(section) {
-    var pairId = section === 'inverter' ? 'btn-pair-se' : 'btn-pair-venus';
-    var pair = document.getElementById(pairId);
+    var pair = document.getElementById('btn-pair-venus');
     if (!pair) return;
     var dirty = _cfgIsDirty(section);
     pair.style.display = dirty ? '' : 'none';
     // Per-field dirty highlight
     var fields = _cfgFields[section];
+    if (!fields) return;
     for (var i = 0; i < fields.length; i++) {
         var el = document.getElementById(fields[i]);
         if (el) {
@@ -766,6 +766,7 @@ function _cfgUpdateSaveBtn(section) {
 
 function _cfgCancel(section) {
     var fields = _cfgFields[section];
+    if (!fields) return;
     for (var i = 0; i < fields.length; i++) {
         var el = document.getElementById(fields[i]);
         if (el) el.value = _cfgOriginal[section][fields[i]];
@@ -783,53 +784,304 @@ function _cfgStoreOriginals() {
     }
 }
 
-// Attach input listeners for dirty-checking
+// Attach input listeners for dirty-checking (Venus fields only)
 (function() {
-    for (var section in _cfgFields) {
-        _cfgFields[section].forEach(function(fieldId) {
-            var el = document.getElementById(fieldId);
-            if (el) {
-                el.addEventListener('input', (function(sec) {
-                    return function() { _cfgUpdateSaveBtn(sec); };
-                })(section));
-            }
-        });
-    }
+    _cfgFields.venus.forEach(function(fieldId) {
+        var el = document.getElementById(fieldId);
+        if (el) {
+            el.addEventListener('input', function() { _cfgUpdateSaveBtn('venus'); });
+        }
+    });
 })();
 
 async function loadConfig() {
     try {
         var res = await fetch('/api/config');
         var data = await res.json();
-        document.getElementById('se-host').value = data.inverter.host;
-        document.getElementById('se-port').value = data.inverter.port;
-        document.getElementById('se-unit').value = data.inverter.unit_id;
+        // Populate Venus fields
         document.getElementById('venus-host').value = data.venus.host;
         document.getElementById('venus-port').value = data.venus.port;
         document.getElementById('venus-portal-id').value = data.venus.portal_id;
         _cfgStoreOriginals();
-        _cfgUpdateSaveBtn('inverter');
         _cfgUpdateSaveBtn('venus');
+        // Load inverter list from same response (avoids second HTTP call)
+        loadInverters(data.inverters);
     } catch (e) {
         console.error('Config load failed:', e);
     }
 }
 
-// ===== Save Config (per section) =====
+// ===== Inverter List CRUD =====
+
+async function loadInverters(invertersData) {
+    var inverters;
+    if (invertersData) {
+        inverters = invertersData;
+    } else {
+        try {
+            var res = await fetch('/api/inverters');
+            var data = await res.json();
+            inverters = data.inverters;
+        } catch (e) {
+            console.error('Inverter list load failed:', e);
+            return;
+        }
+    }
+
+    var container = document.getElementById('inverter-list');
+    container.innerHTML = '';
+
+    if (!inverters || inverters.length === 0) {
+        container.innerHTML = '<div class="ve-inv-empty"><div class="ve-hint-card">' +
+            '<div class="ve-hint-header">' +
+            '<svg width="20" height="20" viewBox="0 0 20 20" fill="none">' +
+            '<circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/>' +
+            '<path d="M10 9v5M10 6.5v.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
+            '</svg>' +
+            '<h3>No Inverter Configured</h3></div>' +
+            '<p>Add an inverter manually or use Auto-Discover.</p>' +
+            '</div></div>';
+        return;
+    }
+
+    inverters.forEach(function(inv) {
+        container.appendChild(createInverterRow(inv));
+    });
+}
+
+function createInverterRow(inv) {
+    var row = document.createElement('div');
+    row.className = 've-inv-row';
+    if (inv.active) row.classList.add('ve-inv-row--active');
+    if (!inv.enabled) row.classList.add('ve-inv-row--disabled');
+    row.setAttribute('data-id', inv.id);
+
+    var identity = ((inv.manufacturer || '') + ' ' + (inv.model || '')).trim();
+
+    row.innerHTML =
+        '<span class="ve-dot" style="background:var(' + (inv.enabled ? '--ve-green' : '--ve-text-dim') + ')"></span>' +
+        '<span class="ve-inv-host">' + inv.host + ':' + inv.port + '</span>' +
+        '<span class="ve-inv-identity">' + identity + '</span>' +
+        '<div class="ve-inv-actions">' +
+            '<label class="ve-toggle"><input type="checkbox" ' + (inv.enabled ? 'checked' : '') + '><span class="ve-toggle-track"></span></label>' +
+            '<button class="ve-inv-edit" title="Edit"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button>' +
+            '<button class="ve-inv-delete" title="Delete"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5.33 4V2.67h5.34V4M6 7v5M10 7v5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.33 4l.67 9.33h8l.67-9.33" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button>' +
+        '</div>';
+
+    // Toggle event
+    var toggleLabel = row.querySelector('.ve-toggle');
+    var toggleInput = row.querySelector('.ve-toggle input');
+    toggleLabel.addEventListener('click', function(e) { e.stopPropagation(); });
+    toggleInput.addEventListener('change', function() {
+        toggleInverter(inv.id, toggleInput.checked);
+    });
+
+    // Edit button event
+    var editBtn = row.querySelector('.ve-inv-edit');
+    editBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        expandEditForm(row, inv);
+    });
+
+    // Delete button event
+    var deleteBtn = row.querySelector('.ve-inv-delete');
+    deleteBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showDeleteConfirm(row, inv.id);
+    });
+
+    // Row click — open edit form
+    row.addEventListener('click', function() {
+        expandEditForm(row, inv);
+    });
+
+    return row;
+}
+
+async function toggleInverter(id, enabled) {
+    try {
+        var res = await fetch('/api/inverters/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        var data = await res.json();
+        if (data.error) {
+            showToast('Toggle failed: ' + data.error, 'error');
+            loadInverters();
+            return;
+        }
+        showToast(enabled ? 'Inverter enabled' : 'Inverter disabled', 'success');
+        loadInverters();
+    } catch (e) {
+        showToast('Toggle failed: ' + e.message, 'error');
+        loadInverters();
+    }
+}
+
+function showDeleteConfirm(row, id) {
+    var actions = row.querySelector('.ve-inv-actions');
+    actions.innerHTML =
+        '<span class="ve-inv-confirm-text">Delete?</span>' +
+        '<button class="ve-btn ve-btn--sm ve-btn--cancel">No</button>' +
+        '<button class="ve-inv-delete-confirm">Yes</button>';
+
+    actions.querySelector('.ve-btn--cancel').addEventListener('click', function(e) {
+        e.stopPropagation();
+        loadInverters();
+    });
+    actions.querySelector('.ve-inv-delete-confirm').addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteInverter(id);
+    });
+}
+
+async function deleteInverter(id) {
+    try {
+        var res = await fetch('/api/inverters/' + id, { method: 'DELETE' });
+        var data = await res.json();
+        if (data.error) {
+            showToast('Delete failed: ' + data.error, 'error');
+            loadInverters();
+            return;
+        }
+        showToast('Inverter deleted', 'success');
+        loadInverters();
+    } catch (e) {
+        showToast('Delete failed: ' + e.message, 'error');
+        loadInverters();
+    }
+}
+
+function expandEditForm(row, inv) {
+    // If this row already has an edit form, close it
+    var existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('ve-inv-edit-form')) {
+        existing.remove();
+        return;
+    }
+
+    // Close any other open edit forms
+    document.querySelectorAll('.ve-inv-edit-form').forEach(function(f) { f.remove(); });
+
+    var form = document.createElement('div');
+    form.className = 've-inv-edit-form';
+    form.innerHTML =
+        '<div class="ve-form-group"><label>Host</label><input type="text" class="ve-input" value="' + inv.host + '"></div>' +
+        '<div class="ve-form-group"><label>Port</label><input type="number" class="ve-input" value="' + inv.port + '" min="1" max="65535"></div>' +
+        '<div class="ve-form-group"><label>Unit ID</label><input type="number" class="ve-input" value="' + inv.unit_id + '" min="1" max="247"></div>' +
+        '<span class="ve-btn-pair">' +
+            '<button type="button" class="ve-btn ve-btn--sm ve-btn--cancel">Cancel</button>' +
+            '<button type="button" class="ve-btn ve-btn--sm ve-btn--save">Save</button>' +
+        '</span>';
+
+    // Prevent row click from triggering on form interactions
+    form.addEventListener('click', function(e) { e.stopPropagation(); });
+
+    row.after(form);
+
+    // Animate open
+    requestAnimationFrame(function() {
+        form.classList.add('ve-inv-edit-form--open');
+    });
+
+    var inputs = form.querySelectorAll('.ve-input');
+    var cancelBtn = form.querySelector('.ve-btn--cancel');
+    var saveBtn = form.querySelector('.ve-btn--save');
+
+    cancelBtn.addEventListener('click', function() {
+        form.remove();
+    });
+
+    saveBtn.addEventListener('click', async function() {
+        var host = inputs[0].value.trim();
+        var port = parseInt(inputs[1].value);
+        var unitId = parseInt(inputs[2].value);
+
+        if (!host) {
+            showToast('Host is required', 'error');
+            return;
+        }
+
+        try {
+            var res = await fetch('/api/inverters/' + inv.id, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host: host, port: port, unit_id: unitId })
+            });
+            var data = await res.json();
+            if (data.error) {
+                showToast('Update failed: ' + data.error, 'error');
+                return;
+            }
+            showToast('Inverter updated', 'success');
+            loadInverters();
+        } catch (e) {
+            showToast('Update failed: ' + e.message, 'error');
+        }
+    });
+}
+
+// Add inverter form logic
+document.getElementById('btn-add-inverter').addEventListener('click', function() {
+    var form = document.getElementById('inverter-add-form');
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        document.getElementById('add-inv-host').focus();
+    } else {
+        form.style.display = 'none';
+    }
+});
+
+document.getElementById('btn-add-inv-cancel').addEventListener('click', function() {
+    var form = document.getElementById('inverter-add-form');
+    form.style.display = 'none';
+    document.getElementById('add-inv-host').value = '';
+    document.getElementById('add-inv-port').value = '1502';
+    document.getElementById('add-inv-unit').value = '1';
+});
+
+document.getElementById('btn-add-inv-save').addEventListener('click', async function() {
+    var host = document.getElementById('add-inv-host').value.trim();
+    var port = parseInt(document.getElementById('add-inv-port').value);
+    var unitId = parseInt(document.getElementById('add-inv-unit').value);
+
+    if (!host) {
+        showToast('Host is required', 'error');
+        return;
+    }
+
+    try {
+        var res = await fetch('/api/inverters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host: host, port: port, unit_id: unitId })
+        });
+        var data = await res.json();
+        if (res.status === 201 || data.id) {
+            showToast('Inverter added', 'success');
+            document.getElementById('inverter-add-form').style.display = 'none';
+            document.getElementById('add-inv-host').value = '';
+            document.getElementById('add-inv-port').value = '1502';
+            document.getElementById('add-inv-unit').value = '1';
+            loadInverters();
+        } else {
+            showToast('Add failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (e) {
+        showToast('Add failed: ' + e.message, 'error');
+    }
+});
+
+// ===== Save Config (Venus only) =====
 
 async function saveConfigSection(section) {
-    var btn = document.getElementById(section === 'inverter' ? 'btn-save-se' : 'btn-save-venus');
+    var btn = document.getElementById('btn-save-venus');
     var origText = btn.textContent;
     btn.textContent = 'Saving...';
     btn.disabled = true;
 
-    // Build full payload (API expects both sections)
     var payload = {
-        inverter: {
-            host: document.getElementById('se-host').value,
-            port: parseInt(document.getElementById('se-port').value),
-            unit_id: parseInt(document.getElementById('se-unit').value)
-        },
         venus: {
             host: document.getElementById('venus-host').value.trim(),
             port: parseInt(document.getElementById('venus-port').value) || 1883,
@@ -847,7 +1099,6 @@ async function saveConfigSection(section) {
         if (data.success) {
             showToast('Configuration saved. Reconnecting...', 'success');
             _cfgStoreOriginals();
-            _cfgUpdateSaveBtn('inverter');
             _cfgUpdateSaveBtn('venus');
         } else {
             showToast('Save failed: ' + data.error, 'error');
@@ -860,9 +1111,7 @@ async function saveConfigSection(section) {
     }
 }
 
-document.getElementById('btn-save-se').addEventListener('click', function() { saveConfigSection('inverter'); });
 document.getElementById('btn-save-venus').addEventListener('click', function() { saveConfigSection('venus'); });
-document.getElementById('btn-cancel-se').addEventListener('click', function() { _cfgCancel('inverter'); });
 document.getElementById('btn-cancel-venus').addEventListener('click', function() { _cfgCancel('venus'); });
 
 // Prevent form submit (no global save button anymore)
