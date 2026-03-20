@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 19 of 20 (Inverter Management UI)
+Phase: 20 of 20 (Discovery UI & Onboarding)
 Plan: 1 of 1 complete
-Status: Phase 19 complete
-Last activity: 2026-03-20 — Completed 19-01 inverter management UI with toggle, delete, edit, add
+Status: Phase 20 Plan 01 complete
+Last activity: 2026-03-20 — Completed 20-01 scanner backend enhancement (background task + WS progress + ScannerConfig)
 
 Progress: [██████████] 100%
 
@@ -62,6 +62,9 @@ Progress: [██████████] 100%
 - [Phase 19-01]: Delete uses inline No/Yes confirmation instead of modal dialog
 - [Phase 19-01]: Edit form slides open with CSS max-height transition
 - [Phase 19-01]: loadInverters() re-fetches after every mutation to sync active flags
+- [Phase 20-01]: Scanner endpoint returns immediately with {status: started}, results via WebSocket
+- [Phase 20-01]: Concurrent scan guard uses app-level _scan_running flag
+- [Phase 20-01]: progress_callback uses asyncio.ensure_future to bridge sync to async WS broadcast
 
 ### Pending Todos
 
@@ -73,5 +76,5 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T15:51:23.456Z
-Stopped at: Phase 20 context gathered
+Last session: 2026-03-20T16:37:03Z
+Stopped at: Completed 20-01-PLAN.md

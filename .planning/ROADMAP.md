@@ -153,4 +153,4 @@ Plans:
 | 17. Discovery Engine | 2/2 | Complete    | 2026-03-20 | - |
 | 18. Multi-Inverter Config | 2/2 | Complete    | 2026-03-20 | - |
 | 19. Inverter Management UI | v3.1 | Complete    | 2026-03-20 | 2026-03-20 |
-| 20. Discovery UI & Onboarding | v3.1 | 0/2 | Not started | - |
+| 20. Discovery UI & Onboarding | 1/2 | In Progress|  | - |

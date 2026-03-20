@@ -13,14 +13,14 @@ Requirements for Auto-Discovery & Inverter Management. Each maps to roadmap phas
 - [x] **DISC-02**: System verifiziert gefundene Modbus-Geraete via SunSpec "SunS" Magic Number an Register 40000
 - [x] **DISC-03**: System liest Manufacturer, Model, Serial Number und Firmware-Version aus SunSpec Common Block
 - [x] **DISC-04**: System scannt Unit ID 1 (Primary) und optional 2-10 (RS485 Followers) pro gefundener IP
-- [ ] **DISC-05**: User sieht Scan-Fortschritt im UI (Fortschrittsbalken oder Animation waehrend des ~30s Scans)
+- [x] **DISC-05**: User sieht Scan-Fortschritt im UI (Fortschrittsbalken oder Animation waehrend des ~30s Scans)
 
 ### Config Management
 
 - [x] **CONF-01**: Config unterstuetzt mehrere Inverter-Eintraege (Liste statt einzelner Eintrag)
 - [x] **CONF-02**: User kann jeden Inverter-Eintrag per Toggle-Slider aktivieren/deaktivieren
 - [x] **CONF-03**: User kann Inverter-Eintraege loeschen
-- [ ] **CONF-04**: Gefundene Inverter aus Scan werden automatisch als Config-Eintraege angelegt
+- [x] **CONF-04**: Gefundene Inverter aus Scan werden automatisch als Config-Eintraege angelegt
 - [x] **CONF-05**: Bestehende Single-Inverter Config wird automatisch ins Multi-Inverter Format migriert
 
 ### UX/Onboarding
@@ -55,11 +55,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-02 | Phase 17 | Complete |
 | DISC-03 | Phase 17 | Complete |
 | DISC-04 | Phase 17 | Complete |
-| DISC-05 | Phase 20 | Pending |
+| DISC-05 | Phase 20 | Complete |
 | CONF-01 | Phase 18 | Complete |
 | CONF-02 | Phase 19 | Complete |
 | CONF-03 | Phase 19 | Complete |
-| CONF-04 | Phase 20 | Pending |
+| CONF-04 | Phase 20 | Complete |
 | CONF-05 | Phase 18 | Complete |
 | UX-01 | Phase 20 | Pending |
 | UX-02 | Phase 20 | Pending |
