@@ -23,9 +23,9 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 
 ### Device Registry & Poll Management
 
-- [ ] **REG-01**: DeviceRegistry verwaltet N Devices mit unabhaengigen Poll-Loops (asyncio Tasks pro Device)
-- [ ] **REG-02**: Devices koennen zur Laufzeit hinzugefuegt, entfernt, aktiviert und deaktiviert werden ohne Restart
-- [ ] **REG-03**: Wenn ein Device deaktiviert/entfernt wird, werden alle zugehoerigen Daten (Snapshot, Collector, Poll-Task) sauber aufgeraeumt
+- [x] **REG-01**: DeviceRegistry verwaltet N Devices mit unabhaengigen Poll-Loops (asyncio Tasks pro Device)
+- [x] **REG-02**: Devices koennen zur Laufzeit hinzugefuegt, entfernt, aktiviert und deaktiviert werden ohne Restart
+- [x] **REG-03**: Wenn ein Device deaktiviert/entfernt wird, werden alle zugehoerigen Daten (Snapshot, Collector, Poll-Task) sauber aufgeraeumt
 
 ### Virtual Inverter Aggregation
 
@@ -92,9 +92,9 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 | DTU-03 | Phase 21 | Complete |
 | DTU-04 | Phase 21 | Complete |
 | DTU-05 | Phase 21 | Complete |
-| REG-01 | Phase 22 | Pending |
-| REG-02 | Phase 22 | Pending |
-| REG-03 | Phase 22 | Pending |
+| REG-01 | Phase 22 | Complete |
+| REG-02 | Phase 22 | Complete |
+| REG-03 | Phase 22 | Complete |
 | AGG-01 | Phase 22 | Pending |
 | AGG-02 | Phase 22 | Pending |
 | AGG-03 | Phase 22 | Pending |

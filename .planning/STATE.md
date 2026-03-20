@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Source Virtual Inverter
-status: completed
-stopped_at: Phase 22 context gathered
-last_updated: "2026-03-20T19:43:33.968Z"
-last_activity: 2026-03-20 -- Completed 21-02 (OpenDTU plugin)
+status: in-progress
+stopped_at: Completed 22-01 (DeviceRegistry)
+last_updated: "2026-03-20T19:51:46Z"
+last_activity: 2026-03-20 -- Completed 22-01 (DeviceRegistry)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 25
+  total_plans: 3
+  completed_plans: 3
+  percent: 38
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
-**Current focus:** Phase 21 - Data Model & OpenDTU Plugin
+**Current focus:** Phase 22 - Device Registry & Aggregation
 
 ## Current Position
 
-Phase: 21 of 24 (Data Model & OpenDTU Plugin)
-Plan: 2 of 2 in current phase
-Status: phase-complete
-Last activity: 2026-03-20 -- Completed 21-02 (OpenDTU plugin)
+Phase: 22 of 24 (Device Registry & Aggregation)
+Plan: 1 of 2 in current phase
+Status: in-progress
+Last activity: 2026-03-20 -- Completed 22-01 (DeviceRegistry)
 
-Progress: [██░░░░░░░░] 25%
+Progress: [███░░░░░░░] 38%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [██░░░░░░░░] 25%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 21 | 2/2 | 18min | 9min |
+| 22 | 1/2 | 5min | 5min |
 
 ## Accumulated Context
 
@@ -62,6 +63,9 @@ Progress: [██░░░░░░░░] 25%
 - [21-02]: DC channel summation: sum power+current, power-weighted average for voltage
 - [21-02]: Fixed SunSpec scale factors: SF=0 power, SF=-1 voltage, SF=-2 current/freq
 - [21-02]: Dead-time guard at 30s (25s typical + 5s margin)
+- [22-01]: Lazy imports for plugin_factory/DashboardCollector to avoid Python 3.9 slots= incompatibility
+- [22-01]: Poll loop stores raw data but defers cache writes and aggregation to Plan 02
+- [22-01]: enable/disable_device delegate to start/stop_device for simplicity
 
 ### Pending Todos
 
@@ -75,6 +79,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T19:43:33.963Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-device-registry-aggregation/22-CONTEXT.md
+Last session: 2026-03-20T19:51:46Z
+Stopped at: Completed 22-01-PLAN.md
+Resume file: .planning/phases/22-device-registry-aggregation/22-01-SUMMARY.md

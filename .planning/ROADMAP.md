@@ -151,6 +151,6 @@ Phases execute in numeric order: 21 -> 22 -> 23 -> 24
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Data Model & OpenDTU Plugin | 2/2 | Complete    | 2026-03-20 | - |
-| 22. Device Registry & Aggregation | v4.0 | 0/2 | Not started | - |
+| 22. Device Registry & Aggregation | 1/2 | In Progress|  | - |
 | 23. Power Limit Distribution | v4.0 | 0/1 | Not started | - |
 | 24. Device-Centric API & Frontend | v4.0 | 0/2 | Not started | - |
