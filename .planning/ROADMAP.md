@@ -87,15 +87,15 @@ Full details: `.planning/milestones/v3.1-ROADMAP.md`
 **Depends on**: Phase 20 (v3.1 complete)
 **Requirements**: DATA-01, DATA-02, DATA-03, DTU-01, DTU-02, DTU-03, DTU-04, DTU-05
 **Success Criteria** (what must be TRUE):
-  1. Existing v3.1 configs load without errors and existing SolarEdge inverters work unchanged (backward compatibility)
+  1. Fresh config with typed inverter entries loads cleanly (no v3.1 migration, fresh config only)
   2. An OpenDTU gateway at 192.168.3.98 is polled and each Hoymiles inverter behind it appears as a separate device with AC power, voltage, current, and daily yield data
   3. A power limit can be sent to a specific Hoymiles inverter via the OpenDTU API and the system waits the appropriate dead-time before sending another
   4. The AppContext provides typed per-device state instead of a flat shared dictionary
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: Config data model refactor (typed InverterEntry, AppContext, config migration)
-- [ ] 21-02: OpenDTU plugin implementation (poll, power limit, dead-time guard, plugin factory)
+- [ ] 21-01-PLAN.md — Config data model refactor (typed InverterEntry, GatewayConfig, AppContext, no migration)
+- [ ] 21-02-PLAN.md — OpenDTU plugin (poll, SunSpec register synthesis, power limit, dead-time guard)
 
 ### Phase 22: Device Registry & Aggregation
 **Goal**: Multiple inverters run independent poll loops and their combined output appears as one virtual Fronius inverter to Venus OS
