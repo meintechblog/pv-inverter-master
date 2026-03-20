@@ -80,15 +80,22 @@ On your Venus OS device (Remote Console):
 
 Then enter the Venus OS IP in the Config page's Venus section and click Save & Apply. A green MQTT bobble confirms the connection. Dashboard features like Lock Toggle and Override Detection activate automatically.
 
-## Network Diagram
+## Architecture
 
-```
-SolarEdge SE30K (192.168.3.18:1502)
-        | Modbus TCP
-Proxy (192.168.3.191:502 + :80)
-        | Modbus TCP        | MQTT (1883)
-Venus OS / Cerbo GX --------+
-```
+<p align="center">
+  <img src="docs/architecture-hex.svg" alt="System Architecture" width="800"/>
+</p>
+
+The proxy sits between the SolarEdge inverter and Venus OS, translating protocols in real-time:
+
+| Path | Protocol | Purpose |
+|------|----------|---------|
+| SE30K **→** Proxy | Modbus TCP :1502 | Poll inverter data every 1s (power, voltage, temperature) |
+| Proxy **→** Venus OS | Modbus TCP :502 | Serve translated Fronius SunSpec registers |
+| Venus OS **→** Proxy | Modbus Write | Send power limit commands (ESS feed-in control) |
+| Proxy **→** SE30K | Modbus Write (EDPC) | Forward power limits to the real inverter |
+| Venus OS **→** Proxy | MQTT :1883 | Subscribe to ESS settings, grid power, limiter state |
+| Proxy **→** Browser | WebSocket + REST :80 | Live dashboard with real-time updates |
 
 ## Features
 

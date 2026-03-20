@@ -1,0 +1,233 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <!-- Hex clip path (pointy-top) -->
+    <clipPath id="hex-clip">
+      <polygon points="60,0 120,35 120,95 60,130 0,95 0,35"/>
+    </clipPath>
+    <!-- Glow filter -->
+    <filter id="glow-blue">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#387DC5" flood-opacity="0.4"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-orange">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#F0962E" flood-opacity="0.4"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-green">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#72B84C" flood-opacity="0.4"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Hex shapes -->
+    <polygon id="hex-lg" points="75,0 150,43 150,120 75,163 0,120 0,43" fill="none" stroke-width="2"/>
+    <polygon id="hex-xl" points="90,0 180,52 180,144 90,196 0,144 0,52" fill="none" stroke-width="2.5"/>
+    <polygon id="hex-sm" points="45,0 90,26 90,72 45,98 0,72 0,26" fill="none" stroke-width="1.5"/>
+    <!-- Arrow marker -->
+    <marker id="arr-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#387DC5"/>
+    </marker>
+    <marker id="arr-orange" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#F0962E"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#72B84C"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#F35C58"/>
+    </marker>
+    <!-- Background hex pattern -->
+    <pattern id="hex-grid" x="0" y="0" width="60" height="52" patternUnits="userSpaceOnUse">
+      <polygon points="30,2 58,17 58,45 30,60 2,45 2,17" fill="none" stroke="#1e1e1e" stroke-width="0.5" transform="translate(0,-5)"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="820" fill="#0d0d0d"/>
+  <rect width="1200" height="820" fill="url(#hex-grid)" opacity="0.4"/>
+
+  <!-- Title -->
+  <text x="600" y="52" text-anchor="middle" fill="#FAF9F5" font-size="26" font-weight="700" letter-spacing="0.08em">PV INVERTER PROXY</text>
+  <text x="600" y="76" text-anchor="middle" fill="#969591" font-size="13" letter-spacing="0.15em">SYSTEM ARCHITECTURE</text>
+
+  <!-- ====== CONNECTION LINES (behind hexes) ====== -->
+
+  <!-- SE30K → Proxy (Modbus Read) -->
+  <path d="M 245,330 C 330,330 370,360 420,360" fill="none" stroke="#387DC5" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-blue)" filter="url(#glow-blue)" opacity="0.8"/>
+  <rect x="280" y="310" width="110" height="22" rx="4" fill="#141414" stroke="#387DC5" stroke-width="0.5" opacity="0.9"/>
+  <text x="335" y="325" text-anchor="middle" fill="#73A2D3" font-size="9" letter-spacing="0.05em">MODBUS TCP:1502</text>
+
+  <!-- Proxy → SE30K (Power Write) -->
+  <path d="M 420,395 C 370,395 330,380 245,375" fill="none" stroke="#F0962E" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-orange)" filter="url(#glow-orange)" opacity="0.8"/>
+  <rect x="280" y="388" width="100" height="22" rx="4" fill="#141414" stroke="#F0962E" stroke-width="0.5" opacity="0.9"/>
+  <text x="330" y="403" text-anchor="middle" fill="#F0962E" font-size="9" letter-spacing="0.05em">EDPC WRITE</text>
+
+  <!-- Proxy → Venus OS (Modbus Server) -->
+  <path d="M 690,340 C 770,340 810,320 880,320" fill="none" stroke="#387DC5" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-blue)" filter="url(#glow-blue)" opacity="0.8"/>
+  <rect x="730" y="298" width="120" height="22" rx="4" fill="#141414" stroke="#387DC5" stroke-width="0.5" opacity="0.9"/>
+  <text x="790" y="313" text-anchor="middle" fill="#73A2D3" font-size="9" letter-spacing="0.05em">MODBUS TCP:502</text>
+
+  <!-- Venus OS → Proxy (Power Limit Write) -->
+  <path d="M 880,375 C 810,375 770,390 690,390" fill="none" stroke="#F0962E" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-orange)" filter="url(#glow-orange)" opacity="0.8"/>
+  <rect x="730" y="378" width="120" height="22" rx="4" fill="#141414" stroke="#F0962E" stroke-width="0.5" opacity="0.9"/>
+  <text x="790" y="393" text-anchor="middle" fill="#F0962E" font-size="9" letter-spacing="0.05em">POWER LIMIT %</text>
+
+  <!-- Venus OS → Proxy (MQTT) -->
+  <path d="M 920,440 C 880,510 720,530 620,470" fill="none" stroke="#72B84C" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-green)" filter="url(#glow-green)" opacity="0.8"/>
+  <rect x="720" y="488" width="120" height="22" rx="4" fill="#141414" stroke="#72B84C" stroke-width="0.5" opacity="0.9"/>
+  <text x="780" y="503" text-anchor="middle" fill="#72B84C" font-size="9" letter-spacing="0.05em">MQTT:1883 (ESS)</text>
+
+  <!-- Proxy → Dashboard (WebSocket) -->
+  <path d="M 555,470 C 555,550 555,580 555,610" fill="none" stroke="#387DC5" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arr-blue)" filter="url(#glow-blue)" opacity="0.8"/>
+  <rect x="490" y="560" width="130" height="22" rx="4" fill="#141414" stroke="#387DC5" stroke-width="0.5" opacity="0.9"/>
+  <text x="555" y="575" text-anchor="middle" fill="#73A2D3" font-size="9" letter-spacing="0.05em">WEBSOCKET + REST</text>
+
+  <!-- ====== MAIN HEXAGONS ====== -->
+
+  <!-- SE30K (Left) -->
+  <g transform="translate(65,275)">
+    <use href="#hex-xl" stroke="#F0962E" fill="#141414" filter="url(#glow-orange)"/>
+    <use href="#hex-xl" stroke="#F0962E" fill="#1a1205" opacity="0.5"/>
+    <!-- Sun icon -->
+    <circle cx="90" cy="70" r="18" fill="none" stroke="#F0962E" stroke-width="2"/>
+    <circle cx="90" cy="70" r="8" fill="#F0962E" opacity="0.6"/>
+    <line x1="90" y1="44" x2="90" y2="50" stroke="#F0962E" stroke-width="2"/>
+    <line x1="90" y1="90" x2="90" y2="96" stroke="#F0962E" stroke-width="2"/>
+    <line x1="64" y1="70" x2="70" y2="70" stroke="#F0962E" stroke-width="2"/>
+    <line x1="110" y1="70" x2="116" y2="70" stroke="#F0962E" stroke-width="2"/>
+    <line x1="72" y1="52" x2="76" y2="56" stroke="#F0962E" stroke-width="2"/>
+    <line x1="104" y1="84" x2="108" y2="88" stroke="#F0962E" stroke-width="2"/>
+    <line x1="72" y1="88" x2="76" y2="84" stroke="#F0962E" stroke-width="2"/>
+    <line x1="104" y1="56" x2="108" y2="52" stroke="#F0962E" stroke-width="2"/>
+    <text x="90" y="115" text-anchor="middle" fill="#FAF9F5" font-size="13" font-weight="600">SE30K</text>
+    <text x="90" y="133" text-anchor="middle" fill="#969591" font-size="10">SolarEdge</text>
+    <text x="90" y="148" text-anchor="middle" fill="#969591" font-size="10">30 kW Inverter</text>
+  </g>
+
+  <!-- PROXY (Center - larger) -->
+  <g transform="translate(420,260)">
+    <!-- Double hex border for emphasis -->
+    <polygon points="135,0 270,78 270,216 135,294 0,216 0,78" fill="#11263B" stroke="#387DC5" stroke-width="3" filter="url(#glow-blue)" opacity="0.9"/>
+    <polygon points="135,10 260,83 260,206 135,284 10,206 10,83" fill="none" stroke="#387DC5" stroke-width="1" opacity="0.3"/>
+    <!-- Gear icon -->
+    <g transform="translate(135,100)" fill="none" stroke="#387DC5" stroke-width="2">
+      <circle r="12"/>
+      <circle r="5" fill="#387DC5" opacity="0.4"/>
+      <line x1="0" y1="-18" x2="0" y2="-14"/>
+      <line x1="0" y1="14" x2="0" y2="18"/>
+      <line x1="-18" y1="0" x2="-14" y2="0"/>
+      <line x1="14" y1="0" x2="18" y2="0"/>
+      <line x1="-12" y1="-12" x2="-10" y2="-10"/>
+      <line x1="10" y1="10" x2="12" y2="12"/>
+      <line x1="-12" y1="12" x2="-10" y2="10"/>
+      <line x1="10" y1="-10" x2="12" y2="-12"/>
+    </g>
+    <!-- Translate arrows -->
+    <text x="135" y="142" text-anchor="middle" fill="#73A2D3" font-size="18">SE &#x2192; FR</text>
+    <text x="135" y="172" text-anchor="middle" fill="#FAF9F5" font-size="16" font-weight="700">PV INVERTER</text>
+    <text x="135" y="192" text-anchor="middle" fill="#FAF9F5" font-size="16" font-weight="700">PROXY</text>
+    <text x="135" y="218" text-anchor="middle" fill="#969591" font-size="10">Protocol Translator</text>
+    <text x="135" y="233" text-anchor="middle" fill="#969591" font-size="10">SolarEdge &#x2194; Fronius SunSpec</text>
+  </g>
+
+  <!-- Venus OS (Right) -->
+  <g transform="translate(880,255)">
+    <use href="#hex-xl" stroke="#72B84C" fill="#141414" filter="url(#glow-green)"/>
+    <use href="#hex-xl" stroke="#72B84C" fill="#0f1a0a" opacity="0.5"/>
+    <!-- Victron-style battery icon -->
+    <rect x="65" y="55" width="50" height="28" rx="4" fill="none" stroke="#72B84C" stroke-width="2"/>
+    <rect x="115" y="63" width="6" height="12" rx="2" fill="#72B84C" opacity="0.6"/>
+    <rect x="71" y="61" width="12" height="16" rx="1" fill="#72B84C" opacity="0.4"/>
+    <rect x="87" y="61" width="12" height="16" rx="1" fill="#72B84C" opacity="0.3"/>
+    <rect x="103" y="61" width="6" height="16" rx="1" fill="#72B84C" opacity="0.2"/>
+    <text x="90" y="115" text-anchor="middle" fill="#FAF9F5" font-size="13" font-weight="600">VENUS OS</text>
+    <text x="90" y="133" text-anchor="middle" fill="#969591" font-size="10">Victron GX</text>
+    <text x="90" y="148" text-anchor="middle" fill="#969591" font-size="10">ESS Control</text>
+  </g>
+
+  <!-- Dashboard (Bottom) -->
+  <g transform="translate(465,620)">
+    <use href="#hex-xl" stroke="#387DC5" fill="#141414" filter="url(#glow-blue)"/>
+    <use href="#hex-xl" stroke="#387DC5" fill="#0a1525" opacity="0.5"/>
+    <!-- Monitor icon -->
+    <rect x="55" y="52" width="70" height="46" rx="4" fill="none" stroke="#387DC5" stroke-width="2"/>
+    <line x1="75" y1="98" x2="75" y2="110" stroke="#387DC5" stroke-width="2"/>
+    <line x1="105" y1="98" x2="105" y2="110" stroke="#387DC5" stroke-width="2"/>
+    <line x1="65" y1="110" x2="115" y2="110" stroke="#387DC5" stroke-width="2"/>
+    <!-- Mini gauge arc -->
+    <path d="M 75,80 A 12,12 0 0 1 105,80" fill="none" stroke="#73A2D3" stroke-width="1.5"/>
+    <circle cx="82" cy="76" r="2" fill="#72B84C"/>
+    <text x="90" y="140" text-anchor="middle" fill="#FAF9F5" font-size="13" font-weight="600">DASHBOARD</text>
+    <text x="90" y="158" text-anchor="middle" fill="#969591" font-size="10">Web UI :80</text>
+    <text x="90" y="173" text-anchor="middle" fill="#969591" font-size="10">Realtime Monitoring</text>
+  </g>
+
+  <!-- ====== FEATURE HEXES (small) ====== -->
+
+  <!-- Modbus Translation -->
+  <g transform="translate(310,160)">
+    <use href="#hex-sm" stroke="#387DC5" fill="#11263B" opacity="0.7"/>
+    <text x="45" y="40" text-anchor="middle" fill="#73A2D3" font-size="9" font-weight="600">MODBUS</text>
+    <text x="45" y="53" text-anchor="middle" fill="#73A2D3" font-size="9" font-weight="600">TRANSLATE</text>
+    <text x="45" y="68" text-anchor="middle" fill="#969591" font-size="8">177 Registers</text>
+  </g>
+
+  <!-- Power Control -->
+  <g transform="translate(620,160)">
+    <use href="#hex-sm" stroke="#F0962E" fill="#1a1205" opacity="0.7"/>
+    <text x="45" y="40" text-anchor="middle" fill="#F0962E" font-size="9" font-weight="600">POWER</text>
+    <text x="45" y="53" text-anchor="middle" fill="#F0962E" font-size="9" font-weight="600">CONTROL</text>
+    <text x="45" y="68" text-anchor="middle" fill="#969591" font-size="8">Lock / Clamp</text>
+  </g>
+
+  <!-- Night Mode -->
+  <g transform="translate(198,470)">
+    <use href="#hex-sm" stroke="#969591" fill="#1a1a1a" opacity="0.7"/>
+    <text x="45" y="40" text-anchor="middle" fill="#969591" font-size="9" font-weight="600">NIGHT</text>
+    <text x="45" y="53" text-anchor="middle" fill="#969591" font-size="9" font-weight="600">MODE</text>
+    <text x="45" y="68" text-anchor="middle" fill="#646360" font-size="8">Auto Sleep</text>
+  </g>
+
+  <!-- ESS Detection -->
+  <g transform="translate(820,490)">
+    <use href="#hex-sm" stroke="#72B84C" fill="#0f1a0a" opacity="0.7"/>
+    <text x="45" y="40" text-anchor="middle" fill="#72B84C" font-size="9" font-weight="600">ESS</text>
+    <text x="45" y="53" text-anchor="middle" fill="#72B84C" font-size="9" font-weight="600">DETECT</text>
+    <text x="45" y="68" text-anchor="middle" fill="#969591" font-size="8">VE.Bus Watch</text>
+  </g>
+
+  <!-- Register Cache -->
+  <g transform="translate(465,155)">
+    <use href="#hex-sm" stroke="#387DC5" fill="#11263B" opacity="0.7"/>
+    <text x="45" y="40" text-anchor="middle" fill="#73A2D3" font-size="9" font-weight="600">REGISTER</text>
+    <text x="45" y="53" text-anchor="middle" fill="#73A2D3" font-size="9" font-weight="600">CACHE</text>
+    <text x="45" y="68" text-anchor="middle" fill="#969591" font-size="8">SunSpec M103</text>
+  </g>
+
+  <!-- ====== LEGEND ====== -->
+  <g transform="translate(30,700)">
+    <rect x="0" y="0" width="280" height="95" rx="8" fill="#141414" stroke="#64635F" stroke-width="0.5" opacity="0.8"/>
+    <text x="14" y="22" fill="#969591" font-size="10" font-weight="600" letter-spacing="0.1em">DATA FLOWS</text>
+    <line x1="14" y1="42" x2="44" y2="42" stroke="#387DC5" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="52" y="46" fill="#73A2D3" font-size="10">Read / Monitor (Modbus Poll, WS)</text>
+    <line x1="14" y1="60" x2="44" y2="60" stroke="#F0962E" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="52" y="64" fill="#F0962E" font-size="10">Write / Control (Power Limit)</text>
+    <line x1="14" y1="78" x2="44" y2="78" stroke="#72B84C" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="52" y="82" fill="#72B84C" font-size="10">Settings / State (MQTT Subscribe)</text>
+  </g>
+
+  <!-- Key insight callout -->
+  <g transform="translate(880,680)">
+    <rect x="0" y="0" width="290" height="60" rx="8" fill="#141414" stroke="#F0962E" stroke-width="1" opacity="0.8"/>
+    <text x="14" y="20" fill="#F0962E" font-size="10" font-weight="600">&#x26A0; KEY INSIGHT</text>
+    <text x="14" y="38" fill="#DCDBD7" font-size="10">Venus OS sees a "Fronius" inverter.</text>
+    <text x="14" y="52" fill="#969591" font-size="10">The proxy translates SolarEdge in real-time.</text>
+  </g>
+
+  <!-- Version tag -->
+  <text x="1170" y="805" text-anchor="end" fill="#64635F" font-size="9">v3.0 | pv-inverter-proxy</text>
+</svg>
