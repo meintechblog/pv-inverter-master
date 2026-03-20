@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: Auto-Discovery & Inverter Management
-status: completed
-stopped_at: Completed 20-02-PLAN.md — v3.1 milestone complete
+milestone: v4.0
+milestone_name: Multi-Source Virtual Inverter
+status: in_progress
+stopped_at: Defining requirements
 last_updated: "2026-03-20T17:05:47.609Z"
 last_activity: 2026-03-20 — Completed 20-02 discovery UI with scan button, progress bar, result list, auto-scan onboarding
 progress:
@@ -20,17 +20,17 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-20)
 
-**Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v3.1 complete — all phases shipped
+**Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
+**Current focus:** v4.0 Multi-Source Virtual Inverter — defining requirements
 
 ## Current Position
 
-Phase: 20 of 20 (Discovery UI & Onboarding)
-Plan: 2 of 2 complete
-Status: Phase 20 complete — v3.1 milestone shipped
-Last activity: 2026-03-20 — Completed 20-02 discovery UI with scan button, progress bar, result list, auto-scan onboarding
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v4.0
+Last activity: 2026-03-20 — Milestone v4.0 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 

@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Ein Modbus-TCP-Proxy-Dienst, der einen SolarEdge SE30K gegenueber Venus OS (Victron) als Fronius-Inverter erscheinen laesst. Venus OS erkennt, monitort und steuert den Inverter nativ — inkl. Live-Leistungsdaten, Einspeiseregelung und Power Limiting. Der Proxy laeuft als systemd-Service auf einem LXC-Container und bietet ein einheitliches Venus OS styled Dark-Theme Dashboard mit Live-Monitoring, inline Power Control, Venus OS Lock Toggle, Peak-Statistiken und Smart Notifications — alles auf einer Seite.
+Ein Multi-Source PV-Aggregator, der beliebige Inverter (SolarEdge via Modbus TCP, Hoymiles via OpenDTU REST) zu einem virtuellen PV-Inverter buendelt und gegenueber Venus OS (Victron) als Fronius-Inverter erscheinen laesst. Venus OS erkennt, monitort und steuert die aggregierte PV-Anlage nativ. Device-zentrische Webapp mit pro-Inverter Dashboards, zentraler Konfiguration und flexiblem Regelverhalten fuer Power Limiting.
 
 ## Core Value
 
-Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter — Monitoring UND aktive Steuerung (Leistungsbegrenzung, Einspeiseregelung).
+Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen virtuellen Fronius-Inverter erkennen und steuern koennen — aggregiertes Monitoring UND koordinierte Steuerung (Leistungsbegrenzung, Einspeiseregelung).
 
 ## Requirements
 
@@ -55,7 +55,14 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie ei
 
 ### Active
 
-(None — planning next milestone)
+- [ ] OpenDTU Plugin: Hoymiles Micro-WR ueber OpenDTU REST API integrieren (192.168.3.98)
+- [ ] Device-zentrische UI: Pro Inverter eigener Menuepunkt mit Dashboard + Registers + Config
+- [ ] Virtueller PV-Inverter: Alle aktiven Inverter zu einem aggregierten Fronius-Device fuer Venus OS
+- [ ] Flexibles Regelverhalten: Prioritaets-Reihenfolge fuer Power Limiting definierbar
+- [ ] Inverter aus Regelverhalten ausschliessbar
+- [ ] Benutzerdefinierter Name fuer den virtuellen Inverter (Standardname vorausgewaehlt)
+- [ ] Venus OS als eigenes Device mit eigenem Menuepunkt (ESS, MQTT, Status)
+- [ ] Zentrales Device-Management: "+" zum Hinzufuegen von Invertern und Venus OS
 
 ### Out of Scope
 
@@ -65,7 +72,7 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie ei
 - Vollstaendiger Energy Flow Diagram — Proxy hat nur PV-Daten, kein Grid/Battery/Load
 - Docker/Container-Orchestrierung — Direktes Deployment auf LXC (Debian 13)
 - Venus OS Modbus-Polling (Battery/Grid) — Register-Adressen unsicher, separater Client noetig
-- Multi-Inverter parallel an Venus OS — v3.1 baut Management, aber nur ein aktiver Proxy-Inverter
+- Andere Inverter-Marken ausser SolarEdge/Hoymiles — Erweiterbar, aber nicht in v4.0
 
 ## Context
 
@@ -133,5 +140,20 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket), paho-mqtt, s
 
 **Live verified:** Full-featured dashboard with inline power control, Venus OS lock toggle, peak statistics. Config page with inverter management, auto-discovery with progress bar, auto-scan on empty config. curl one-liner install.
 
+## Current Milestone: v4.0 Multi-Source Virtual Inverter
+
+**Goal:** Beliebige Inverter (SolarEdge + Hoymiles/OpenDTU) zu einem virtuellen PV-Inverter aggregieren und device-zentrisch in der Webapp verwalten.
+
+**Target features:**
+- OpenDTU Plugin fuer Hoymiles Micro-WR (REST API polling, Power Limit Steuerung)
+- Device-zentrische UI: jeder Inverter bekommt eigenen Menuepunkt (Dashboard, Registers, Config)
+- Virtueller PV-Inverter: Summe aller aktiven Inverter → ein Fronius-Device fuer Venus OS
+- Flexibles Regelverhalten: User definiert Prioritaets-Reihenfolge fuer Power Limiting
+- Venus OS als eigenes Device (ESS, MQTT Status, Portal ID)
+- Zentrales "+" Device-Management statt separater Config-Bereich
+
+**Known tech debt from v3.1:**
+- Dashboard zeigt veraltete Daten wenn Inverter deaktiviert/geloescht wird (wird durch device-zentrischen Umbau geloest)
+
 ---
-*Last updated: 2026-03-20 after v3.1 milestone shipped*
+*Last updated: 2026-03-20 after v4.0 milestone start*
