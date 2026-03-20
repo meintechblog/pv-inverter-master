@@ -53,7 +53,7 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 - [ ] **UI-02**: Jeder Inverter hat eigene Ansicht mit Dashboard (Leistung, Phasen/Channels, Status) und Registers
 - [ ] **UI-03**: Venus OS hat eigenen Menuepunkt (ESS Status, MQTT Config, Portal ID)
 - [ ] **UI-04**: Virtueller PV-Inverter hat eigene Ansicht mit aggregiertem Dashboard und Beitragsanzeige pro Inverter
-- [ ] **UI-05**: Zentrales "+" im Sidebar zum Hinzufuegen neuer Devices (Inverter oder Venus OS)
+- [ ] **UI-05**: Zentrales "+" im Sidebar zum Hinzufuegen neuer Devices (Inverter oder Venus OS) — Discover-Button fuer manuellen Scan, kein Auto-Scan
 - [ ] **UI-06**: Wenn ein Device deaktiviert/entfernt wird, verschwinden sofort alle zugehoerigen Daten aus der UI
 
 ## Future Requirements
@@ -82,44 +82,42 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | TBD | Pending |
-| DATA-02 | TBD | Pending |
-| DATA-03 | TBD | Pending |
-| DTU-01 | TBD | Pending |
-| DTU-02 | TBD | Pending |
-| DTU-03 | TBD | Pending |
-| DTU-04 | TBD | Pending |
-| DTU-05 | TBD | Pending |
-| REG-01 | TBD | Pending |
-| REG-02 | TBD | Pending |
-| REG-03 | TBD | Pending |
-| AGG-01 | TBD | Pending |
-| AGG-02 | TBD | Pending |
-| AGG-03 | TBD | Pending |
-| AGG-04 | TBD | Pending |
-| PWR-01 | TBD | Pending |
-| PWR-02 | TBD | Pending |
-| PWR-03 | TBD | Pending |
-| PWR-04 | TBD | Pending |
-| API-01 | TBD | Pending |
-| API-02 | TBD | Pending |
-| API-03 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
-| UI-05 | TBD | Pending |
-| UI-06 | TBD | Pending |
+| DATA-01 | Phase 21 | Pending |
+| DATA-02 | Phase 21 | Pending |
+| DATA-03 | Phase 21 | Pending |
+| DTU-01 | Phase 21 | Pending |
+| DTU-02 | Phase 21 | Pending |
+| DTU-03 | Phase 21 | Pending |
+| DTU-04 | Phase 21 | Pending |
+| DTU-05 | Phase 21 | Pending |
+| REG-01 | Phase 22 | Pending |
+| REG-02 | Phase 22 | Pending |
+| REG-03 | Phase 22 | Pending |
+| AGG-01 | Phase 22 | Pending |
+| AGG-02 | Phase 22 | Pending |
+| AGG-03 | Phase 22 | Pending |
+| AGG-04 | Phase 22 | Pending |
+| PWR-01 | Phase 23 | Pending |
+| PWR-02 | Phase 23 | Pending |
+| PWR-03 | Phase 23 | Pending |
+| PWR-04 | Phase 23 | Pending |
+| API-01 | Phase 24 | Pending |
+| API-02 | Phase 24 | Pending |
+| API-03 | Phase 24 | Pending |
+| UI-01 | Phase 24 | Pending |
+| UI-02 | Phase 24 | Pending |
+| UI-03 | Phase 24 | Pending |
+| UI-04 | Phase 24 | Pending |
+| UI-05 | Phase 24 | Pending |
+| UI-06 | Phase 24 | Pending |
 
 **Coverage:**
 - v4.0 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial definition*
+*Last updated: 2026-03-20 after roadmap creation*

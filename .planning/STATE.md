@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Source Virtual Inverter
 status: in_progress
-stopped_at: Defining requirements
-last_updated: "2026-03-20T17:05:47.609Z"
-last_activity: 2026-03-20 — Completed 20-02 discovery UI with scan button, progress bar, result list, auto-scan onboarding
+stopped_at: Roadmap created for v4.0
+last_updated: "2026-03-20T18:00:00.000Z"
+last_activity: 2026-03-20 — Roadmap created for v4.0 Multi-Source Virtual Inverter (4 phases, 28 requirements)
 progress:
   total_phases: 4
-  completed_phases: 4
+  completed_phases: 0
   total_plans: 7
-  completed_plans: 7
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,53 +21,41 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
-**Current focus:** v4.0 Multi-Source Virtual Inverter — defining requirements
+**Current focus:** Phase 21 - Data Model & OpenDTU Plugin
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements for v4.0
-Last activity: 2026-03-20 — Milestone v4.0 started
+Phase: 21 of 24 (Data Model & OpenDTU Plugin)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-03-20 -- Roadmap created for v4.0 milestone
 
 Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**v1.0:** 4 phases, 9 plans, ~1 hour
-**v2.0:** 4 phases, 7 plans, ~3 hours
-**v2.1:** 4 phases, 7 plans
-**v3.0:** 4 phases, 6 plans
+**Prior milestones:**
+- v1.0: 4 phases, 9 plans, ~1 hour
+- v2.0: 4 phases, 7 plans, ~3 hours
+- v2.1: 4 phases, 7 plans
+- v3.0: 4 phases, 6 plans
+- v3.1: 4 phases, 7 plans
+
+**v4.0:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
 
 ## Accumulated Context
 
 ### Decisions
 
-- Nested config API format {inverter: {...}, venus: {...}} (14-01)
-- Connection bobbles replace Test Connection button for live status (14-02)
-- Detection is one-shot: flag set on first Model 123 write only (15-01)
-- [Phase 16]: Migration warning (not auto-migration) for old solaredge: config key
-- [Phase 16]: Port 502 check is warning not hard fail (previous install may hold port)
-- [Phase 17-01]: Used device_id param (not slave) for pymodbus to match solaredge.py
-- [Phase 17-01]: DiscoveredDevice.supported as @property (computed from manufacturer)
-- [Phase 17-02]: Added supported field explicitly to asdict output (property not included by default)
-- [Phase 17-02]: Scanner API tests placed in test_scanner.py alongside module tests
-- [Phase 18-01]: Kept Config.inverter as backward-compat property (webapp.py still uses it)
-- [Phase 18-01]: InverterConfig = InverterEntry alias for external backward compat
-- [Phase 18-01]: Migration backup only created if .bak does not already exist
-- [Phase 18-02]: config_get returns inverters list (breaking change for frontend, updated in Phase 19)
-- [Phase 18-02]: config_save accepts both old single-inverter and new multi-inverter format
-- [Phase 18-02]: _reconfigure_active helper extracts hot-reload into reusable function
-- [Phase 19-01]: Inverters use instant CRUD (PUT/DELETE) not dirty-tracking like Venus config
-- [Phase 19-01]: Delete uses inline No/Yes confirmation instead of modal dialog
-- [Phase 19-01]: Edit form slides open with CSS max-height transition
-- [Phase 19-01]: loadInverters() re-fetches after every mutation to sync active flags
-- [Phase 20-01]: Scanner endpoint returns immediately with {status: started}, results via WebSocket
-- [Phase 20-01]: Concurrent scan guard uses app-level _scan_running flag
-- [Phase 20-01]: progress_callback uses asyncio.ensure_future to bridge sync to async WS broadcast
-- [Phase 20-02]: Discover button placed LEFT of + button for visual scan-then-add flow
-- [Phase 20-02]: Auto-scan single result auto-added silently with toast (no confirmation needed)
-- [Phase 20-02]: Scan ports saved on blur (no explicit save button) for minimal friction
+- [v4.0 Roadmap]: Coarse granularity -- 4 phases (21-24) covering 28 requirements
+- [v4.0 Roadmap]: Config refactor + OpenDTU plugin bundled in Phase 21 (both foundational)
+- [v4.0 Roadmap]: Discovery uses manual scan only -- no auto-scan-on-empty-list
+- [v3.1]: SolarEdge single-connection constraint remains (scanner uses sequential access)
+- [v3.1]: Inverters use instant CRUD (PUT/DELETE) not dirty-tracking
 
 ### Pending Todos
 
@@ -75,9 +63,12 @@ None.
 
 ### Blockers/Concerns
 
-- SolarEdge allows only ONE simultaneous Modbus TCP connection — scanner must use sequential access with short timeouts
+- OpenDTU dead-time (25-30s) estimated from GitHub issues -- validate on real HM-800 during Phase 21
+- Hoymiles serials at 192.168.3.98 must be confirmed from live API response
+- SolarEdge single-connection constraint affects concurrent polling design
 
 ## Session Continuity
 
-Last session: 2026-03-20T16:46:00Z
-Stopped at: Completed 20-02-PLAN.md — v3.1 milestone complete
+Last session: 2026-03-20
+Stopped at: Roadmap created for v4.0 Multi-Source Virtual Inverter
+Resume file: None
