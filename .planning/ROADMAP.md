@@ -6,7 +6,7 @@
 - v2.0 Dashboard & Power Control -- Phases 5-8 (shipped 2026-03-18)
 - v2.1 Dashboard Redesign & Polish -- Phases 9-12 (shipped 2026-03-18)
 - v3.0 Setup & Onboarding -- Phases 13-16 (shipped 2026-03-19)
-- v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (in progress)
+- v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (shipped 2026-03-20)
 
 ## Phases
 
@@ -63,7 +63,7 @@ Full details: `.planning/milestones/v3.0-ROADMAP.md`
 - [x] **Phase 17: Discovery Engine** - Backend network scanner with SunSpec verification finds inverters on the LAN (completed 2026-03-20)
 - [x] **Phase 18: Multi-Inverter Config** - Config structure supports multiple inverters with migration from single-inverter format (completed 2026-03-20)
 - [x] **Phase 19: Inverter Management UI** - Config page lists inverters with enable/disable and delete controls (completed 2026-03-20)
-- [ ] **Phase 20: Discovery UI & Onboarding** - Scan button, progress feedback, result preview, and auto-scan on first setup
+- [x] **Phase 20: Discovery UI & Onboarding** - Scan button, progress feedback, result preview, and auto-scan on first setup (completed 2026-03-20)
 
 ## Phase Details
 
@@ -125,8 +125,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 20-01-PLAN.md -- Background scan endpoint with WS progress streaming, ScannerConfig persistence
-- [ ] 20-02-PLAN.md -- Discovery UI: discover button, progress bar, result list, auto-scan onboarding, ports field
+- [x] 20-01-PLAN.md -- Background scan endpoint with WS progress streaming, ScannerConfig persistence
+- [x] 20-02-PLAN.md -- Discovery UI: discover button, progress bar, result list, auto-scan onboarding, ports field
 
 ## Progress
 
@@ -153,4 +153,4 @@ Plans:
 | 17. Discovery Engine | 2/2 | Complete    | 2026-03-20 | - |
 | 18. Multi-Inverter Config | 2/2 | Complete    | 2026-03-20 | - |
 | 19. Inverter Management UI | v3.1 | Complete    | 2026-03-20 | 2026-03-20 |
-| 20. Discovery UI & Onboarding | 1/2 | In Progress|  | - |
+| 20. Discovery UI & Onboarding | 2/2 | Complete | v3.1 | 2026-03-20 |

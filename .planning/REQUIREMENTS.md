@@ -25,9 +25,9 @@ Requirements for Auto-Discovery & Inverter Management. Each maps to roadmap phas
 
 ### UX/Onboarding
 
-- [ ] **UX-01**: Wenn kein Inverter konfiguriert ist, startet automatisch ein Hintergrund-Scan beim Oeffnen der Config-Seite
-- [ ] **UX-02**: User kann manuell einen Re-Scan triggern ueber einen Auto-Discover Button in der Config-Leiste
-- [ ] **UX-03**: Scan-Ergebnisse werden als Vorschau-Liste angezeigt, User bestaetigt Uebernahme
+- [x] **UX-01**: Wenn kein Inverter konfiguriert ist, startet automatisch ein Hintergrund-Scan beim Oeffnen der Config-Seite
+- [x] **UX-02**: User kann manuell einen Re-Scan triggern ueber einen Auto-Discover Button in der Config-Leiste
+- [x] **UX-03**: Scan-Ergebnisse werden als Vorschau-Liste angezeigt, User bestaetigt Uebernahme
 
 ## Future Requirements
 
@@ -61,9 +61,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-03 | Phase 19 | Complete |
 | CONF-04 | Phase 20 | Complete |
 | CONF-05 | Phase 18 | Complete |
-| UX-01 | Phase 20 | Pending |
-| UX-02 | Phase 20 | Pending |
-| UX-03 | Phase 20 | Pending |
+| UX-01 | Phase 20 | Complete |
+| UX-02 | Phase 20 | Complete |
+| UX-03 | Phase 20 | Complete |
 
 **Coverage:**
 - v3.1 requirements: 13 total

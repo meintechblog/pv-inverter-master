@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Auto-Discovery & Inverter Management
 status: completed
-stopped_at: Phase 20 context gathered
-last_updated: "2026-03-20T15:51:23.459Z"
-last_activity: 2026-03-20 — Completed 19-01 inverter management UI with toggle, delete, edit, add
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-03-20T16:46:00Z"
+last_activity: 2026-03-20 — Completed 20-02 discovery UI with scan button, progress bar, result list, auto-scan onboarding
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 4
+  total_plans: 7
+  completed_plans: 7
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v3.1 Phase 19 — Inverter Management UI
+**Current focus:** v3.1 complete — all phases shipped
 
 ## Current Position
 
 Phase: 20 of 20 (Discovery UI & Onboarding)
-Plan: 1 of 1 complete
-Status: Phase 20 Plan 01 complete
-Last activity: 2026-03-20 — Completed 20-01 scanner backend enhancement (background task + WS progress + ScannerConfig)
+Plan: 2 of 2 complete
+Status: Phase 20 complete — v3.1 milestone shipped
+Last activity: 2026-03-20 — Completed 20-02 discovery UI with scan button, progress bar, result list, auto-scan onboarding
 
 Progress: [██████████] 100%
 
@@ -65,6 +65,9 @@ Progress: [██████████] 100%
 - [Phase 20-01]: Scanner endpoint returns immediately with {status: started}, results via WebSocket
 - [Phase 20-01]: Concurrent scan guard uses app-level _scan_running flag
 - [Phase 20-01]: progress_callback uses asyncio.ensure_future to bridge sync to async WS broadcast
+- [Phase 20-02]: Discover button placed LEFT of + button for visual scan-then-add flow
+- [Phase 20-02]: Auto-scan single result auto-added silently with toast (no confirmation needed)
+- [Phase 20-02]: Scan ports saved on blur (no explicit save button) for minimal friction
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T16:37:03Z
-Stopped at: Completed 20-01-PLAN.md
+Last session: 2026-03-20T16:46:00Z
+Stopped at: Completed 20-02-PLAN.md — v3.1 milestone complete
