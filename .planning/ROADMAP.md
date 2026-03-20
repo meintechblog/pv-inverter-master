@@ -122,10 +122,11 @@ Plans:
   2. Individual inverters can be excluded from power limiting (monitoring only) and still contribute to the aggregated power reading
   3. Power limit distribution respects per-device latency: SolarEdge limits apply immediately while Hoymiles limits use a 25-30s dead-time guard to prevent oscillation
   4. When Venus OS requests e.g. 50% limit, the highest-priority inverter is throttled first; lower-priority inverters are only throttled if the first cannot absorb the full reduction
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 23-01: PowerLimitDistributor with priority ordering, dead-time guards, and exclusion support
+- [ ] 23-01-PLAN.md — PowerLimitDistributor with TDD: waterfall algorithm, dead-time, monitoring-only exclusion
+- [ ] 23-02-PLAN.md — Wire distributor into proxy.py and __main__.py
 
 ### Phase 24: Device-Centric API & Frontend
 **Goal**: Each device (inverter, Venus OS, virtual PV) has its own sidebar entry, dashboard view, and management interface
@@ -152,5 +153,5 @@ Phases execute in numeric order: 21 -> 22 -> 23 -> 24
 |-------|-----------|----------------|--------|-----------|
 | 21. Data Model & OpenDTU Plugin | 2/2 | Complete    | 2026-03-20 | - |
 | 22. Device Registry & Aggregation | 2/2 | Complete    | 2026-03-20 | - |
-| 23. Power Limit Distribution | v4.0 | 0/1 | Not started | - |
+| 23. Power Limit Distribution | v4.0 | 0/2 | Not started | - |
 | 24. Device-Centric API & Frontend | v4.0 | 0/2 | Not started | - |
