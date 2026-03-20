@@ -966,6 +966,8 @@ async function toggleInverter(id, enabled) {
             return;
         }
         showToast(enabled ? 'Inverter enabled' : 'Inverter disabled', 'success');
+        // Prevent auto-scan when disabling the last inverter
+        _autoScanDone = true;
         loadInverters();
     } catch (e) {
         showToast('Toggle failed: ' + e.message, 'error');
@@ -1000,6 +1002,8 @@ async function deleteInverter(id) {
             return;
         }
         showToast('Inverter deleted', 'success');
+        // Prevent auto-scan from re-adding the just-deleted inverter
+        _autoScanDone = true;
         loadInverters();
     } catch (e) {
         showToast('Delete failed: ' + e.message, 'error');
