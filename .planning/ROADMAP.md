@@ -76,7 +76,7 @@ Full details: `.planning/milestones/v3.1-ROADMAP.md`
 **Milestone Goal:** Aggregate N physical inverters (SolarEdge + Hoymiles/OpenDTU) into one virtual Fronius device for Venus OS, with device-centric webapp and priority-based power limiting.
 
 - [x] **Phase 21: Data Model & OpenDTU Plugin** - Typed config, AppContext refactor, and OpenDTU plugin for Hoymiles inverters (completed 2026-03-20)
-- [ ] **Phase 22: Device Registry & Aggregation** - Multi-device poll management and virtual inverter aggregation for Venus OS
+- [x] **Phase 22: Device Registry & Aggregation** - Multi-device poll management and virtual inverter aggregation for Venus OS (completed 2026-03-20)
 - [ ] **Phase 23: Power Limit Distribution** - Priority-based power limiting across heterogeneous inverters
 - [ ] **Phase 24: Device-Centric API & Frontend** - Per-device REST endpoints, WebSocket updates, and device-centric UI
 
@@ -151,6 +151,6 @@ Phases execute in numeric order: 21 -> 22 -> 23 -> 24
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Data Model & OpenDTU Plugin | 2/2 | Complete    | 2026-03-20 | - |
-| 22. Device Registry & Aggregation | 1/2 | In Progress|  | - |
+| 22. Device Registry & Aggregation | 2/2 | Complete   | 2026-03-20 | - |
 | 23. Power Limit Distribution | v4.0 | 0/1 | Not started | - |
 | 24. Device-Centric API & Frontend | v4.0 | 0/2 | Not started | - |

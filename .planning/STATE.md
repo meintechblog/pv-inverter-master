@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Source Virtual Inverter
 status: in-progress
-stopped_at: Completed 22-01 (DeviceRegistry)
-last_updated: "2026-03-20T19:51:46Z"
-last_activity: 2026-03-20 -- Completed 22-01 (DeviceRegistry)
+stopped_at: Completed 22-02 (AggregationLayer + Rewire)
+last_updated: "2026-03-20T21:15:00Z"
+last_activity: 2026-03-20 -- Completed 22-02 (AggregationLayer + Rewire)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 3
-  completed_plans: 3
-  percent: 38
+  completed_plans: 4
+  percent: 50
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 22 of 24 (Device Registry & Aggregation)
-Plan: 1 of 2 in current phase
+Plan: 2 of 2 in current phase
 Status: in-progress
-Last activity: 2026-03-20 -- Completed 22-01 (DeviceRegistry)
+Last activity: 2026-03-20 -- Completed 22-02 (AggregationLayer + Rewire)
 
-Progress: [███░░░░░░░] 38%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Progress: [███░░░░░░░] 38%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 21 | 2/2 | 18min | 9min |
-| 22 | 1/2 | 5min | 5min |
+| 22 | 2/2 | 25min | 12min |
 
 ## Accumulated Context
 
@@ -66,6 +66,10 @@ Progress: [███░░░░░░░] 38%
 - [22-01]: Lazy imports for plugin_factory/DashboardCollector to avoid Python 3.9 slots= incompatibility
 - [22-01]: Poll loop stores raw data but defers cache writes and aggregation to Plan 02
 - [22-01]: enable/disable_device delegate to start/stop_device for simplicity
+- [22-02]: Power limit forwarding deferred to Phase 23 -- local-only acceptance with warning log
+- [22-02]: Modbus server kept running when 0 active devices (stale errors) to preserve Venus OS discovery
+- [22-02]: Fixed SFs for aggregated output: SF=0 power, SF=-1 voltage, SF=-2 current/freq
+- [22-02]: Webapp plugin references made optional with None guards for multi-device mode
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T19:51:46Z
-Stopped at: Completed 22-01-PLAN.md
-Resume file: .planning/phases/22-device-registry-aggregation/22-01-SUMMARY.md
+Last session: 2026-03-20T21:15:00Z
+Stopped at: Completed 22-02-PLAN.md
+Resume file: .planning/phases/22-device-registry-aggregation/22-02-SUMMARY.md

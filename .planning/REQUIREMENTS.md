@@ -29,10 +29,10 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 
 ### Virtual Inverter Aggregation
 
-- [ ] **AGG-01**: Aggregation summiert Power, Current und Energy aller aktiven Inverter in physikalischen Einheiten (Watt, Ampere, Wh)
-- [ ] **AGG-02**: Aggregierte Werte werden in SunSpec-Register konvertiert mit konsistenten Scale Factors fuer Venus OS
-- [ ] **AGG-03**: Bei Teilausfall einzelner Inverter liefert die Aggregation weiterhin Daten der erreichbaren Geraete
-- [ ] **AGG-04**: User kann den Namen des virtuellen Inverters fuer Venus OS definieren (Standardname vorausgewaehlt)
+- [x] **AGG-01**: Aggregation summiert Power, Current und Energy aller aktiven Inverter in physikalischen Einheiten (Watt, Ampere, Wh)
+- [x] **AGG-02**: Aggregierte Werte werden in SunSpec-Register konvertiert mit konsistenten Scale Factors fuer Venus OS
+- [x] **AGG-03**: Bei Teilausfall einzelner Inverter liefert die Aggregation weiterhin Daten der erreichbaren Geraete
+- [x] **AGG-04**: User kann den Namen des virtuellen Inverters fuer Venus OS definieren (Standardname vorausgewaehlt)
 
 ### Power Limit Distribution
 
@@ -95,10 +95,10 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 | REG-01 | Phase 22 | Complete |
 | REG-02 | Phase 22 | Complete |
 | REG-03 | Phase 22 | Complete |
-| AGG-01 | Phase 22 | Pending |
-| AGG-02 | Phase 22 | Pending |
-| AGG-03 | Phase 22 | Pending |
-| AGG-04 | Phase 22 | Pending |
+| AGG-01 | Phase 22 | Complete |
+| AGG-02 | Phase 22 | Complete |
+| AGG-03 | Phase 22 | Complete |
+| AGG-04 | Phase 22 | Complete |
 | PWR-01 | Phase 23 | Pending |
 | PWR-02 | Phase 23 | Pending |
 | PWR-03 | Phase 23 | Pending |
