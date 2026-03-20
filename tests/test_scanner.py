@@ -317,3 +317,202 @@ class TestScanSubnet:
             result = await scan_subnet(cfg)
 
         assert result == []
+
+
+# ── Common Block parsing ───────────────────────────────────────
+
+class TestCommonBlockParse:
+    """Validate that _verify_sunspec correctly parses Common Block fields."""
+
+    def _make_client(self, common_regs):
+        """Create a mock Modbus client returning SunSpec header + common block."""
+        client = AsyncMock()
+        client.connect = AsyncMock()
+        client.close = MagicMock()
+        header_resp = _make_mock_response([0x5375, 0x6E53])
+        common_resp = _make_mock_response(common_regs)
+        client.read_holding_registers = AsyncMock(
+            side_effect=[header_resp, common_resp]
+        )
+        return client
+
+    @pytest.mark.asyncio
+    async def test_parse_manufacturer_solaredge(self):
+        regs = _build_common_block(manufacturer="SolarEdge")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.manufacturer == "SolarEdge"
+
+    @pytest.mark.asyncio
+    async def test_parse_model(self):
+        regs = _build_common_block(model="SE30K")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.model == "SE30K"
+
+    @pytest.mark.asyncio
+    async def test_parse_serial(self):
+        regs = _build_common_block(serial="7E1234AB")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.serial_number == "7E1234AB"
+
+    @pytest.mark.asyncio
+    async def test_parse_firmware(self):
+        regs = _build_common_block(firmware="4.18.32")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.firmware_version == "4.18.32"
+
+    @pytest.mark.asyncio
+    async def test_parse_non_solaredge_manufacturer(self):
+        regs = _build_common_block(manufacturer="Fronius")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.manufacturer == "Fronius"
+        assert device.supported is False
+
+    @pytest.mark.asyncio
+    async def test_parse_manufacturer_case_insensitive(self):
+        regs = _build_common_block(manufacturer="SOLAREDGE")
+        client = self._make_client(regs)
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is not None
+        assert device.supported is True
+
+    @pytest.mark.asyncio
+    async def test_partial_common_block_error(self):
+        """Valid SunSpec header but Common Block read returns error."""
+        client = AsyncMock()
+        client.connect = AsyncMock()
+        client.close = MagicMock()
+        header_resp = _make_mock_response([0x5375, 0x6E53])
+        error_resp = _make_mock_response([], is_error=True)
+        client.read_holding_registers = AsyncMock(
+            side_effect=[header_resp, error_resp]
+        )
+        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+                    return_value=client):
+            device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
+        assert device is None
+
+
+# ── Unit ID scanning ───────────────────────────────────────────
+
+class TestUnitIdScan:
+    """Validate multi-unit-ID scanning behavior."""
+
+    @pytest.mark.asyncio
+    async def test_default_scans_unit_id_1_only(self):
+        cfg = ScanConfig(ports=[502])
+        subnet = IPv4Network("10.0.0.0/30")  # hosts: .1, .2
+
+        async def mock_probe(ip, port, timeout):
+            return ip == "10.0.0.1"
+
+        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("venus_os_fronius_proxy.scanner._verify_sunspec",
+                   new_callable=AsyncMock, return_value=None) as mock_verify:
+            await scan_subnet(cfg)
+
+        # Default scan_unit_ids=[1], so _verify_sunspec should only be called with unit_id=1
+        unit_ids = [call.args[2] for call in mock_verify.call_args_list]
+        assert unit_ids == [1]
+
+    @pytest.mark.asyncio
+    async def test_extended_scan_unit_ids(self):
+        cfg = ScanConfig(ports=[502], scan_unit_ids=list(range(1, 11)))
+        subnet = IPv4Network("10.0.0.0/30")
+
+        async def mock_probe(ip, port, timeout):
+            return ip == "10.0.0.1"
+
+        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("venus_os_fronius_proxy.scanner._verify_sunspec",
+                   new_callable=AsyncMock, return_value=None) as mock_verify:
+            await scan_subnet(cfg)
+
+        # Should be called 10 times (unit IDs 1-10) for the one open host
+        unit_ids = [call.args[2] for call in mock_verify.call_args_list]
+        assert sorted(unit_ids) == list(range(1, 11))
+
+    @pytest.mark.asyncio
+    async def test_multiple_unit_ids_found(self):
+        cfg = ScanConfig(ports=[502], scan_unit_ids=[1, 2])
+        subnet = IPv4Network("10.0.0.0/30")
+
+        device1 = DiscoveredDevice(
+            ip="10.0.0.1", port=502, unit_id=1,
+            manufacturer="SolarEdge", model="SE30K",
+            serial_number="AAA", firmware_version="1.0",
+        )
+        device2 = DiscoveredDevice(
+            ip="10.0.0.1", port=502, unit_id=2,
+            manufacturer="SolarEdge", model="SE10K",
+            serial_number="BBB", firmware_version="2.0",
+        )
+
+        async def mock_probe(ip, port, timeout):
+            return ip == "10.0.0.1"
+
+        async def mock_verify(ip, port, unit_id, timeout):
+            if ip == "10.0.0.1" and unit_id == 1:
+                return device1
+            if ip == "10.0.0.1" and unit_id == 2:
+                return device2
+            return None
+
+        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("venus_os_fronius_proxy.scanner._verify_sunspec", side_effect=mock_verify):
+            result = await scan_subnet(cfg)
+
+        assert len(result) == 2
+        assert result[0].unit_id == 1
+        assert result[1].unit_id == 2
+
+    @pytest.mark.asyncio
+    async def test_unit_id_no_response(self):
+        cfg = ScanConfig(ports=[502], scan_unit_ids=[1, 2])
+        subnet = IPv4Network("10.0.0.0/30")
+
+        device1 = DiscoveredDevice(
+            ip="10.0.0.1", port=502, unit_id=1,
+            manufacturer="SolarEdge", model="SE30K",
+            serial_number="AAA", firmware_version="1.0",
+        )
+
+        async def mock_probe(ip, port, timeout):
+            return ip == "10.0.0.1"
+
+        async def mock_verify(ip, port, unit_id, timeout):
+            if ip == "10.0.0.1" and unit_id == 1:
+                return device1
+            return None  # unit_id=2 returns no SunSpec
+
+        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("venus_os_fronius_proxy.scanner._verify_sunspec", side_effect=mock_verify):
+            result = await scan_subnet(cfg)
+
+        assert len(result) == 1
+        assert result[0].unit_id == 1
