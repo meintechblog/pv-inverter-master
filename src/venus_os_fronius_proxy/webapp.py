@@ -984,6 +984,20 @@ async def _reconfigure_active(app: web.Application, config: Config) -> None:
             await plugin.reconfigure(active.host, active.port, active.unit_id)
             log.info("active_inverter_changed", host=active.host, port=active.port, unit_id=active.unit_id)
         else:
+            await plugin.close()
+            # Clear cached dashboard data so UI shows disconnected state
+            collector = app["shared_ctx"].get("dashboard_collector")
+            if collector is not None:
+                collector.last_snapshot = None
+            # Broadcast no_inverter event to connected clients
+            clients = app.get("ws_clients")
+            if clients:
+                payload = json.dumps({"type": "no_inverter"})
+                for ws in set(clients):
+                    try:
+                        await ws.send_str(payload)
+                    except (ConnectionError, RuntimeError, ConnectionResetError):
+                        clients.discard(ws)
             log.warning("no_active_inverter", msg="All inverters disabled or removed")
     finally:
         app["reconfiguring"] = False

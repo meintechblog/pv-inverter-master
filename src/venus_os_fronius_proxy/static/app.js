@@ -109,6 +109,7 @@ function connectWebSocket() {
             if (msg.type === 'scan_progress') handleScanProgress(msg.data);
             if (msg.type === 'scan_complete') handleScanComplete(msg.data);
             if (msg.type === 'scan_error') handleScanError(msg.data);
+            if (msg.type === 'no_inverter') handleNoInverter();
         } catch (e) {
             console.error('WebSocket message parse error:', e);
         }
@@ -244,6 +245,35 @@ function updateAutoDetectBanner(snapshot) {
         });
     }
 })();
+
+// ===== No Inverter Handler =====
+
+function handleNoInverter() {
+    // Clear gauge
+    updateGauge(0);
+    updateGaugeStatus('No Inverter');
+
+    // Clear 3-phase table
+    ['l1','l2','l3'].forEach(function(phase) {
+        var vEl = document.getElementById(phase + '-voltage');
+        var aEl = document.getElementById(phase + '-current');
+        var wEl = document.getElementById(phase + '-power');
+        if (vEl) vEl.textContent = '-- V';
+        if (aEl) aEl.textContent = '-- A';
+        if (wEl) wEl.textContent = '-- W';
+    });
+
+    // Clear status panel fields
+    var statusFields = ['inv-status','inv-temp','inv-dc-power','inv-dc-voltage','inv-freq',
+                        'inv-energy-today','inv-peak-power','inv-operating-hours','inv-efficiency'];
+    statusFields.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = '--';
+    });
+
+    // Show hint to configure
+    showToast('Kein aktiver Inverter konfiguriert', 'warning');
+}
 
 // ===== Snapshot Handler =====
 
