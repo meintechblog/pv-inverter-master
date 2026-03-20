@@ -107,10 +107,10 @@ Plans:
   2. Each inverter has a toggle slider that enables or disables it, with change persisted on save
   3. Each inverter has a delete action with confirmation that removes it from config
   4. The active (proxied) inverter is visually distinguished from disabled entries
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 19-01: Inverter list component with toggle and delete
+- [ ] 19-01-PLAN.md -- Inverter list UI with toggle, delete, edit, and add (HTML + CSS + JS)
 
 ### Phase 20: Discovery UI & Onboarding
 **Goal**: User can trigger scans, see live progress, preview results, and new setups auto-discover inverters
