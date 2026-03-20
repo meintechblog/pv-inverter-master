@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Pre-mock dashboard module to avoid timeseries.py slots= incompatibility on Python < 3.10
+if "venus_os_fronius_proxy.dashboard" not in sys.modules:
+    _mock_dashboard = MagicMock()
+    _mock_dashboard.DashboardCollector = MagicMock
+    sys.modules["venus_os_fronius_proxy.dashboard"] = _mock_dashboard
 
 from venus_os_fronius_proxy.config import Config, InverterEntry, GatewayConfig
 from venus_os_fronius_proxy.connection import ConnectionManager, ConnectionState
@@ -63,6 +70,11 @@ def entry_disabled():
     return InverterEntry(id="dev_off", host="192.168.1.12", port=502, enabled=False, type="solaredge")
 
 
+def _patch_factories(mock_plugin):
+    """Return context manager patching plugin_factory."""
+    return patch("venus_os_fronius_proxy.plugins.plugin_factory", return_value=mock_plugin)
+
+
 @pytest.mark.asyncio
 async def test_start_device(app_ctx, entry_a):
     """start_device creates plugin, DeviceState, and starts poll task."""
@@ -73,7 +85,7 @@ async def test_start_device(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_device("dev_a")
 
     assert "dev_a" in app_ctx.devices
@@ -97,7 +109,7 @@ async def test_start_multiple_devices(app_ctx, entry_a, entry_b):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_all()
 
     assert registry.get_active_count() == 2
@@ -116,7 +128,7 @@ async def test_stop_device(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_device("dev_a")
         await asyncio.sleep(0.02)
         await registry.stop_device("dev_a")
@@ -136,7 +148,7 @@ async def test_enable_disable(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_device("dev_a")
         assert registry.get_active_count() == 1
 
@@ -162,7 +174,7 @@ async def test_disabled_device_skipped(app_ctx, entry_a, entry_disabled):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_all()
 
     assert registry.get_active_count() == 1
@@ -182,7 +194,7 @@ async def test_no_task_leak(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         baseline = len(asyncio.all_tasks())
 
         for _ in range(5):
@@ -205,7 +217,7 @@ async def test_per_device_state(app_ctx, entry_a, entry_b):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_all()
 
     state_a = app_ctx.devices["dev_a"]
@@ -229,7 +241,7 @@ async def test_on_poll_success_callback(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin()
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_device("dev_a")
         await asyncio.sleep(0.05)
 
@@ -241,13 +253,12 @@ async def test_on_poll_success_callback(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_poll_loop_handles_cancel(app_ctx, entry_a):
     """CancelledError propagates out of poll loop (not caught by except Exception)."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry, _device_poll_loop
+    from venus_os_fronius_proxy.device_registry import _device_poll_loop
 
-    config = _make_config(entry_a)
     on_success = AsyncMock()
 
     mock_plugin = _make_mock_plugin()
-    # Make poll hang so we can cancel it
+    # Make poll raise CancelledError
     mock_plugin.poll = AsyncMock(side_effect=asyncio.CancelledError)
 
     device_state = DeviceState(
@@ -280,7 +291,7 @@ async def test_backoff_on_failure(app_ctx, entry_a):
     registry = DeviceRegistry(app_ctx, config, on_poll_success=on_success)
 
     mock_plugin = _make_mock_plugin(poll_result=_fail_result())
-    with patch("venus_os_fronius_proxy.device_registry.plugin_factory", return_value=mock_plugin):
+    with _patch_factories(mock_plugin):
         await registry.start_device("dev_a")
         # Let a few poll failures happen
         await asyncio.sleep(0.1)
