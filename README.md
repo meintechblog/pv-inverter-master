@@ -161,4 +161,4 @@ Deploy from dev machine to LXC:
 
 ## License
 
-MIT
+[Energy Community License (ECL-1.0)](LICENSE) — Free to use, modify, and redistribute. Commercial resale of the software itself is not permitted. See [LICENSE](LICENSE) for details.
