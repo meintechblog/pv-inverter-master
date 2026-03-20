@@ -11,8 +11,8 @@ Requirements for Auto-Discovery & Inverter Management. Each maps to roadmap phas
 
 - [x] **DISC-01**: System kann das lokale Subnet scannen und alle IPs auf konfigurierbaren Ports (Default: 502, 1502) auf Modbus TCP testen
 - [x] **DISC-02**: System verifiziert gefundene Modbus-Geraete via SunSpec "SunS" Magic Number an Register 40000
-- [ ] **DISC-03**: System liest Manufacturer, Model, Serial Number und Firmware-Version aus SunSpec Common Block
-- [ ] **DISC-04**: System scannt Unit ID 1 (Primary) und optional 2-10 (RS485 Followers) pro gefundener IP
+- [x] **DISC-03**: System liest Manufacturer, Model, Serial Number und Firmware-Version aus SunSpec Common Block
+- [x] **DISC-04**: System scannt Unit ID 1 (Primary) und optional 2-10 (RS485 Followers) pro gefundener IP
 - [ ] **DISC-05**: User sieht Scan-Fortschritt im UI (Fortschrittsbalken oder Animation waehrend des ~30s Scans)
 
 ### Config Management
@@ -53,8 +53,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | DISC-01 | Phase 17 | Complete |
 | DISC-02 | Phase 17 | Complete |
-| DISC-03 | Phase 17 | Pending |
-| DISC-04 | Phase 17 | Pending |
+| DISC-03 | Phase 17 | Complete |
+| DISC-04 | Phase 17 | Complete |
 | DISC-05 | Phase 20 | Pending |
 | CONF-01 | Phase 18 | Pending |
 | CONF-02 | Phase 19 | Pending |

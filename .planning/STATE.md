@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Auto-Discovery & Inverter Management
 status: executing
-stopped_at: Completed 17-01-PLAN.md
-last_updated: "2026-03-20T08:04:00.000Z"
-last_activity: 2026-03-20 — Completed 17-01 scanner module (TDD, 22 tests)
+stopped_at: Completed 17-02-PLAN.md
+last_updated: "2026-03-20T08:10:00.000Z"
+last_activity: 2026-03-20 — Completed 17-02 scanner API + Common Block tests (37 tests)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 50
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 17 of 20 (Discovery Engine)
-Plan: 1 of 2 complete
-Status: Executing Phase 17 plans
-Last activity: 2026-03-20 — Completed 17-01 scanner module (TDD, 22 tests)
+Plan: 2 of 2 complete
+Status: Phase 17 complete
+Last activity: 2026-03-20 — Completed 17-02 scanner API + Common Block tests (37 tests)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -50,6 +50,8 @@ Progress: [█████░░░░░] 50%
 - [Phase 16]: Port 502 check is warning not hard fail (previous install may hold port)
 - [Phase 17-01]: Used device_id param (not slave) for pymodbus to match solaredge.py
 - [Phase 17-01]: DiscoveredDevice.supported as @property (computed from manufacturer)
+- [Phase 17-02]: Added supported field explicitly to asdict output (property not included by default)
+- [Phase 17-02]: Scanner API tests placed in test_scanner.py alongside module tests
 
 ### Pending Todos
 
@@ -61,5 +63,5 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T08:04:00Z
-Stopped at: Completed 17-01-PLAN.md
+Last session: 2026-03-20T08:10:00Z
+Stopped at: Completed 17-02-PLAN.md
