@@ -991,7 +991,7 @@ async def _reconfigure_active(app: web.Application, config: Config) -> None:
             # Clear cached dashboard data so UI shows disconnected state
             collector = app["shared_ctx"].get("dashboard_collector")
             if collector is not None:
-                collector.last_snapshot = None
+                collector._last_snapshot = None
             # Broadcast no_inverter event to connected clients
             clients = app.get("ws_clients")
             if clients:
