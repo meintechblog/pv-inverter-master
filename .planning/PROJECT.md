@@ -47,7 +47,13 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie ei
 
 ### Active
 
-(Keine — naechstes Milestone definieren mit `/gsd:new-milestone`)
+- [ ] Auto-Discovery: Netzwerk-Scan findet SolarEdge-Inverter automatisch (Subnet, Ports 502/1502, SunSpec-Verifikation)
+- [ ] Auto-Scan bei Ersteinrichtung wenn kein Inverter konfiguriert
+- [ ] Manueller Re-Scan ueber Config-UI
+- [ ] Multi-Inverter Config: Liste mit Enable/Disable Toggle und Loeschen
+- [ ] Inverter-Eintraege werden automatisch aus Scan-Ergebnissen angelegt (IP, Port, Unit ID, Model, Serial)
+- [ ] Konfigurierbare Scan-Ports (Default: 502, 1502)
+- [ ] Unit ID Scan (Default: 1, optional 2-10 fuer RS485 Chains)
 
 ### Out of Scope
 
@@ -57,6 +63,7 @@ Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie ei
 - Vollstaendiger Energy Flow Diagram — Proxy hat nur PV-Daten, kein Grid/Battery/Load
 - Docker/Container-Orchestrierung — Direktes Deployment auf LXC (Debian 13)
 - Venus OS Modbus-Polling (Battery/Grid) — Register-Adressen unsicher, separater Client noetig
+- Multi-Inverter parallel an Venus OS — v3.1 baut Management, aber nur ein aktiver Proxy-Inverter
 
 ## Context
 
@@ -110,5 +117,17 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket), paho-mqtt, s
 | Model 123 Write Detection | Venus OS Erkennung ueber Modbus Write | ✓ Good — zuverlaessig, kein False Positive |
 | No Auto-Save bei Detection | User muss Config bestaetigen | ✓ Good — Safety first |
 
+## Current Milestone: v3.1 Auto-Discovery & Inverter Management
+
+**Goal:** SolarEdge-Inverter werden automatisch im LAN gefunden und in die Config eingetragen. Multi-Inverter Management mit Aktivierung/Deaktivierung/Loeschung.
+
+**Target features:**
+- Netzwerk-Scan (ganzes Subnet, Ports 502+1502, SunSpec "SunS" Verifikation)
+- SunSpec-Identifikation (Manufacturer, Model, Serial Number, Unit ID)
+- Auto-Scan bei Ersteinrichtung (kein Inverter konfiguriert)
+- Manueller Re-Scan via Config-UI (Auto-Discover Button + Port-Feld)
+- Multi-Inverter Config-Management (Liste, Enable/Disable Slider, Loeschen)
+- Ein aktiver Inverter fuer Proxy (Multi-Proxy als Future Scope)
+
 ---
-*Last updated: 2026-03-19 after v3.0 milestone completion*
+*Last updated: 2026-03-20 after v3.1 milestone start*

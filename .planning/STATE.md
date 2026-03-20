@@ -1,36 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Setup & Onboarding
-status: completed
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-19T21:21:39.674Z"
-last_activity: 2026-03-19 — Completed 16-01 (install script fix + README rewrite)
+milestone: v3.1
+milestone_name: Auto-Discovery & Inverter Management
+status: requirements
+stopped_at: null
+last_updated: "2026-03-20"
+last_activity: 2026-03-20 — Milestone v3.1 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-19)
+See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v3.0 Setup & Onboarding — Phase 16 complete (milestone complete)
+**Current focus:** v3.1 Auto-Discovery & Inverter Management — Defining requirements
 
 ## Current Position
 
-Phase: 16 of 16 (Install Script & README)
-Plan: 1 of 1
-Status: Phase 16 complete — v3.0 milestone complete
-Last activity: 2026-03-19 — Completed 16-01 (install script fix + README rewrite)
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-20 — Milestone v3.1 started
 
 ## Performance Metrics
 
@@ -70,12 +68,9 @@ None.
 
 ### Blockers/Concerns
 
-- ~~MQTT host + portal ID currently hardcoded in 5 locations~~ — Resolved in 13-01
-- ~~CONNACK return code never parsed (silent false-positive)~~ — Resolved in 13-01
-- ~~Install script YAML key mismatch (`solaredge:` vs `inverter:`)~~ — Resolved in 16-01
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T21:16:26.982Z
-Stopped at: Completed 16-01-PLAN.md
-Resume file: .planning/phases/16-install-script-readme/16-01-SUMMARY.md
+Last session: 2026-03-20
+Stopped at: Milestone v3.1 initialization
