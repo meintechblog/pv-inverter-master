@@ -2,15 +2,16 @@
 
 ## Milestones
 
-- ✅ **v1.0 MVP** -- Phases 1-4 (shipped 2026-03-18)
-- ✅ **v2.0 Dashboard & Power Control** -- Phases 5-8 (shipped 2026-03-18)
-- ✅ **v2.1 Dashboard Redesign & Polish** -- Phases 9-12 (shipped 2026-03-18)
-- ✅ **v3.0 Setup & Onboarding** -- Phases 13-16 (shipped 2026-03-19)
+- v1.0 MVP -- Phases 1-4 (shipped 2026-03-18)
+- v2.0 Dashboard & Power Control -- Phases 5-8 (shipped 2026-03-18)
+- v2.1 Dashboard Redesign & Polish -- Phases 9-12 (shipped 2026-03-18)
+- v3.0 Setup & Onboarding -- Phases 13-16 (shipped 2026-03-19)
+- v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-4) -- SHIPPED 2026-03-18</summary>
+<summary>v1.0 MVP (Phases 1-4) -- SHIPPED 2026-03-18</summary>
 
 - [x] Phase 1: Protocol Research & Validation (2/2 plans)
 - [x] Phase 2: Core Proxy / Read Path (2/2 plans)
@@ -22,7 +23,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 </details>
 
 <details>
-<summary>✅ v2.0 Dashboard & Power Control (Phases 5-8) -- SHIPPED 2026-03-18</summary>
+<summary>v2.0 Dashboard & Power Control (Phases 5-8) -- SHIPPED 2026-03-18</summary>
 
 - [x] Phase 5: Data Pipeline & Theme Foundation (2/2 plans)
 - [x] Phase 6: Live Dashboard (2/2 plans)
@@ -34,7 +35,7 @@ Full details: `.planning/milestones/v2.0-ROADMAP.md`
 </details>
 
 <details>
-<summary>✅ v2.1 Dashboard Redesign & Polish (Phases 9-12) -- SHIPPED 2026-03-18</summary>
+<summary>v2.1 Dashboard Redesign & Polish (Phases 9-12) -- SHIPPED 2026-03-18</summary>
 
 - [x] Phase 9: CSS Animations & Toast System (2/2 plans)
 - [x] Phase 10: Peak Statistics & Smart Notifications (2/2 plans)
@@ -46,7 +47,7 @@ Full details: `.planning/milestones/v2.1-ROADMAP.md`
 </details>
 
 <details>
-<summary>✅ v3.0 Setup & Onboarding (Phases 13-16) -- SHIPPED 2026-03-19</summary>
+<summary>v3.0 Setup & Onboarding (Phases 13-16) -- SHIPPED 2026-03-19</summary>
 
 - [x] Phase 13: MQTT Config Backend (2/2 plans) -- completed 2026-03-19
 - [x] Phase 14: Config Page & Dashboard UX (2/2 plans) -- completed 2026-03-19
@@ -57,10 +58,81 @@ Full details: `.planning/milestones/v3.0-ROADMAP.md`
 
 </details>
 
+### v3.1 Auto-Discovery & Inverter Management (In Progress)
+
+- [ ] **Phase 17: Discovery Engine** - Backend network scanner with SunSpec verification finds inverters on the LAN
+- [ ] **Phase 18: Multi-Inverter Config** - Config structure supports multiple inverters with migration from single-inverter format
+- [ ] **Phase 19: Inverter Management UI** - Config page lists inverters with enable/disable and delete controls
+- [ ] **Phase 20: Discovery UI & Onboarding** - Scan button, progress feedback, result preview, and auto-scan on first setup
+
+## Phase Details
+
+### Phase 17: Discovery Engine
+**Goal**: System can autonomously find and identify SunSpec-compatible inverters on the local network
+**Depends on**: Nothing (first phase of v3.1)
+**Requirements**: DISC-01, DISC-02, DISC-03, DISC-04
+**Success Criteria** (what must be TRUE):
+  1. Running a scan against the local subnet returns a list of IPs that have open Modbus TCP ports (configurable, default 502 and 1502)
+  2. Each discovered Modbus device is verified as SunSpec-compliant via "SunS" magic number at register 40000
+  3. For verified devices, manufacturer, model, serial number, and firmware version are extracted from SunSpec Common Block
+  4. Unit ID 1 is always scanned per IP; unit IDs 2-10 are optionally scanned for RS485 chain discovery
+  5. The scanner handles SolarEdge single-connection constraint gracefully (sequential access, short timeouts, no stale connections)
+**Plans**: TBD
+
+Plans:
+- [ ] 17-01: Network scanner + SunSpec verification
+- [ ] 17-02: Common Block reader + Unit ID scanning
+
+### Phase 18: Multi-Inverter Config
+**Goal**: Config system stores and serves multiple inverter entries, with seamless migration from the existing single-inverter format
+**Depends on**: Phase 17
+**Requirements**: CONF-01, CONF-05
+**Success Criteria** (what must be TRUE):
+  1. Config YAML supports a list of inverter entries, each with host, port, unit_id, model, serial, and enabled flag
+  2. Existing single-inverter config files are automatically migrated to the list format on first load without data loss
+  3. REST API exposes endpoints to list, add, update, and remove inverter entries
+  4. The proxy uses the first enabled inverter as the active proxy target (backward compatible behavior)
+**Plans**: TBD
+
+Plans:
+- [ ] 18-01: Multi-inverter config model + migration + API
+
+### Phase 19: Inverter Management UI
+**Goal**: User can view, enable/disable, and delete inverter entries from the config page
+**Depends on**: Phase 18
+**Requirements**: CONF-02, CONF-03
+**Success Criteria** (what must be TRUE):
+  1. Config page displays a list of all configured inverters showing model, serial, host:port, and enabled status
+  2. Each inverter has a toggle slider that enables or disables it, with change persisted on save
+  3. Each inverter has a delete action with confirmation that removes it from config
+  4. The active (proxied) inverter is visually distinguished from disabled entries
+**Plans**: TBD
+
+Plans:
+- [ ] 19-01: Inverter list component with toggle and delete
+
+### Phase 20: Discovery UI & Onboarding
+**Goal**: User can trigger scans, see live progress, preview results, and new setups auto-discover inverters
+**Depends on**: Phase 17, Phase 18, Phase 19
+**Requirements**: DISC-05, CONF-04, UX-01, UX-02, UX-03
+**Success Criteria** (what must be TRUE):
+  1. An "Auto-Discover" button in the config page triggers a network scan and shows real-time progress (animation or progress bar during the ~30s scan)
+  2. Scan results appear as a preview list showing manufacturer, model, serial, host, port, and unit ID for each found inverter
+  3. User confirms which discovered inverters to add; confirmed entries are automatically created in config
+  4. When no inverter is configured, opening the config page automatically starts a background scan
+  5. Already-configured inverters are visually marked in scan results to prevent accidental duplicates
+**Plans**: TBD
+
+Plans:
+- [ ] 20-01: Discovery API endpoint + progress WebSocket
+- [ ] 20-02: Discovery UI + onboarding auto-scan
+
 ## Progress
 
+**Execution Order:** 17 -> 18 -> 19 -> 20
+
 | Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|---------------|--------|-----------|
+|-------|-----------|----------------|--------|-----------|
 | 1. Protocol Research & Validation | v1.0 | 2/2 | Complete | 2026-03-18 |
 | 2. Core Proxy (Read Path) | v1.0 | 2/2 | Complete | 2026-03-18 |
 | 3. Control Path & Production Hardening | v1.0 | 3/3 | Complete | 2026-03-18 |
@@ -77,3 +149,7 @@ Full details: `.planning/milestones/v3.0-ROADMAP.md`
 | 14. Config Page & Dashboard UX | v3.0 | 2/2 | Complete | 2026-03-19 |
 | 15. Venus OS Auto-Detect | v3.0 | 1/1 | Complete | 2026-03-19 |
 | 16. Install Script & README | v3.0 | 1/1 | Complete | 2026-03-19 |
+| 17. Discovery Engine | v3.1 | 0/2 | Not started | - |
+| 18. Multi-Inverter Config | v3.1 | 0/1 | Not started | - |
+| 19. Inverter Management UI | v3.1 | 0/1 | Not started | - |
+| 20. Discovery UI & Onboarding | v3.1 | 0/2 | Not started | - |

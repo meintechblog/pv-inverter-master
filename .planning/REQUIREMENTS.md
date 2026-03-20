@@ -51,25 +51,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISC-01 | — | Pending |
-| DISC-02 | — | Pending |
-| DISC-03 | — | Pending |
-| DISC-04 | — | Pending |
-| DISC-05 | — | Pending |
-| CONF-01 | — | Pending |
-| CONF-02 | — | Pending |
-| CONF-03 | — | Pending |
-| CONF-04 | — | Pending |
-| CONF-05 | — | Pending |
-| UX-01 | — | Pending |
-| UX-02 | — | Pending |
-| UX-03 | — | Pending |
+| DISC-01 | Phase 17 | Pending |
+| DISC-02 | Phase 17 | Pending |
+| DISC-03 | Phase 17 | Pending |
+| DISC-04 | Phase 17 | Pending |
+| DISC-05 | Phase 20 | Pending |
+| CONF-01 | Phase 18 | Pending |
+| CONF-02 | Phase 19 | Pending |
+| CONF-03 | Phase 19 | Pending |
+| CONF-04 | Phase 20 | Pending |
+| CONF-05 | Phase 18 | Pending |
+| UX-01 | Phase 20 | Pending |
+| UX-02 | Phase 20 | Pending |
+| UX-03 | Phase 20 | Pending |
 
 **Coverage:**
 - v3.1 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial definition*
+*Last updated: 2026-03-20 after roadmap creation*
