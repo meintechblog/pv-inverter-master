@@ -10,7 +10,7 @@ from aiohttp.test_utils import AioHTTPTestCase, TestClient, TestServer
 
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.config import Config, InverterConfig, VenusConfig, WebappConfig
+from venus_os_fronius_proxy.config import Config, InverterConfig, InverterEntry, VenusConfig, WebappConfig, get_active_inverter
 from venus_os_fronius_proxy.connection import ConnectionManager, ConnectionState
 from venus_os_fronius_proxy.control import ControlState, OverrideLog
 from venus_os_fronius_proxy.plugin import WriteResult
@@ -505,3 +505,179 @@ def test_no_hardcoded_ips_webapp():
     source = inspect.getsource(wa)
     assert "192.168.3.146" not in source, "Hardcoded VENUS_HOST IP in webapp.py"
     assert "88a29ec1e5f4" not in source, "Hardcoded PORTAL_ID in webapp.py"
+
+
+# ---------- Multi-Inverter CRUD endpoints (Phase 18) ----------
+
+
+async def test_inverters_list(client):
+    """GET /api/inverters returns 200 with JSON {"inverters": [...]}."""
+    resp = await client.get("/api/inverters")
+    assert resp.status == 200
+    data = await resp.json()
+    assert "inverters" in data
+    assert isinstance(data["inverters"], list)
+    assert len(data["inverters"]) >= 1
+    # Each entry should have an "active" boolean field
+    for inv in data["inverters"]:
+        assert "active" in inv
+        assert isinstance(inv["active"], bool)
+
+
+async def test_inverters_list_active_flag(client):
+    """First enabled entry has active=True, disabled entries have active=False."""
+    config: Config = client.app["config"]
+    # Add a second inverter that is disabled
+    inv2 = InverterEntry(host="10.0.0.99", port=502, unit_id=2, enabled=False)
+    config.inverters.append(inv2)
+
+    resp = await client.get("/api/inverters")
+    data = await resp.json()
+    inverters = data["inverters"]
+    assert len(inverters) == 2
+    # First enabled entry should be active
+    assert inverters[0]["active"] is True
+    # Disabled entry should not be active
+    disabled = [i for i in inverters if i["id"] == inv2.id]
+    assert len(disabled) == 1
+    assert disabled[0]["active"] is False
+
+
+async def test_inverters_add(client):
+    """POST /api/inverters with valid data returns 201 with new entry including auto-generated id."""
+    resp = await client.post("/api/inverters", json={
+        "host": "10.0.0.1",
+        "port": 502,
+        "unit_id": 1,
+    })
+    assert resp.status == 201
+    data = await resp.json()
+    assert "id" in data
+    assert data["host"] == "10.0.0.1"
+    assert data["port"] == 502
+    assert data["unit_id"] == 1
+    assert isinstance(data["active"], bool)
+
+
+async def test_inverters_add_validation(client):
+    """POST /api/inverters with invalid host returns 400 with error message."""
+    resp = await client.post("/api/inverters", json={
+        "host": "not-a-valid-ip",
+        "port": 502,
+        "unit_id": 1,
+    })
+    assert resp.status == 400
+    data = await resp.json()
+    assert "error" in data
+
+
+async def test_inverters_update(client):
+    """PUT /api/inverters/{id} with valid data returns 200 with updated entry."""
+    config: Config = client.app["config"]
+    inv_id = config.inverters[0].id
+    resp = await client.put(f"/api/inverters/{inv_id}", json={
+        "host": "10.0.0.2",
+    })
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["host"] == "10.0.0.2"
+    assert data["id"] == inv_id
+
+
+async def test_inverters_update_not_found(client):
+    """PUT /api/inverters/nonexistent returns 404."""
+    resp = await client.put("/api/inverters/nonexistent", json={
+        "host": "10.0.0.2",
+    })
+    assert resp.status == 404
+
+
+async def test_inverters_delete(client):
+    """DELETE /api/inverters/{id} removes entry, returns 200."""
+    config: Config = client.app["config"]
+    # Add a second inverter so we can delete the first
+    inv2 = InverterEntry(host="10.0.0.50", port=502, unit_id=2)
+    config.inverters.append(inv2)
+    inv_id = inv2.id
+
+    resp = await client.delete(f"/api/inverters/{inv_id}")
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["success"] is True
+    # Verify it's gone
+    assert all(inv.id != inv_id for inv in config.inverters)
+
+
+async def test_inverters_delete_not_found(client):
+    """DELETE /api/inverters/nonexistent returns 404."""
+    resp = await client.delete("/api/inverters/nonexistent")
+    assert resp.status == 404
+
+
+async def test_inverters_delete_active_reconfigures(client, mock_plugin):
+    """Deleting the active inverter triggers fallthrough to next enabled."""
+    config: Config = client.app["config"]
+    active_id = config.inverters[0].id
+    # Add a second enabled inverter
+    inv2 = InverterEntry(host="10.0.0.60", port=502, unit_id=3)
+    config.inverters.append(inv2)
+
+    mock_plugin.reconfigure = AsyncMock()
+    resp = await client.delete(f"/api/inverters/{active_id}")
+    assert resp.status == 200
+
+    # Plugin should have been reconfigured with the next enabled inverter
+    mock_plugin.reconfigure.assert_called_once_with(
+        inv2.host, inv2.port, inv2.unit_id,
+    )
+
+
+async def test_config_get_returns_inverters_list(client):
+    """GET /api/config returns {"inverters": [...], "venus": {...}} (not single inverter dict)."""
+    resp = await client.get("/api/config")
+    assert resp.status == 200
+    data = await resp.json()
+    assert "inverters" in data
+    assert isinstance(data["inverters"], list)
+    assert "venus" in data
+    # Each inverter entry should have the active flag
+    for inv in data["inverters"]:
+        assert "active" in inv
+        assert "host" in inv
+
+
+async def test_config_save_old_format(client, mock_plugin):
+    """POST /api/config with {"inverter": {...}} updates the active inverter (backward compat)."""
+    mock_plugin.reconfigure = AsyncMock()
+    resp = await client.post("/api/config", json={
+        "inverter": {"host": "10.0.0.77", "port": 1502, "unit_id": 1},
+        "venus": {"host": "", "port": 1883, "portal_id": ""},
+    })
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["success"] is True
+    # Active inverter should now have the new host
+    config: Config = client.app["config"]
+    active = get_active_inverter(config)
+    assert active is not None
+    assert active.host == "10.0.0.77"
+
+
+async def test_config_save_new_format(client, mock_plugin):
+    """POST /api/config with {"inverters": [...]} replaces entire inverter list."""
+    mock_plugin.reconfigure = AsyncMock()
+    resp = await client.post("/api/config", json={
+        "inverters": [
+            {"host": "10.0.0.1", "port": 502, "unit_id": 1},
+            {"host": "10.0.0.2", "port": 502, "unit_id": 2, "enabled": False},
+        ],
+        "venus": {"host": "", "port": 1883, "portal_id": ""},
+    })
+    assert resp.status == 200
+    data = await resp.json()
+    assert data["success"] is True
+    config: Config = client.app["config"]
+    assert len(config.inverters) == 2
+    assert config.inverters[0].host == "10.0.0.1"
+    assert config.inverters[1].host == "10.0.0.2"
+    assert config.inverters[1].enabled is False
