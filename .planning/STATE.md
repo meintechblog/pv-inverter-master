@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Auto-Discovery & Inverter Management
-status: completed
-stopped_at: Phase 18 context gathered
-last_updated: "2026-03-20T12:40:25.659Z"
-last_activity: 2026-03-20 — Completed 17-02 scanner API + Common Block tests (37 tests)
+status: in_progress
+stopped_at: Completed 18-01 multi-inverter config data model
+last_updated: "2026-03-20T12:58:53.000Z"
+last_activity: 2026-03-20 — Completed 18-01 InverterEntry dataclass + migration + get_active_inverter (36 tests)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
+  total_plans: 3
+  completed_plans: 3
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Venus OS muss den SolarEdge-Inverter genauso erkennen und steuern koennen wie einen echten Fronius-Inverter
-**Current focus:** v3.1 Phase 17 — Discovery Engine
+**Current focus:** v3.1 Phase 18 — Multi-Inverter Config
 
 ## Current Position
 
-Phase: 17 of 20 (Discovery Engine)
-Plan: 2 of 2 complete
-Status: Phase 17 complete
-Last activity: 2026-03-20 — Completed 17-02 scanner API + Common Block tests (37 tests)
+Phase: 18 of 20 (Multi-Inverter Config)
+Plan: 1 of 2 complete
+Status: In progress
+Last activity: 2026-03-20 — Completed 18-01 InverterEntry dataclass + migration + get_active_inverter (36 tests)
 
-Progress: [██████████] 100%
+Progress: [█████-----] 50%
 
 ## Performance Metrics
 
@@ -52,6 +52,9 @@ Progress: [██████████] 100%
 - [Phase 17-01]: DiscoveredDevice.supported as @property (computed from manufacturer)
 - [Phase 17-02]: Added supported field explicitly to asdict output (property not included by default)
 - [Phase 17-02]: Scanner API tests placed in test_scanner.py alongside module tests
+- [Phase 18-01]: Kept Config.inverter as backward-compat property (webapp.py still uses it)
+- [Phase 18-01]: InverterConfig = InverterEntry alias for external backward compat
+- [Phase 18-01]: Migration backup only created if .bak does not already exist
 
 ### Pending Todos
 
@@ -63,5 +66,5 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T12:40:25.652Z
-Stopped at: Phase 18 context gathered
+Last session: 2026-03-20T12:58:53.000Z
+Stopped at: Completed 18-01 multi-inverter config data model
