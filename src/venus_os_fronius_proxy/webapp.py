@@ -14,10 +14,12 @@ from aiohttp import web
 
 import asyncio
 
-from dataclasses import asdict
+import dataclasses
 
 from venus_os_fronius_proxy.config import (
     Config,
+    InverterEntry,
+    get_active_inverter,
     save_config,
     validate_inverter_config,
     validate_venus_config,
@@ -238,14 +240,16 @@ async def health_handler(request: web.Request) -> web.Response:
 
 
 async def config_get_handler(request: web.Request) -> web.Response:
-    """Return current inverter and Venus OS configuration."""
+    """Return current inverter list and Venus OS configuration."""
     config: Config = request.app["config"]
+    active = get_active_inverter(config)
+    items = []
+    for inv in config.inverters:
+        d = dataclasses.asdict(inv)
+        d["active"] = (active is not None and inv.id == active.id)
+        items.append(d)
     return web.json_response({
-        "inverter": {
-            "host": config.inverter.host,
-            "port": config.inverter.port,
-            "unit_id": config.inverter.unit_id,
-        },
+        "inverters": items,
         "venus": {
             "host": config.venus.host,
             "port": config.venus.port,
@@ -255,27 +259,75 @@ async def config_get_handler(request: web.Request) -> web.Response:
 
 
 async def config_save_handler(request: web.Request) -> web.Response:
-    """Save inverter and Venus OS settings, trigger hot-reload as needed."""
+    """Save inverter and Venus OS settings, trigger hot-reload as needed.
+
+    Accepts two inverter formats:
+    - Old: {"inverter": {"host": ..., "port": ..., "unit_id": ...}} -- updates active entry
+    - New: {"inverters": [...]} -- replaces entire inverter list
+    """
     try:
         body = await request.json()
-        inv = body.get("inverter", {})
-        host = inv["host"]
-        port = inv["port"]
-        unit_id = inv["unit_id"]
-    except (KeyError, ValueError, TypeError) as e:
+    except (ValueError, TypeError) as e:
         return web.json_response(
             {"success": False, "error": f"Invalid request: {e}"},
             status=400,
         )
 
-    error = validate_inverter_config(host, port, unit_id)
-    if error:
-        return web.json_response(
-            {"success": False, "error": error},
-            status=400,
-        )
+    config: Config = request.app["config"]
 
-    # Parse venus config from body
+    # --- Handle inverter(s) ---
+    if "inverters" in body:
+        # New multi-inverter format: replace entire list
+        raw_list = body["inverters"]
+        new_entries = []
+        for raw in raw_list:
+            host = raw.get("host", "")
+            port = raw.get("port", 1502)
+            unit_id = raw.get("unit_id", 1)
+            error = validate_inverter_config(host, port, unit_id)
+            if error:
+                return web.json_response(
+                    {"success": False, "error": error},
+                    status=400,
+                )
+            new_entries.append(InverterEntry(
+                host=host, port=port, unit_id=unit_id,
+                enabled=raw.get("enabled", True),
+                id=raw.get("id", None) or InverterEntry().id,
+                manufacturer=raw.get("manufacturer", ""),
+                model=raw.get("model", ""),
+                serial=raw.get("serial", ""),
+                firmware_version=raw.get("firmware_version", ""),
+            ))
+        config.inverters = new_entries
+    elif "inverter" in body:
+        # Old single-inverter format: update the active entry
+        inv = body["inverter"]
+        try:
+            host = inv["host"]
+            port = inv["port"]
+            unit_id = inv["unit_id"]
+        except (KeyError, TypeError) as e:
+            return web.json_response(
+                {"success": False, "error": f"Invalid request: {e}"},
+                status=400,
+            )
+        error = validate_inverter_config(host, port, unit_id)
+        if error:
+            return web.json_response(
+                {"success": False, "error": error},
+                status=400,
+            )
+        active = get_active_inverter(config)
+        if active:
+            active.host = host
+            active.port = port
+            active.unit_id = unit_id
+        else:
+            # No active inverter, create one
+            config.inverters.append(InverterEntry(host=host, port=port, unit_id=unit_id))
+
+    # --- Parse venus config ---
     venus_body = body.get("venus", {})
     venus_host = venus_body.get("host", "")
     venus_port = venus_body.get("port", 1883)
@@ -289,18 +341,12 @@ async def config_save_handler(request: web.Request) -> web.Response:
         )
 
     try:
-        config: Config = request.app["config"]
         shared_ctx = request.app["shared_ctx"]
 
         # Detect venus config change
         old_venus = (config.venus.host, config.venus.port, config.venus.portal_id)
         new_venus = (venus_host, venus_port, venus_portal_id)
         venus_changed = old_venus != new_venus
-
-        # Update inverter config
-        config.inverter.host = host
-        config.inverter.port = port
-        config.inverter.unit_id = unit_id
 
         # Update venus config
         config.venus.host = venus_host
@@ -309,11 +355,8 @@ async def config_save_handler(request: web.Request) -> web.Response:
 
         save_config(request.app["config_path"], config)
 
-        # Hot-reload inverter
-        request.app["reconfiguring"] = True
-        plugin = request.app["plugin"]
-        await plugin.reconfigure(host, port, unit_id)
-        request.app["reconfiguring"] = False
+        # Hot-reload active inverter
+        await _reconfigure_active(request.app, config)
 
         # Hot-reload Venus MQTT if config changed
         if venus_changed:
@@ -813,7 +856,7 @@ async def venus_lock_handler(request: web.Request) -> web.Response:
 async def scanner_discover_handler(request: web.Request) -> web.Response:
     """POST /api/scanner/discover -- trigger subnet scan for SunSpec devices."""
     config: Config = request.app["config"]
-    skip_ips = {config.inverter.host}
+    skip_ips = {inv.host for inv in config.inverters if inv.enabled}
 
     # Optional: accept scan params from request body
     try:
@@ -828,7 +871,7 @@ async def scanner_discover_handler(request: web.Request) -> web.Response:
         devices = await scan_subnet(scan_config)
         return web.json_response({
             "success": True,
-            "devices": [{**asdict(d), "supported": d.supported} for d in devices],
+            "devices": [{**dataclasses.asdict(d), "supported": d.supported} for d in devices],
             "count": len(devices),
         })
     except Exception as e:
@@ -837,6 +880,123 @@ async def scanner_discover_handler(request: web.Request) -> web.Response:
             {"success": False, "error": str(e)},
             status=500,
         )
+
+
+async def _reconfigure_active(app: web.Application, config: Config) -> None:
+    """Reconfigure plugin to the current active inverter (first enabled)."""
+    active = get_active_inverter(config)
+    plugin = app["plugin"]
+    app["reconfiguring"] = True
+    try:
+        if active:
+            await plugin.reconfigure(active.host, active.port, active.unit_id)
+            log.info("active_inverter_changed", host=active.host, port=active.port, unit_id=active.unit_id)
+        else:
+            log.warning("no_active_inverter", msg="All inverters disabled or removed")
+    finally:
+        app["reconfiguring"] = False
+
+
+async def inverters_list_handler(request: web.Request) -> web.Response:
+    """Return all inverter entries with active flag."""
+    config: Config = request.app["config"]
+    active = get_active_inverter(config)
+    items = []
+    for inv in config.inverters:
+        d = dataclasses.asdict(inv)
+        d["active"] = (active is not None and inv.id == active.id)
+        items.append(d)
+    return web.json_response({"inverters": items})
+
+
+async def inverters_add_handler(request: web.Request) -> web.Response:
+    """Add a new inverter entry."""
+    try:
+        body = await request.json()
+        host = body["host"]
+        port = body.get("port", 1502)
+        unit_id = body.get("unit_id", 1)
+    except (KeyError, ValueError, TypeError) as e:
+        return web.json_response({"error": f"Invalid request: {e}"}, status=400)
+
+    error = validate_inverter_config(host, port, unit_id)
+    if error:
+        return web.json_response({"error": error}, status=400)
+
+    entry = InverterEntry(
+        host=host, port=port, unit_id=unit_id,
+        enabled=body.get("enabled", True),
+        manufacturer=body.get("manufacturer", ""),
+        model=body.get("model", ""),
+        serial=body.get("serial", ""),
+        firmware_version=body.get("firmware_version", ""),
+    )
+    config: Config = request.app["config"]
+    config.inverters.append(entry)
+    save_config(request.app["config_path"], config)
+
+    d = dataclasses.asdict(entry)
+    active = get_active_inverter(config)
+    d["active"] = (active is not None and entry.id == active.id)
+    return web.json_response(d, status=201)
+
+
+async def inverters_update_handler(request: web.Request) -> web.Response:
+    """Update an existing inverter entry by id."""
+    inv_id = request.match_info["id"]
+    config: Config = request.app["config"]
+    entry = None
+    for inv in config.inverters:
+        if inv.id == inv_id:
+            entry = inv
+            break
+    if entry is None:
+        return web.json_response({"error": "Inverter not found"}, status=404)
+
+    try:
+        body = await request.json()
+    except (ValueError, TypeError) as e:
+        return web.json_response({"error": f"Invalid request: {e}"}, status=400)
+
+    was_active_before = get_active_inverter(config) is not None and get_active_inverter(config).id == entry.id
+    for field_name in ("host", "port", "unit_id", "enabled", "manufacturer", "model", "serial", "firmware_version"):
+        if field_name in body:
+            setattr(entry, field_name, body[field_name])
+
+    error = validate_inverter_config(entry.host, entry.port, entry.unit_id)
+    if error:
+        return web.json_response({"error": error}, status=400)
+
+    save_config(request.app["config_path"], config)
+
+    new_active = get_active_inverter(config)
+    if was_active_before or (new_active is not None and new_active.id == entry.id):
+        await _reconfigure_active(request.app, config)
+
+    d = dataclasses.asdict(entry)
+    active = get_active_inverter(config)
+    d["active"] = (active is not None and entry.id == active.id)
+    return web.json_response(d)
+
+
+async def inverters_delete_handler(request: web.Request) -> web.Response:
+    """Delete an inverter entry by id."""
+    inv_id = request.match_info["id"]
+    config: Config = request.app["config"]
+    was_active = get_active_inverter(config)
+    was_active_id = was_active.id if was_active else None
+
+    original_len = len(config.inverters)
+    config.inverters = [inv for inv in config.inverters if inv.id != inv_id]
+    if len(config.inverters) == original_len:
+        return web.json_response({"error": "Inverter not found"}, status=404)
+
+    save_config(request.app["config_path"], config)
+
+    if was_active_id == inv_id:
+        await _reconfigure_active(request.app, config)
+
+    return web.json_response({"success": True})
 
 
 async def create_webapp(
@@ -873,6 +1033,10 @@ async def create_webapp(
     app.router.add_post("/api/venus-dbus", venus_dbus_handler)
     app.router.add_post("/api/venus-lock", venus_lock_handler)
     app.router.add_post("/api/scanner/discover", scanner_discover_handler)
+    app.router.add_get("/api/inverters", inverters_list_handler)
+    app.router.add_post("/api/inverters", inverters_add_handler)
+    app.router.add_put("/api/inverters/{id}", inverters_update_handler)
+    app.router.add_delete("/api/inverters/{id}", inverters_delete_handler)
     app.router.add_get("/static/{filename}", static_handler)
 
     runner = web.AppRunner(app)

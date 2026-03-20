@@ -124,15 +124,18 @@ async def test_health_endpoint(client):
 
 
 async def test_config_get(client):
-    """GET /api/config returns nested inverter and venus sections."""
+    """GET /api/config returns inverters list and venus sections."""
     resp = await client.get("/api/config")
     assert resp.status == 200
     data = await resp.json()
-    assert "inverter" in data
+    assert "inverters" in data
     assert "venus" in data
-    assert data["inverter"]["host"] == "192.168.3.18"
-    assert data["inverter"]["port"] == 1502
-    assert data["inverter"]["unit_id"] == 1
+    assert isinstance(data["inverters"], list)
+    assert len(data["inverters"]) >= 1
+    first = data["inverters"][0]
+    assert first["host"] == "192.168.3.18"
+    assert first["port"] == 1502
+    assert first["unit_id"] == 1
 
 
 async def test_config_save_valid(client):
