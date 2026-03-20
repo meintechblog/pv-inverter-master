@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Source Virtual Inverter
 status: completed
-stopped_at: Completed 21-02-PLAN.md (Phase 21 complete)
-last_updated: "2026-03-20T19:22:31.149Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-03-20T19:43:33.968Z"
 last_activity: 2026-03-20 -- Completed 21-02 (OpenDTU plugin)
 progress:
   total_phases: 4
@@ -75,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T19:17:42.000Z
-Stopped at: Completed 21-02-PLAN.md (Phase 21 complete)
-Resume file: .planning/phases/22-device-registry/22-01-PLAN.md
+Last session: 2026-03-20T19:43:33.963Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-device-registry-aggregation/22-CONTEXT.md
