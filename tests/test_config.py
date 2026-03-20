@@ -28,7 +28,9 @@ def test_load_config_partial_override(tmp_path: Path):
     from venus_os_fronius_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text('inverter:\n  host: "10.0.0.1"\n')
+    cfg_file.write_text(
+        'inverters:\n  - host: "10.0.0.1"\n'
+    )
 
     cfg = load_config(str(cfg_file))
 
@@ -141,8 +143,8 @@ def test_config_inverters_is_list():
     assert cfg.inverters[0].host == "192.168.3.18"
 
 
-def test_migration_old_format(tmp_path: Path):
-    """load_config on old single-inverter YAML migrates to inverters list."""
+def test_no_migration_code(tmp_path: Path):
+    """load_config with old inverter: (singular) key ignores it (no migration)."""
     from venus_os_fronius_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
@@ -151,87 +153,10 @@ def test_migration_old_format(tmp_path: Path):
     )
 
     cfg = load_config(str(cfg_file))
+    # Old format is ignored -- defaults are used instead
     assert isinstance(cfg.inverters, list)
     assert len(cfg.inverters) == 1
-    entry = cfg.inverters[0]
-    assert entry.host == "1.2.3.4"
-    assert entry.port == 502
-    assert entry.unit_id == 3
-    assert entry.enabled is True
-    assert entry.manufacturer == ""
-    assert entry.model == ""
-    assert entry.serial == ""
-    assert entry.firmware_version == ""
-
-
-def test_migration_preserves_values(tmp_path: Path):
-    """Migrated entry preserves all original host/port/unit_id exactly."""
-    from venus_os_fronius_proxy.config import load_config
-
-    cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text(
-        'inverter:\n  host: "10.20.30.40"\n  port: 1503\n  unit_id: 7\n'
-    )
-
-    cfg = load_config(str(cfg_file))
-    entry = cfg.inverters[0]
-    assert entry.host == "10.20.30.40"
-    assert entry.port == 1503
-    assert entry.unit_id == 7
-
-
-def test_migration_writeback(tmp_path: Path):
-    """After migration, YAML file on disk contains inverters key, not inverter key."""
-    from venus_os_fronius_proxy.config import load_config
-
-    cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text(
-        'inverter:\n  host: "1.2.3.4"\n  port: 502\n  unit_id: 3\n'
-    )
-
-    load_config(str(cfg_file))
-
-    content = cfg_file.read_text()
-    assert "inverters:" in content
-    assert "inverter:" not in content.replace("inverters:", "")
-
-
-def test_migration_backup(tmp_path: Path):
-    """After migration, a .bak file exists with original content."""
-    from venus_os_fronius_proxy.config import load_config
-
-    cfg_file = tmp_path / "config.yaml"
-    original_content = 'inverter:\n  host: "1.2.3.4"\n  port: 502\n  unit_id: 3\n'
-    cfg_file.write_text(original_content)
-
-    load_config(str(cfg_file))
-
-    bak_file = tmp_path / "config.yaml.bak"
-    assert bak_file.exists()
-    assert bak_file.read_text() == original_content
-
-
-def test_migration_no_double_run(tmp_path: Path):
-    """Loading already-migrated file does NOT create another .bak or re-migrate."""
-    from venus_os_fronius_proxy.config import load_config
-
-    cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text(
-        'inverter:\n  host: "1.2.3.4"\n  port: 502\n  unit_id: 3\n'
-    )
-
-    # First load triggers migration
-    load_config(str(cfg_file))
-    bak_file = tmp_path / "config.yaml.bak"
-    assert bak_file.exists()
-    bak_mtime = bak_file.stat().st_mtime
-
-    # Modify bak content to detect if it gets overwritten
-    bak_file.write_text("SENTINEL")
-
-    # Second load should not re-migrate
-    load_config(str(cfg_file))
-    assert bak_file.read_text() == "SENTINEL"  # Not overwritten
+    assert cfg.inverters[0].host == "192.168.3.18"  # default, not migrated
 
 
 def test_fresh_install_default(tmp_path: Path):
@@ -327,3 +252,154 @@ def test_load_multi_inverter_format(tmp_path: Path):
     assert cfg.inverters[0].id == "aabbccddee11"
     assert cfg.inverters[1].host == "2.2.2.2"
     assert cfg.inverters[1].enabled is False
+
+
+# --- v4.0 typed config tests ---
+
+
+def test_load_config_with_type_field(tmp_path: Path):
+    """Config YAML with type: solaredge loads correctly."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'inverters:\n'
+        '  - host: "192.168.3.18"\n'
+        '    type: solaredge\n'
+        '    name: "Main Inverter"\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    assert cfg.inverters[0].type == "solaredge"
+    assert cfg.inverters[0].name == "Main Inverter"
+
+
+def test_load_config_opendtu_entry(tmp_path: Path):
+    """Config YAML with type: opendtu, gateway_host, serial fields."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'inverters:\n'
+        '  - type: opendtu\n'
+        '    name: "Balkon HM-800"\n'
+        '    gateway_host: "192.168.3.98"\n'
+        '    serial: "1234567890"\n'
+        '    host: ""\n'
+        '    port: 0\n'
+        '    unit_id: 0\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    entry = cfg.inverters[0]
+    assert entry.type == "opendtu"
+    assert entry.name == "Balkon HM-800"
+    assert entry.gateway_host == "192.168.3.98"
+    assert entry.serial == "1234567890"
+
+
+def test_load_config_gateways_section(tmp_path: Path):
+    """Config YAML with gateways: opendtu: [...] parses GatewayConfig."""
+    from venus_os_fronius_proxy.config import load_config, GatewayConfig
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'gateways:\n'
+        '  opendtu:\n'
+        '    - host: "192.168.3.98"\n'
+        '      user: admin\n'
+        '      password: secret123\n'
+        '      poll_interval: 10.0\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    assert "opendtu" in cfg.gateways
+    assert len(cfg.gateways["opendtu"]) == 1
+    gw = cfg.gateways["opendtu"][0]
+    assert isinstance(gw, GatewayConfig)
+    assert gw.host == "192.168.3.98"
+    assert gw.user == "admin"
+    assert gw.password == "secret123"
+    assert gw.poll_interval == 10.0
+
+
+def test_load_config_name_field(tmp_path: Path):
+    """Name field loaded for both solaredge and opendtu types."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'inverters:\n'
+        '  - type: solaredge\n'
+        '    name: "SE30K Dach"\n'
+        '    host: "192.168.3.18"\n'
+        '  - type: opendtu\n'
+        '    name: "HM-800 Balkon"\n'
+        '    gateway_host: "192.168.3.98"\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    assert cfg.inverters[0].name == "SE30K Dach"
+    assert cfg.inverters[1].name == "HM-800 Balkon"
+
+
+def test_save_config_roundtrip_new_fields(tmp_path: Path):
+    """Save and reload preserves type, name, gateway_host, gateways."""
+    from venus_os_fronius_proxy.config import (
+        Config, InverterEntry, GatewayConfig, save_config, load_config,
+    )
+
+    cfg = Config(
+        inverters=[
+            InverterEntry(
+                type="opendtu", name="Balkon", gateway_host="192.168.3.98",
+                serial="123456", host="", port=0, unit_id=0, id="test12345678",
+            ),
+        ],
+        gateways={
+            "opendtu": [GatewayConfig(host="192.168.3.98", password="pw123")],
+        },
+    )
+
+    cfg_file = str(tmp_path / "config.yaml")
+    save_config(cfg_file, cfg)
+    reloaded = load_config(cfg_file)
+
+    assert reloaded.inverters[0].type == "opendtu"
+    assert reloaded.inverters[0].name == "Balkon"
+    assert reloaded.inverters[0].gateway_host == "192.168.3.98"
+    assert reloaded.inverters[0].serial == "123456"
+    assert "opendtu" in reloaded.gateways
+    assert reloaded.gateways["opendtu"][0].host == "192.168.3.98"
+    assert reloaded.gateways["opendtu"][0].password == "pw123"
+
+
+def test_get_gateway_for_inverter():
+    """get_gateway_for_inverter returns correct GatewayConfig matching gateway_host."""
+    from venus_os_fronius_proxy.config import (
+        Config, InverterEntry, GatewayConfig, get_gateway_for_inverter,
+    )
+
+    cfg = Config(
+        inverters=[],
+        gateways={
+            "opendtu": [
+                GatewayConfig(host="192.168.3.98", password="pw1"),
+                GatewayConfig(host="192.168.3.99", password="pw2"),
+            ],
+        },
+    )
+
+    opendtu_entry = InverterEntry(type="opendtu", gateway_host="192.168.3.99")
+    result = get_gateway_for_inverter(cfg, opendtu_entry)
+    assert result is not None
+    assert result.host == "192.168.3.99"
+    assert result.password == "pw2"
+
+    # SolarEdge entry returns None
+    se_entry = InverterEntry(type="solaredge")
+    assert get_gateway_for_inverter(cfg, se_entry) is None
+
+    # Non-matching host returns None
+    no_match = InverterEntry(type="opendtu", gateway_host="10.0.0.1")
+    assert get_gateway_for_inverter(cfg, no_match) is None

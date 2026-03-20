@@ -8,11 +8,9 @@ from __future__ import annotations
 import dataclasses
 import ipaddress
 import os
-import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import structlog
 import yaml
@@ -40,10 +38,18 @@ class InverterEntry:
     model: str = ""
     serial: str = ""
     firmware_version: str = ""
+    type: str = "solaredge"       # Discriminator: "solaredge" or "opendtu"
+    name: str = ""                # User-friendly display name
+    gateway_host: str = ""        # OpenDTU gateway IP (opendtu type only)
 
 
-# Backward compatibility alias
-InverterConfig = InverterEntry
+@dataclass
+class GatewayConfig:
+    """Configuration for a gateway device (e.g., OpenDTU)."""
+    host: str = ""
+    user: str = "admin"
+    password: str = "openDTU42"
+    poll_interval: float = 5.0
 
 
 @dataclass
@@ -79,6 +85,7 @@ class ScannerConfig:
 @dataclass
 class Config:
     inverters: list[InverterEntry] = field(default_factory=lambda: [InverterEntry()])
+    gateways: dict[str, list[GatewayConfig]] = field(default_factory=dict)
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     night_mode: NightModeConfig = field(default_factory=NightModeConfig)
     webapp: WebappConfig = field(default_factory=WebappConfig)
@@ -95,8 +102,8 @@ class Config:
 def load_config(path: str | None = None) -> Config:
     """Load config from YAML file. Missing file or missing keys use defaults.
 
-    Automatically migrates old single-inverter format (``inverter:``) to
-    multi-inverter list (``inverters:``), creating a ``.bak`` backup.
+    Supports typed multi-inverter entries (solaredge, opendtu) and gateway configs.
+    Old single-inverter ``inverter:`` format is ignored (fresh config only).
     """
     config_path = path or DEFAULT_CONFIG_PATH
     try:
@@ -104,24 +111,6 @@ def load_config(path: str | None = None) -> Config:
             data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         data = {}
-
-    # --- Migration: single inverter -> inverters list ---
-    migrated = False
-    if "inverter" in data and "inverters" not in data:
-        old = data.pop("inverter") or {}
-        entry_dict = {
-            "host": old.get("host", "192.168.3.18"),
-            "port": old.get("port", 1502),
-            "unit_id": old.get("unit_id", 1),
-            "enabled": True,
-            "id": _generate_id(),
-            "manufacturer": "",
-            "model": "",
-            "serial": "",
-            "firmware_version": "",
-        }
-        data["inverters"] = [entry_dict]
-        migrated = True
 
     # --- Build inverters list ---
     raw_inverters = data.get("inverters", [])
@@ -136,8 +125,23 @@ def load_config(path: str | None = None) -> Config:
     else:
         inverters = [InverterEntry()]
 
+    # --- Build gateways dict ---
+    raw_gateways = data.get("gateways", {})
+    gateways: dict[str, list[GatewayConfig]] = {}
+    for gw_type, gw_list in raw_gateways.items():
+        if isinstance(gw_list, list):
+            gateways[gw_type] = [
+                GatewayConfig(**{
+                    k: v for k, v in gw.items()
+                    if k in GatewayConfig.__dataclass_fields__
+                })
+                for gw in gw_list
+                if isinstance(gw, dict)
+            ]
+
     config = Config(
         inverters=inverters,
+        gateways=gateways,
         proxy=ProxyConfig(**{
             k: v for k, v in data.get("proxy", {}).items()
             if k in ProxyConfig.__dataclass_fields__
@@ -161,15 +165,20 @@ def load_config(path: str | None = None) -> Config:
         log_level=data.get("log_level", "INFO"),
     )
 
-    # --- Write back migrated config ---
-    if migrated and os.path.exists(config_path):
-        bak_path = config_path + ".bak"
-        if not os.path.exists(bak_path):
-            shutil.copy2(config_path, bak_path)
-        save_config(config_path, config)
-        log.info("config.migrated", config_path=config_path)
-
     return config
+
+
+def get_gateway_for_inverter(config: Config, entry: InverterEntry) -> GatewayConfig | None:
+    """Return the GatewayConfig matching an opendtu inverter's gateway_host.
+
+    Returns None for non-opendtu types or if no matching gateway is found.
+    """
+    if entry.type != "opendtu":
+        return None
+    for gw in config.gateways.get("opendtu", []):
+        if gw.host == entry.gateway_host:
+            return gw
+    return None
 
 
 def get_active_inverter(config: Config) -> InverterEntry | None:
