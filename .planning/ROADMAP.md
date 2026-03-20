@@ -107,11 +107,11 @@ Plans:
   3. Venus OS sees a single aggregated Fronius inverter whose power equals the sum of all active inverters (SolarEdge + Hoymiles combined)
   4. If one inverter goes offline, Venus OS still receives aggregated data from the remaining reachable inverters
   5. The user can set a custom name for the virtual inverter that Venus OS displays
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 22-01: DeviceRegistry with per-device poll lifecycle management
-- [ ] 22-02: AggregationLayer and proxy decoupling (physical-unit summation, SunSpec re-encoding)
+- [ ] 22-01-PLAN.md — DeviceRegistry with per-device poll lifecycle management
+- [ ] 22-02-PLAN.md — AggregationLayer and proxy decoupling (physical-unit summation, SunSpec re-encoding)
 
 ### Phase 23: Power Limit Distribution
 **Goal**: Venus OS power limit commands are distributed across inverters based on user-defined priority with correct handling of heterogeneous latencies
