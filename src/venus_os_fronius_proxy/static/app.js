@@ -133,6 +133,19 @@ function updateMqttGate(snapshot) {
             gatedEls[i].setAttribute('aria-disabled', 'true');
         }
     }
+
+    // ESS gate: MQTT connected but no VE.Bus (MultiPlus) → ESS unavailable
+    var essPanel = document.getElementById('venus-ess-panel');
+    if (essPanel) {
+        var vs = snapshot.venus_settings;
+        var essDown = mqttConnected && vs && !vs.ess_available;
+        if (essDown) {
+            essPanel.classList.remove('mqtt-gated');
+            essPanel.classList.add('ess-gated');
+        } else {
+            essPanel.classList.remove('ess-gated');
+        }
+    }
 }
 
 function updateConfigBobbles(snapshot) {
@@ -1436,8 +1449,7 @@ function updateVenusInfo(snapshot) {
     var overrideEl = document.getElementById('venus-override');
     var lastContactEl = document.getElementById('venus-last-contact');
     var toggle = document.getElementById('venus-lock-toggle');
-    var countdownDiv = document.getElementById('lock-countdown');
-    var countdownTime = document.getElementById('lock-countdown-time');
+    var timerEl = document.getElementById('lock-timer');
 
     // Venus OS connection status: "Online" if last_source=="venus_os" AND last_change_ts within 120s
     var isOnline = false;
@@ -1472,33 +1484,42 @@ function updateVenusInfo(snapshot) {
         }
     }
 
-    // Venus OS toggle: checked = allowed, unchecked = blocked (inverted from lock)
-    // Skip update if user just changed it (debounce)
-    var now = Date.now();
-    if ((now - (toggle._userChangedAt || 0)) > 8000) {
-        toggle.checked = !venus.is_locked;
-    }
-    toggle.disabled = false;
+    // ESS availability check
+    var vs = snapshot.venus_settings;
+    var essDown = snapshot.venus_mqtt_connected && vs && !vs.ess_available;
+    var toggleContainer = document.querySelector('.ve-gauge-venus-toggle');
 
-    // Countdown
+    if (essDown) {
+        // ESS unavailable: disable toggle, show warning overlay
+        toggle.disabled = true;
+        if (toggleContainer) toggleContainer.classList.add('ess-gated');
+    } else {
+        toggle.disabled = false;
+        if (toggleContainer) toggleContainer.classList.remove('ess-gated');
+
+        // Venus OS toggle: checked = allowed, unchecked = blocked (inverted from lock)
+        // Skip update if user just changed it (debounce)
+        var now = Date.now();
+        if ((now - (toggle._userChangedAt || 0)) > 8000) {
+            toggle.checked = !venus.is_locked;
+        }
+    }
+
+    // Countdown (only for timed locks, not permanent)
     if (venus.is_locked && venus.lock_remaining_s != null) {
-        countdownDiv.style.display = '';
         venusLockRemaining = venus.lock_remaining_s;
         venusLockSnapshotTs = Date.now() / 1000;
         updateCountdownDisplay();
         startCountdownInterval();
     } else {
-        countdownDiv.style.display = 'none';
         venusLockRemaining = null;
         stopCountdownInterval();
-        var timerEl = document.getElementById('lock-timer');
         if (timerEl) timerEl.textContent = '';
     }
 }
 
 function updateCountdownDisplay() {
     var el = document.getElementById('lock-timer');
-    var oldEl = document.getElementById('lock-countdown-time');
     if (venusLockRemaining == null) {
         if (el) el.textContent = '';
         return;
@@ -1509,7 +1530,6 @@ function updateCountdownDisplay() {
     var sec = Math.floor(remaining % 60);
     var text = min + ':' + (sec < 10 ? '0' : '') + sec;
     if (el) el.textContent = text;
-    if (oldEl) oldEl.textContent = text;
 }
 
 function startCountdownInterval() {

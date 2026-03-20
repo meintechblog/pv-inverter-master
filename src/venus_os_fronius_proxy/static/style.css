@@ -1576,6 +1576,28 @@ body {
     pointer-events: none;
     border-radius: var(--ve-radius, 8px);
 }
+.ess-gated {
+    position: relative;
+    pointer-events: none;
+}
+.ess-gated > * {
+    opacity: 0.08;
+}
+.ess-gated::after {
+    content: 'ESS unavailable';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 20, 0.82);
+    color: var(--ve-orange);
+    font-size: 0.9rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+    pointer-events: none;
+    border-radius: var(--ve-radius, 8px);
+}
 
 /* ===== Spinner ===== */
 .ve-spinner-wrap {

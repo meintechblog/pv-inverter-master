@@ -167,6 +167,7 @@ async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str
         f"{prefix}/system/0/Ac/Grid/#",
         f"{prefix}/hub4/0/#",
         f"{prefix}/pvinverter/20/Ac/PowerLimit",
+        f"{prefix}/vebus/+/State",
     ]
 
     # R/ topics to request initial values
@@ -195,6 +196,8 @@ async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str
         "grid_feed_in_w": 0,
         "pv_limit_w": None,
         "ac_setpoint_w": 0,
+        "ess_available": False,
+        "vebus_last_ts": 0,
         "ts": time.time(),
     }
 
@@ -202,6 +205,10 @@ async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str
         val = payload.get("value")
         if val is None:
             return
+        # Track VE.Bus (Multi/Quattro) presence → ESS availability
+        if "/vebus/" in topic:
+            state["vebus_last_ts"] = time.time()
+            state["ess_available"] = True
         key = topic.split("/")[-1]
         if key == "MaxFeedInPower":
             state["max_feed_in_w"] = val if val >= 0 else -1
@@ -252,6 +259,9 @@ async def venus_mqtt_loop(shared_ctx: dict, host: str, port: int, portal_id: str
                         update_from_topic(topic, payload)
                     shared_ctx["venus_settings"] = dict(state)
                 except socket.timeout:
+                    # Check ESS staleness (no VE.Bus messages for 30s)
+                    if state["vebus_last_ts"] > 0 and time.time() - state["vebus_last_ts"] > 30:
+                        state["ess_available"] = False
                     # Send PINGREQ to keep connection alive
                     try:
                         s.send(bytes([0xC0, 0x00]))
