@@ -77,7 +77,7 @@ Full details: `.planning/milestones/v3.1-ROADMAP.md`
 
 - [x] **Phase 21: Data Model & OpenDTU Plugin** - Typed config, AppContext refactor, and OpenDTU plugin for Hoymiles inverters (completed 2026-03-20)
 - [x] **Phase 22: Device Registry & Aggregation** - Multi-device poll management and virtual inverter aggregation for Venus OS (completed 2026-03-20)
-- [ ] **Phase 23: Power Limit Distribution** - Priority-based power limiting across heterogeneous inverters
+- [x] **Phase 23: Power Limit Distribution** - Priority-based power limiting across heterogeneous inverters (completed 2026-03-21)
 - [ ] **Phase 24: Device-Centric API & Frontend** - Per-device REST endpoints, WebSocket updates, and device-centric UI
 
 ## Phase Details
@@ -153,5 +153,5 @@ Phases execute in numeric order: 21 -> 22 -> 23 -> 24
 |-------|-----------|----------------|--------|-----------|
 | 21. Data Model & OpenDTU Plugin | 2/2 | Complete    | 2026-03-20 | - |
 | 22. Device Registry & Aggregation | 2/2 | Complete    | 2026-03-20 | - |
-| 23. Power Limit Distribution | 1/2 | In Progress|  | - |
+| 23. Power Limit Distribution | 2/2 | Complete   | 2026-03-21 | - |
 | 24. Device-Centric API & Frontend | v4.0 | 0/2 | Not started | - |

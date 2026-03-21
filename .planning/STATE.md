@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Multi-Source Virtual Inverter
 status: in-progress
-stopped_at: Completed 23-01-PLAN.md
-last_updated: "2026-03-21T07:33:09.794Z"
-last_activity: 2026-03-21 -- Completed 23-01 (PowerLimitDistributor TDD)
+stopped_at: Completed 23-02-PLAN.md
+last_updated: "2026-03-21T07:38:46Z"
+last_activity: 2026-03-21 -- Completed 23-02 (Distributor Integration)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 23 of 24 (Power Limit Distribution)
-Plan: 1 of 2 in current phase
+Plan: 2 of 2 in current phase
 Status: in-progress
-Last activity: 2026-03-21 -- Completed 23-01 (PowerLimitDistributor TDD)
+Last activity: 2026-03-21 -- Completed 23-02 (Distributor Integration)
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -47,7 +47,7 @@ Progress: [████████░░] 83%
 |-------|-------|-------|----------|
 | 21 | 2/2 | 18min | 9min |
 | 22 | 2/2 | 25min | 12min |
-| 23 | 1/2 | 4min | 4min |
+| 23 | 2/2 | 8min | 4min |
 
 ## Accumulated Context
 
@@ -74,6 +74,8 @@ Progress: [████████░░] 83%
 - [23-01]: DeviceLimitState.last_write_ts defaults to None to avoid false dead-time on first write
 - [23-01]: Waterfall walks TO ascending: TO 1 gets budget first, throttled first when budget < rated
 - [23-01]: Monitoring-only device power counts toward total_rated for pct-to-watt conversion
+- [23-02]: Post-hoc injection: distributor set on slave_ctx after creation (avoids reordering run_modbus_server)
+- [23-02]: Legacy _handle_control_write kept but marked superseded by PowerLimitDistributor
 
 ### Pending Todos
 
@@ -87,6 +89,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T07:32:25Z
-Stopped at: Completed 23-01-PLAN.md
-Resume file: .planning/phases/23-power-limit-distribution/23-01-SUMMARY.md
+Last session: 2026-03-21T07:38:46Z
+Stopped at: Completed 23-02-PLAN.md
+Resume file: .planning/phases/23-power-limit-distribution/23-02-SUMMARY.md
