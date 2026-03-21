@@ -1,5 +1,14 @@
 # Milestones
 
+## v4.0 Multi-Source Virtual Inverter (Shipped: 2026-03-21)
+
+**Phases completed:** 4 phases, 8 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v3.1 Auto-Discovery & Inverter Management (Shipped: 2026-03-20)
 
 **Phases completed:** 4 phases, 7 plans, 0 tasks

@@ -53,16 +53,18 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 - ✓ Konfigurierbare Scan-Ports (Default: 502, 1502) persistent — v3.1
 - ✓ Unit ID Scan (Default: 1, optional 2-10 fuer RS485 Chains) — v3.1
 
+- ✓ OpenDTU Plugin: Hoymiles Micro-WR ueber OpenDTU REST API integriert — v4.0
+- ✓ Device-zentrische UI: Pro Inverter eigener Menuepunkt mit Dashboard + Registers + Config — v4.0
+- ✓ Virtueller PV-Inverter: Alle aktiven Inverter zu einem aggregierten Fronius-Device fuer Venus OS — v4.0
+- ✓ Flexibles Regelverhalten: Prioritaets-Reihenfolge fuer Power Limiting (Wasserfall-Algorithmus) — v4.0
+- ✓ Inverter aus Regelverhalten ausschliessbar (Monitoring-Only) — v4.0
+- ✓ Benutzerdefinierter Name fuer den virtuellen Inverter (Default: "Fronius PV Inverter Proxy") — v4.0
+- ✓ Venus OS als eigenes Device mit eigenem Menuepunkt (ESS, MQTT, Status) — v4.0
+- ✓ Zentrales Device-Management: "+" zum Hinzufuegen von Invertern und Venus OS — v4.0
+
 ### Active
 
-- [ ] OpenDTU Plugin: Hoymiles Micro-WR ueber OpenDTU REST API integrieren (192.168.3.98)
-- [ ] Device-zentrische UI: Pro Inverter eigener Menuepunkt mit Dashboard + Registers + Config
-- [ ] Virtueller PV-Inverter: Alle aktiven Inverter zu einem aggregierten Fronius-Device fuer Venus OS
-- [ ] Flexibles Regelverhalten: Prioritaets-Reihenfolge fuer Power Limiting definierbar
-- [ ] Inverter aus Regelverhalten ausschliessbar
-- [ ] Benutzerdefinierter Name fuer den virtuellen Inverter (Standardname vorausgewaehlt)
-- [ ] Venus OS als eigenes Device mit eigenem Menuepunkt (ESS, MQTT, Status)
-- [ ] Zentrales Device-Management: "+" zum Hinzufuegen von Invertern und Venus OS
+(Keine — neuer Milestone noetig)
 
 ### Out of Scope
 
@@ -140,20 +142,24 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket), paho-mqtt, s
 
 **Live verified:** Full-featured dashboard with inline power control, Venus OS lock toggle, peak statistics. Config page with inverter management, auto-discovery with progress bar, auto-scan on empty config. curl one-liner install.
 
-## Current Milestone: v4.0 Multi-Source Virtual Inverter
+## Context
 
-**Goal:** Beliebige Inverter (SolarEdge + Hoymiles/OpenDTU) zu einem virtuellen PV-Inverter aggregieren und device-zentrisch in der Webapp verwalten.
+**Shipped v4.0** with ~5,500 LOC Python (src) + ~4,300 LOC HTML/CSS/JS + ~7,400 LOC tests. 24 phases across 6 milestones shipped.
 
-**Target features:**
-- OpenDTU Plugin fuer Hoymiles Micro-WR (REST API polling, Power Limit Steuerung)
-- Device-zentrische UI: jeder Inverter bekommt eigenen Menuepunkt (Dashboard, Registers, Config)
-- Virtueller PV-Inverter: Summe aller aktiven Inverter → ein Fronius-Device fuer Venus OS
-- Flexibles Regelverhalten: User definiert Prioritaets-Reihenfolge fuer Power Limiting
-- Venus OS als eigenes Device (ESS, MQTT Status, Portal ID)
-- Zentrales "+" Device-Management statt separater Config-Bereich
+Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket + REST client for OpenDTU), paho-mqtt, structlog, PyYAML, vanilla JS.
 
-**Known tech debt from v3.1:**
-- Dashboard zeigt veraltete Daten wenn Inverter deaktiviert/geloescht wird (wird durch device-zentrischen Umbau geloest)
+**Architecture v4.0:**
+- DeviceRegistry: per-device asyncio poll loops with independent lifecycle
+- AggregationLayer: SunSpec register summation across heterogeneous sources
+- PowerLimitDistributor: Waterfall algorithm with Throttling Order
+- Device-centric SPA: dynamic sidebar, hash routing, per-device sub-tabs
+
+**Infrastructure:**
+- SolarEdge SE30K: 192.168.3.18:1502 (Modbus TCP)
+- OpenDTU (Hoymiles): 192.168.3.98 (REST API)
+- Venus OS (Victron Cerbo/RPi5): 192.168.3.146 (v3.71)
+- LXC Container: 192.168.3.191 (Debian 13, Proxmox)
+- Proxy: Port 502 (Modbus) + Port 80 (Webapp)
 
 ---
-*Last updated: 2026-03-20 after v4.0 milestone start*
+*Last updated: 2026-03-21 after v4.0 milestone completion*
