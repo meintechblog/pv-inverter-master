@@ -49,12 +49,12 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 
 ### Device-Centric Frontend
 
-- [ ] **UI-01**: Dynamische Sidebar zeigt alle konfigurierten Devices als eigene Menuepunkte
-- [ ] **UI-02**: Jeder Inverter hat eigene Ansicht mit Dashboard (Leistung, Phasen/Channels, Status) und Registers
-- [ ] **UI-03**: Venus OS hat eigenen Menuepunkt (ESS Status, MQTT Config, Portal ID)
-- [ ] **UI-04**: Virtueller PV-Inverter hat eigene Ansicht mit aggregiertem Dashboard und Beitragsanzeige pro Inverter
-- [ ] **UI-05**: Zentrales "+" im Sidebar zum Hinzufuegen neuer Devices (Inverter oder Venus OS) — Discover-Button fuer manuellen Scan, kein Auto-Scan
-- [ ] **UI-06**: Wenn ein Device deaktiviert/entfernt wird, verschwinden sofort alle zugehoerigen Daten aus der UI
+- [x] **UI-01**: Dynamische Sidebar zeigt alle konfigurierten Devices als eigene Menuepunkte
+- [x] **UI-02**: Jeder Inverter hat eigene Ansicht mit Dashboard (Leistung, Phasen/Channels, Status) und Registers
+- [x] **UI-03**: Venus OS hat eigenen Menuepunkt (ESS Status, MQTT Config, Portal ID)
+- [x] **UI-04**: Virtueller PV-Inverter hat eigene Ansicht mit aggregiertem Dashboard und Beitragsanzeige pro Inverter
+- [x] **UI-05**: Zentrales "+" im Sidebar zum Hinzufuegen neuer Devices (Inverter oder Venus OS) — Discover-Button fuer manuellen Scan, kein Auto-Scan
+- [x] **UI-06**: Wenn ein Device deaktiviert/entfernt wird, verschwinden sofort alle zugehoerigen Daten aus der UI
 
 ## Future Requirements
 
@@ -106,12 +106,12 @@ Requirements for Multi-Source Virtual Inverter. Each maps to roadmap phases.
 | API-01 | Phase 24 | Complete |
 | API-02 | Phase 24 | Complete |
 | API-03 | Phase 24 | Complete |
-| UI-01 | Phase 24 | Pending |
-| UI-02 | Phase 24 | Pending |
-| UI-03 | Phase 24 | Pending |
-| UI-04 | Phase 24 | Pending |
-| UI-05 | Phase 24 | Pending |
-| UI-06 | Phase 24 | Pending |
+| UI-01 | Phase 24 | Complete |
+| UI-02 | Phase 24 | Complete |
+| UI-03 | Phase 24 | Complete |
+| UI-04 | Phase 24 | Complete |
+| UI-05 | Phase 24 | Complete |
+| UI-06 | Phase 24 | Complete |
 
 **Coverage:**
 - v4.0 requirements: 28 total
