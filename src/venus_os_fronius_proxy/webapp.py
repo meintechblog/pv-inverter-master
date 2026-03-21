@@ -837,11 +837,12 @@ async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: boo
                 if not dev.supported:
                     continue
 
-                # Skip if already configured (by serial or host:port:unit_id)
+                # Skip if already configured by serial (primary dedup key)
                 if dev.serial_number and dev.serial_number in existing_serials:
                     log.info("scan.auto_add_skipped", ip=dev.ip, serial=dev.serial_number, reason="already_configured")
                     continue
-                if (dev.ip, dev.port, dev.unit_id) in existing_hosts:
+                # For Modbus devices (no serial yet), dedup by host:port:unit_id
+                if not dev.serial_number and (dev.ip, dev.port, dev.unit_id) in existing_hosts:
                     log.info("scan.auto_add_skipped", ip=dev.ip, reason="host_port_match")
                     continue
 
