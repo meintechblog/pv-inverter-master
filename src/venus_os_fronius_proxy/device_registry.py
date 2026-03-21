@@ -208,6 +208,14 @@ async def _device_poll_loop(
     conn_mgr = device_state.conn_mgr
     poll_counter = device_state.poll_counter
 
+    # Initial connect
+    if hasattr(plugin, "connect"):
+        try:
+            await plugin.connect()
+            log.info("plugin_connected")
+        except Exception as exc:
+            log.warning("initial_connect_failed", error=str(exc))
+
     while True:
         # Skip polling when paused
         if app_ctx.polling_paused:
@@ -215,6 +223,14 @@ async def _device_poll_loop(
             continue
 
         try:
+            # Reconnect if needed
+            if hasattr(plugin, "_client") and not getattr(plugin._client, "connected", True):
+                try:
+                    await plugin.connect()
+                    log.info("plugin_reconnected")
+                except Exception:
+                    pass
+
             result = await plugin.poll()
             poll_counter["total"] += 1
 
@@ -227,6 +243,17 @@ async def _device_poll_loop(
                     "common_registers": result.common_registers,
                     "inverter_registers": result.inverter_registers,
                 }
+
+                # Update DashboardCollector with decoded snapshot
+                if device_state.collector is not None:
+                    device_state.collector.collect_from_raw(
+                        common_registers=result.common_registers,
+                        inverter_registers=result.inverter_registers,
+                        conn_mgr=conn_mgr,
+                        poll_counter=poll_counter,
+                        control_state=getattr(app_ctx, "control_state", None),
+                        app_ctx=app_ctx,
+                    )
 
                 await on_success(device_id)
                 log.debug("poll_success")

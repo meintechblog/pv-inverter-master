@@ -317,6 +317,137 @@ class DashboardCollector:
         self._last_snapshot = snapshot
         return snapshot
 
+    def collect_from_raw(
+        self,
+        common_registers: list[int],
+        inverter_registers: list[int],
+        conn_mgr: object | None = None,
+        poll_counter: dict | None = None,
+        control_state: object | None = None,
+        app_ctx: object | None = None,
+    ) -> dict:
+        """Build snapshot directly from raw poll registers (no RegisterCache needed).
+
+        Used by DeviceRegistry per-device poll loop in v4.0 multi-device mode.
+        Reuses aggregation.decode_model_103_to_physical for consistent decode.
+        """
+        from venus_os_fronius_proxy.aggregation import decode_model_103_to_physical
+
+        # Decode inverter identity from common registers
+        def _decode_regs(regs: list[int]) -> str:
+            result = b""
+            for r in regs:
+                result += r.to_bytes(2, "big")
+            return result.rstrip(b"\x00").decode("ascii", errors="replace").strip()
+
+        inverter_mfr = ""
+        inverter_model = ""
+        inverter_serial = ""
+        if len(common_registers) >= 66:
+            inverter_mfr = _decode_regs(common_registers[2:18])
+            inverter_model = _decode_regs(common_registers[18:34])
+            inverter_serial = _decode_regs(common_registers[50:66])
+
+        # Decode physical values from Model 103
+        phys = decode_model_103_to_physical(inverter_registers) if len(inverter_registers) >= 40 else {}
+
+        # Map to dashboard inverter structure
+        inverter: dict = {}
+        for key, val in phys.items():
+            inverter[key] = val
+
+        # Status text
+        status_code = phys.get("status_code", 0)
+        inverter["status"] = INVERTER_STATUS.get(status_code, f"UNKNOWN({status_code})")
+
+        # Daily energy tracking
+        import datetime
+        energy_wh = phys.get("energy_total_wh", 0)
+        today = datetime.date.today().isoformat()
+        if self._energy_date != today:
+            self._energy_at_start = None
+            self._energy_date = today
+            self._peak_power_w = 0.0
+            self._operating_seconds = 0.0
+        if self._energy_at_start is None and energy_wh > 0:
+            self._energy_at_start = energy_wh
+        daily_wh = energy_wh - self._energy_at_start if self._energy_at_start is not None else 0
+        inverter["daily_energy_wh"] = max(0, daily_wh)
+
+        # Peak and operating stats
+        ac_power = phys.get("ac_power_w", 0) or 0
+        if ac_power > self._peak_power_w:
+            self._peak_power_w = ac_power
+        now_mono = time.monotonic()
+        if self._last_collect_ts is not None and inverter.get("status") == "MPPT":
+            delta = now_mono - self._last_collect_ts
+            if 0 < delta < 10:
+                self._operating_seconds += delta
+        self._last_collect_ts = now_mono
+
+        inverter["peak_power_w"] = self._peak_power_w
+        inverter["operating_hours"] = round(self._operating_seconds / 3600, 4)
+        inverter["efficiency_pct"] = round(ac_power / self._peak_power_w * 100, 1) if self._peak_power_w > 0 else 0.0
+
+        # Persist daily stats periodically
+        if self._energy_at_start is not None:
+            save_interval = getattr(self, "_last_save_ts", 0)
+            if now_mono - save_interval > 60:
+                self._save_daily_stats(self._energy_at_start)
+                self._last_save_ts = now_mono
+
+        # Control section
+        control: dict = {}
+        if control_state is not None:
+            control = {
+                "enabled": control_state.is_enabled,
+                "limit_pct": control_state.wmaxlimpct_float,
+                "wmaxlimpct_raw": control_state.wmaxlimpct_raw,
+                "last_source": getattr(control_state, "last_source", "none"),
+                "last_change_ts": getattr(control_state, "last_change_ts", 0.0),
+                "revert_remaining_s": _revert_remaining(control_state),
+                "clamp_min_pct": getattr(control_state, "clamp_min_pct", 0),
+                "clamp_max_pct": getattr(control_state, "clamp_max_pct", 100),
+            }
+
+        # Connection section
+        connection: dict = {
+            "state": conn_mgr.state.value if conn_mgr is not None else "unknown",
+            "poll_success": poll_counter["success"] if poll_counter else 0,
+            "poll_total": poll_counter["total"] if poll_counter else 0,
+        }
+
+        snapshot = {
+            "ts": time.time(),
+            "inverter": inverter,
+            "inverter_name": f"{inverter_mfr} {inverter_model}".strip(),
+            "inverter_serial": inverter_serial,
+            "rated_power_w": 0,
+            "control": control,
+            "venus_os": {},
+            "connection": connection,
+            "override_log": [],
+            "venus_mqtt_connected": app_ctx.venus_mqtt_connected if app_ctx is not None else False,
+            "venus_os_detected": app_ctx.venus_os_detected if app_ctx is not None else False,
+            "venus_os_client_ip": app_ctx.venus_os_client_ip if app_ctx is not None else "",
+        }
+
+        # Feed time series buffers
+        buf_map = {
+            "ac_power_w": phys.get("ac_power_w"),
+            "dc_power_w": phys.get("dc_power_w"),
+            "ac_voltage_an_v": phys.get("ac_voltage_an_v"),
+            "temperature_sink_c": phys.get("temperature_c"),
+            "ac_frequency_hz": phys.get("ac_frequency_hz"),
+            "energy_total_wh": phys.get("energy_total_wh"),
+        }
+        for buf_key, value in buf_map.items():
+            if value is not None and buf_key in self._buffers:
+                self._buffers[buf_key].append(float(value))
+
+        self._last_snapshot = snapshot
+        return snapshot
+
     @staticmethod
     def _read_int16(db: object, addr: int) -> int:
         """Read a register as signed int16 (for scale factors).
