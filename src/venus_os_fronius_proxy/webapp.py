@@ -1059,6 +1059,119 @@ async def _reconfigure_active(app: web.Application, config: Config, device_id: s
         app["reconfiguring"] = False
 
 
+async def devices_list_handler(request: web.Request) -> web.Response:
+    """Return list of all devices: inverters + venus + virtual pseudo-devices."""
+    config: Config = request.app["config"]
+    app_ctx = request.app["app_ctx"]
+    devices = []
+
+    for inv in config.inverters:
+        ds = app_ctx.devices.get(inv.id)
+        # Determine connection state
+        conn_state = "unknown"
+        if ds and ds.conn_mgr:
+            conn_state = ds.conn_mgr.state.value
+        # Determine power
+        power_w = 0
+        if ds and ds.collector and ds.collector.last_snapshot:
+            snap_inv = ds.collector.last_snapshot.get("inverter", {})
+            power_w = snap_inv.get("ac_power_w", 0)
+        # Display name
+        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
+        devices.append({
+            "id": inv.id,
+            "name": display_name,
+            "type": inv.type,
+            "enabled": inv.enabled,
+            "host": inv.host,
+            "connection_state": conn_state,
+            "power_w": power_w,
+        })
+
+    # Venus pseudo-device
+    venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
+    devices.append({
+        "id": "venus",
+        "name": "Venus OS",
+        "type": "venus",
+        "enabled": bool(config.venus.host),
+        "connection_state": venus_conn,
+    })
+
+    # Virtual pseudo-device
+    devices.append({
+        "id": "virtual",
+        "name": config.virtual_inverter.name,
+        "type": "virtual",
+    })
+
+    return web.json_response({"devices": devices})
+
+
+async def device_snapshot_handler(request: web.Request) -> web.Response:
+    """Return per-device dashboard snapshot."""
+    device_id = request.match_info["id"]
+    config: Config = request.app["config"]
+    app_ctx = request.app["app_ctx"]
+
+    # Find the inverter entry
+    entry = None
+    for inv in config.inverters:
+        if inv.id == device_id:
+            entry = inv
+            break
+    if entry is None:
+        return web.json_response({"error": "Device not found"}, status=404)
+
+    ds = app_ctx.devices.get(device_id)
+    if ds is None or ds.collector is None or ds.collector.last_snapshot is None:
+        return web.json_response({"error": "No data yet"}, status=503)
+
+    snapshot = dict(ds.collector.last_snapshot)
+    display_name = entry.name or f"{entry.manufacturer} {entry.model}".strip() or "Inverter"
+    snapshot["device_id"] = device_id
+    snapshot["device_type"] = entry.type
+    snapshot["display_name"] = display_name
+    snapshot["enabled"] = entry.enabled
+    return web.json_response(snapshot)
+
+
+async def virtual_snapshot_handler(request: web.Request) -> web.Response:
+    """Return aggregated virtual inverter snapshot with per-device contributions."""
+    config: Config = request.app["config"]
+    app_ctx = request.app["app_ctx"]
+
+    total_power_w = 0
+    contributions = []
+
+    # Get throttle limits from distributor if available
+    distributor = getattr(getattr(app_ctx, "device_registry", None), "_distributor", None)
+    device_limits = distributor.get_device_limits() if distributor is not None else {}
+
+    for inv in config.inverters:
+        ds = app_ctx.devices.get(inv.id)
+        power_w = 0
+        if ds and ds.collector and ds.collector.last_snapshot:
+            snap_inv = ds.collector.last_snapshot.get("inverter", {})
+            power_w = snap_inv.get("ac_power_w", 0)
+        total_power_w += power_w
+        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
+        contributions.append({
+            "device_id": inv.id,
+            "name": display_name,
+            "power_w": power_w,
+            "throttle_order": inv.throttle_order,
+            "throttle_enabled": inv.throttle_enabled,
+            "current_limit_pct": device_limits.get(inv.id, 100.0),
+        })
+
+    return web.json_response({
+        "total_power_w": total_power_w,
+        "virtual_name": config.virtual_inverter.name,
+        "contributions": contributions,
+    })
+
+
 async def inverters_list_handler(request: web.Request) -> web.Response:
     """Return all inverter entries with active flag."""
     config: Config = request.app["config"]
@@ -1092,6 +1205,7 @@ async def inverters_add_handler(request: web.Request) -> web.Response:
         model=body.get("model", ""),
         serial=body.get("serial", ""),
         firmware_version=body.get("firmware_version", ""),
+        name=body.get("name", ""),
     )
     config: Config = request.app["config"]
     config.inverters.append(entry)
@@ -1125,7 +1239,7 @@ async def inverters_update_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": f"Invalid request: {e}"}, status=400)
 
     was_enabled = entry.enabled
-    for field_name in ("host", "port", "unit_id", "enabled", "manufacturer", "model", "serial", "firmware_version", "rated_power"):
+    for field_name in ("host", "port", "unit_id", "enabled", "manufacturer", "model", "serial", "firmware_version", "rated_power", "name"):
         if field_name in body:
             setattr(entry, field_name, body[field_name])
 
@@ -1210,6 +1324,14 @@ async def create_webapp(
     app.router.add_post("/api/inverters", inverters_add_handler)
     app.router.add_put("/api/inverters/{id}", inverters_update_handler)
     app.router.add_delete("/api/inverters/{id}", inverters_delete_handler)
+    # Device-centric GET endpoints (Phase 24)
+    app.router.add_get("/api/devices", devices_list_handler)
+    app.router.add_get("/api/devices/virtual/snapshot", virtual_snapshot_handler)
+    app.router.add_get("/api/devices/{id}/snapshot", device_snapshot_handler)
+    # CRUD aliases at /api/devices (frontend uses these, /api/inverters kept for backward compat)
+    app.router.add_post("/api/devices", inverters_add_handler)
+    app.router.add_put("/api/devices/{id}", inverters_update_handler)
+    app.router.add_delete("/api/devices/{id}", inverters_delete_handler)
     app.router.add_get("/static/{filename}", static_handler)
 
     runner = web.AppRunner(app)

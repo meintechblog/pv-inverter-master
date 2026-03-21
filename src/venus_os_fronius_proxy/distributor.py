@@ -236,6 +236,13 @@ class PowerLimitDistributor:
                     ds.pending_limit_pct = None  # clear before send to avoid recursion
                     await self._send_limit(ds.device_id, pending, enable=self._enabled)
 
+    def get_device_limits(self) -> dict[str, float]:
+        """Return current limit percentage for each managed device."""
+        return {
+            device_id: ds.current_limit_pct
+            for device_id, ds in self._device_states.items()
+        }
+
     async def redistribute(self) -> None:
         """Re-run distribution with last known global limit.
 
