@@ -194,14 +194,16 @@ async def scan_subnet(
         config = ScanConfig()
 
     subnet = detect_subnet()
-    hosts = [str(ip) for ip in subnet.hosts() if str(ip) not in config.skip_ips]
+    all_hosts = [str(ip) for ip in subnet.hosts()]
+    # skip_ips only applies to Modbus scan (SolarEdge), not OpenDTU HTTP scan
+    modbus_hosts = [ip for ip in all_hosts if ip not in config.skip_ips]
 
-    log.info("scan.start", subnet=str(subnet), host_count=len(hosts), ports=config.ports)
+    log.info("scan.start", subnet=str(subnet), host_count=len(modbus_hosts), ports=config.ports)
 
-    # Phase 1: TCP port probe
+    # Phase 1: TCP port probe (Modbus only — skip already-configured IPs)
     semaphore = asyncio.Semaphore(config.concurrency)
     open_hosts: list[tuple[str, int]] = []
-    total_probes = len(hosts) * len(config.ports)
+    total_probes = len(modbus_hosts) * len(config.ports)
     probe_count = 0
 
     async def probe_with_sem(ip: str, port: int) -> tuple[str, int, bool]:
@@ -211,7 +213,7 @@ async def scan_subnet(
 
     tasks = [
         probe_with_sem(ip, port)
-        for ip in hosts
+        for ip in modbus_hosts
         for port in config.ports
     ]
 
@@ -246,8 +248,8 @@ async def scan_subnet(
 
     log.info("scan.sunspec_complete", devices_found=len(devices))
 
-    # Phase 3: OpenDTU HTTP discovery (port 80)
-    opendtu_devices = await _scan_opendtu(hosts, config, progress_callback)
+    # Phase 3: OpenDTU HTTP discovery (port 80) — scans ALL hosts, not filtered
+    opendtu_devices = await _scan_opendtu(all_hosts, config, progress_callback)
     devices.extend(opendtu_devices)
 
     log.info("scan.complete", devices_found=len(devices))
@@ -364,14 +366,24 @@ async def _scan_opendtu(
 
     log.info("scan.opendtu_probe_complete", http_open=len(http_hosts))
 
-    # Check each HTTP host with a SHARED session (avoids event loop conflicts)
+    # Check HTTP hosts concurrently with a shared session
     all_devices: list[DiscoveredDevice] = []
+    sem = asyncio.Semaphore(10)
     async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=config.modbus_timeout),
-        connector=aiohttp.TCPConnector(limit=5, force_close=True),
+        timeout=aiohttp.ClientTimeout(total=5.0),  # ESP32 can be slow
+        connector=aiohttp.TCPConnector(limit=10, force_close=True),
     ) as session:
-        for ip in http_hosts:
-            devices = await _check_opendtu_with_session(ip, session)
-            all_devices.extend(devices)
+
+        async def check_with_sem(ip: str) -> list[DiscoveredDevice]:
+            async with sem:
+                return await _check_opendtu_with_session(ip, session)
+
+        tasks = [check_with_sem(ip) for ip in http_hosts]
+        for coro in asyncio.as_completed(tasks):
+            try:
+                devices = await coro
+                all_devices.extend(devices)
+            except Exception as exc:
+                log.debug("scanner.opendtu_batch_error", error=str(exc))
 
     return all_devices
