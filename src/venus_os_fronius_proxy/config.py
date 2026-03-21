@@ -217,8 +217,8 @@ def validate_inverter_config(host: str, port: int, unit_id: int) -> str | None:
     if not (1 <= port <= 65535):
         return f"Port must be 1-65535, got {port}"
 
-    if not (1 <= unit_id <= 247):
-        return f"Unit ID must be 1-247, got {unit_id}"
+    if not (0 <= unit_id <= 247):
+        return f"Unit ID must be 0-247, got {unit_id}"
 
     return None
 

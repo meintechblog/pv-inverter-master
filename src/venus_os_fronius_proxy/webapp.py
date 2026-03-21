@@ -814,6 +814,12 @@ async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: boo
     and start polling. Used for first-run onboarding and manual "Scan & Add".
     """
     app["_scan_running"] = True
+    app_ctx = app["app_ctx"]
+    # Pause polling during scan to avoid ESP32 contention (OpenDTU)
+    was_paused = app_ctx.polling_paused
+    app_ctx.polling_paused = True
+    log.info("scan.polling_paused")
+    await asyncio.sleep(1)  # Let active polls finish
     try:
         def progress_cb(phase: str, current: int, total: int) -> None:
             asyncio.ensure_future(_broadcast_scan_progress(app, phase, current, total))
@@ -873,6 +879,10 @@ async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: boo
         await _broadcast_scan_error(app, str(e))
     finally:
         app["_scan_running"] = False
+        # Resume polling
+        if not was_paused:
+            app_ctx.polling_paused = False
+            log.info("scan.polling_resumed")
 
 
 async def power_limit_handler(request: web.Request) -> web.Response:
