@@ -75,6 +75,7 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         plugin: object | None = None,
         control_state: ControlState | None = None,
         app_ctx: object | None = None,
+        distributor: object | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -82,6 +83,7 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         self._plugin = plugin
         self._control = control_state
         self._app_ctx = app_ctx
+        self._distributor = distributor
 
     def getValues(self, fc_as_hex, address, count=1):
         """Override to intercept reads when cache is stale.
@@ -132,17 +134,15 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
             self._control is not None
             and self._control.is_model_123_address(abs_addr, len(values))
         ):
-            if self._plugin is not None:
-                await self._handle_control_write(abs_addr, values)
-            else:
-                # No plugin available -- accept write locally but log warning
-                # Power limit forwarding deferred to Phase 23 (PowerLimitDistributor)
-                control_log.warning(
-                    "power_limit_forwarding_not_available_until_phase_23",
-                    address=abs_addr,
-                    values=values,
+            # Always update local ControlState first (readback for Venus OS)
+            self._handle_local_control_write(abs_addr, values)
+
+            # Distribute to all devices via PowerLimitDistributor
+            if self._distributor is not None:
+                await self._distributor.distribute(
+                    self._control.wmaxlimpct_float,
+                    self._control.is_enabled,
                 )
-                self._handle_local_control_write(abs_addr, values)
             return
 
         # Default: store in datablock via normal setValues
@@ -199,12 +199,16 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         # Other Model 123 registers: store locally
         self.store["h"].setValues(abs_addr + 1, values)
 
+    # Legacy single-plugin path -- superseded by PowerLimitDistributor
     async def _handle_control_write(self, abs_addr: int, values: list[int]) -> None:
-        """Process a write to Model 123 control registers.
+        """Process a write to Model 123 control registers (legacy single-plugin path).
 
         Validates values, updates local state, and forwards to inverter
         via plugin.write_power_limit. Every control command is logged at
         INFO level with value and result (per locked CONTEXT.md decision).
+
+        NOTE: Superseded by PowerLimitDistributor in Phase 23. Kept for
+        backward compatibility with tests that exercise single-plugin behavior.
         """
         offset = abs_addr - MODEL_123_START
 
@@ -364,8 +368,9 @@ async def run_modbus_server(
     DeviceRegistry. Does NOT connect any plugin -- plugins are per-device.
 
     Returns:
-        Tuple of (cache, control_state, server, server_task) so the caller
-        can manage the server lifecycle and pass cache to AggregationLayer.
+        Tuple of (cache, control_state, server, server_task, slave_ctx) so
+        the caller can manage the server lifecycle, pass cache to
+        AggregationLayer, and inject a PowerLimitDistributor post-hoc.
     """
     # Build initial register datablock with static SunSpec values
     initial_values = build_initial_registers()
@@ -430,4 +435,4 @@ async def run_modbus_server(
     # Start server as background task
     server_task = asyncio.create_task(_start_server(server), name="modbus-server")
 
-    return cache, control_state, server, server_task
+    return cache, control_state, server, server_task, slave_ctx

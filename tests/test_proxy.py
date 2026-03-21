@@ -123,7 +123,7 @@ async def _start_server_and_connect(port, app_ctx=None):
     """Start a modbus server and return (cache, control_state, server_task, client)."""
     if app_ctx is None:
         app_ctx = AppContext()
-    cache, control_state, server, server_task = await run_modbus_server(
+    cache, control_state, server, server_task, _slave_ctx = await run_modbus_server(
         host=TEST_HOST, port=port, app_ctx=app_ctx,
     )
 
@@ -387,7 +387,7 @@ class TestVenusOsOverrideTracking:
         override_log = OverrideLog()
 
         # Set a webapp revert to verify it gets cancelled
-        control.set_from_webapp(5000, 1)
+        control.set_from_webapp(40, 1)
         assert control.webapp_revert_at is not None
 
         slave_ctx = StalenessAwareSlaveContext(
@@ -395,7 +395,8 @@ class TestVenusOsOverrideTracking:
         )
 
         # Write WMaxLimPct (offset 5 from MODEL_123_START=40149 -> addr 40154)
-        await slave_ctx._handle_control_write(40154, [5000])
+        # Raw value 50 = 50% with SF=0
+        await slave_ctx._handle_control_write(40154, [50])
 
         assert control.last_source == "venus_os"
         assert control.last_change_ts > 0
@@ -440,13 +441,13 @@ class TestProxyLockBehavior:
             cache=cache, plugin=plugin, control_state=control, hr=datablock,
         )
 
-        # Write WMaxLimPct while locked
-        await slave_ctx._handle_control_write(40154, [5000])
+        # Write WMaxLimPct while locked (raw 50 = 50% with SF=0)
+        await slave_ctx._handle_control_write(40154, [50])
 
         # Plugin should NOT have been called
         plugin.write_power_limit.assert_not_called()
         # Local register should still be updated
-        assert control.wmaxlimpct_raw == 5000
+        assert control.wmaxlimpct_raw == 50
 
     @pytest.mark.asyncio
     async def test_locked_wmaxlim_ena_not_forwarded(self):
@@ -486,7 +487,7 @@ class TestProxyLockBehavior:
             cache=cache, plugin=plugin, control_state=control, hr=datablock,
         )
 
-        await slave_ctx._handle_control_write(40154, [5000])
+        await slave_ctx._handle_control_write(40154, [50])
 
         # Source should NOT have changed to "venus_os"
         assert control.last_source == "webapp"
@@ -506,7 +507,7 @@ class TestProxyLockBehavior:
             cache=cache, plugin=plugin, control_state=control, hr=datablock,
         )
 
-        await slave_ctx._handle_control_write(40154, [5000])
+        await slave_ctx._handle_control_write(40154, [50])
 
         # Plugin SHOULD have been called
         plugin.write_power_limit.assert_called_once()
