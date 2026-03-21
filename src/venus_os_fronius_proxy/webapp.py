@@ -1338,11 +1338,18 @@ async def devices_list_handler(request: web.Request) -> web.Response:
         "connection_state": venus_conn,
     })
 
-    # Virtual pseudo-device
+    # Virtual pseudo-device — connection_state reflects Venus OS reading our Modbus
+    import time
+    slave_ctx = request.app.get("slave_ctx")
+    virtual_conn = "disconnected"
+    if slave_ctx and slave_ctx.last_successful_read > 0:
+        age = time.monotonic() - slave_ctx.last_successful_read
+        virtual_conn = "connected" if age < 30 else "disconnected"
     devices.append({
         "id": "virtual",
         "name": config.virtual_inverter.name,
         "type": "virtual",
+        "connection_state": virtual_conn,
     })
 
     return web.json_response({"devices": devices})

@@ -84,6 +84,8 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         self._control = control_state
         self._app_ctx = app_ctx
         self._distributor = distributor
+        self.last_successful_read: float = 0.0
+        self.read_count: int = 0
 
     def getValues(self, fc_as_hex, address, count=1):
         """Override to intercept reads when cache is stale.
@@ -94,10 +96,10 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         silently serving outdated data.
         """
         if self._cache.is_stale:
-            # Raising any exception here causes pymodbus request handler to
-            # return ExceptionResponse with SLAVE_FAILURE (0x04) to the client.
-            # See pymodbus ServerRequestHandler.handle_request() except clause.
             raise Exception("Cache stale: no successful poll within timeout")
+        import time
+        self.last_successful_read = time.monotonic()
+        self.read_count += 1
         return super().getValues(fc_as_hex, address, count)
 
     async def async_setValues(self, fc_as_hex, address, values):

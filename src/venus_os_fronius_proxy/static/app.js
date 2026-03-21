@@ -138,11 +138,9 @@ function createSidebarDevice(device) {
         entry.classList.add('ve-sidebar-device--disabled');
     }
 
-    // Status dot
+    // Status dot — reflects connection state for all device types
     var dotColor = '--ve-text-dim';
-    if (device.type === 'virtual') {
-        dotColor = '--ve-blue';
-    } else if (device.connection_state === 'connected') {
+    if (device.connection_state === 'connected') {
         dotColor = '--ve-green';
     } else if (device.connection_state === 'night_mode') {
         dotColor = '--ve-text-dim';
