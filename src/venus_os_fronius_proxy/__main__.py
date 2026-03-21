@@ -20,6 +20,7 @@ from venus_os_fronius_proxy.aggregation import AggregationLayer
 from venus_os_fronius_proxy.config import load_config, DEFAULT_CONFIG_PATH
 from venus_os_fronius_proxy.context import AppContext
 from venus_os_fronius_proxy.device_registry import DeviceRegistry
+from venus_os_fronius_proxy.distributor import PowerLimitDistributor
 from venus_os_fronius_proxy.logging_config import configure_logging
 from venus_os_fronius_proxy.proxy import run_modbus_server
 from venus_os_fronius_proxy.webapp import create_webapp
@@ -121,7 +122,7 @@ def main():
             loop.add_signal_handler(sig, handle_signal, sig)
 
         # Create Modbus server infrastructure (no plugin needed)
-        cache, control_state, server, server_task = await run_modbus_server(
+        cache, control_state, server, server_task, slave_ctx = await run_modbus_server(
             host=config.proxy.host,
             port=config.proxy.port,
             app_ctx=app_ctx,
@@ -133,6 +134,11 @@ def main():
         # Create DeviceRegistry with aggregation callback
         registry = DeviceRegistry(app_ctx, config, on_poll_success=aggregation.recalculate)
         app_ctx.device_registry = registry
+
+        # Create PowerLimitDistributor for multi-device power limiting
+        distributor = PowerLimitDistributor(registry, config)
+        slave_ctx._distributor = distributor
+        log.info("distributor_created", msg="PowerLimitDistributor ready for multi-device power limiting")
 
         # Start all enabled devices
         await registry.start_all()
