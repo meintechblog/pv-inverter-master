@@ -138,7 +138,7 @@ Plans:
   3. A "Virtual PV" view shows the aggregated power of all active inverters with per-inverter contribution breakdown
   4. The user can add new devices (inverter or Venus OS) via a "+" button in the sidebar, which triggers manual discovery (no auto-scan)
   5. When a device is disabled or removed, all its data disappears from the UI immediately
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 24-01: Device-centric REST API (CRUD, per-device snapshots, multi-device WebSocket)
