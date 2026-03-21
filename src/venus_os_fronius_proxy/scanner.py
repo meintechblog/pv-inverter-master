@@ -254,74 +254,82 @@ async def scan_subnet(
     return devices
 
 
-async def _check_opendtu(ip: str, timeout: float) -> list[DiscoveredDevice]:
+async def _check_opendtu_with_session(
+    ip: str, session: "aiohttp.ClientSession"
+) -> list[DiscoveredDevice]:
     """Check if an IP hosts an OpenDTU instance and discover its inverters.
 
     OpenDTU exposes /api/system/status and /api/livedata/status.
     Each OpenDTU can manage multiple Hoymiles micro-inverters.
     Returns one DiscoveredDevice per Hoymiles inverter found.
     """
-    import aiohttp
-
     devices = []
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as session:
-            # Check if this is an OpenDTU
-            async with session.get(f"http://{ip}/api/system/status") as resp:
-                if resp.status != 200:
-                    return []
-                sys_data = await resp.json()
+        # Check if this is an OpenDTU
+        async with session.get(f"http://{ip}/api/system/status") as resp:
+            if resp.status != 200:
+                return []
+            sys_data = await resp.json()
 
-            # Verify it's actually OpenDTU
-            hostname = sys_data.get("hostname", "")
-            if "opendtu" not in hostname.lower() and "dtu" not in hostname.lower():
-                # Try checking module field
-                module = sys_data.get("git_hash", "")
-                if not module:
-                    return []
+        # Verify it's actually OpenDTU
+        hostname = sys_data.get("hostname", "")
+        if "opendtu" not in hostname.lower() and "dtu" not in hostname.lower():
+            # Try checking module field
+            module = sys_data.get("git_hash", "")
+            if not module:
+                return []
 
-            # Get live inverter data
-            async with session.get(f"http://{ip}/api/livedata/status") as resp:
-                if resp.status != 200:
-                    return []
-                live_data = await resp.json()
+        # Get live inverter data
+        async with session.get(f"http://{ip}/api/livedata/status") as resp:
+            if resp.status != 200:
+                return []
+            live_data = await resp.json()
 
-            for inv in live_data.get("inverters", []):
-                serial = str(inv.get("serial", ""))
-                name = inv.get("name", serial)
-                producing = inv.get("producing", False)
-                reachable = inv.get("reachable", False)
+        for inv in live_data.get("inverters", []):
+            serial = str(inv.get("serial", ""))
+            name = inv.get("name", serial)
+            producing = inv.get("producing", False)
+            reachable = inv.get("reachable", False)
 
-                # Get limit info
-                limit_abs = inv.get("limit_absolute", 0)
+            # Get limit info
+            limit_abs = inv.get("limit_absolute", 0)
 
-                devices.append(DiscoveredDevice(
-                    ip=ip,
-                    port=80,
-                    unit_id=0,  # Not applicable for OpenDTU
-                    manufacturer="Hoymiles",
-                    model=name,
-                    serial_number=serial,
-                    firmware_version=f"OpenDTU@{ip}",
-                    device_type="opendtu",
-                ))
+            devices.append(DiscoveredDevice(
+                ip=ip,
+                port=80,
+                unit_id=0,  # Not applicable for OpenDTU
+                manufacturer="Hoymiles",
+                model=name,
+                serial_number=serial,
+                firmware_version=f"OpenDTU@{ip}",
+                device_type="opendtu",
+            ))
 
-                log.info(
-                    "scan.opendtu_inverter_found",
-                    ip=ip,
-                    serial=serial,
-                    name=name,
-                    reachable=reachable,
-                    producing=producing,
-                    rated_power=limit_abs,
-                )
+            log.info(
+                "scan.opendtu_inverter_found",
+                ip=ip,
+                serial=serial,
+                name=name,
+                reachable=reachable,
+                producing=producing,
+                rated_power=limit_abs,
+            )
 
-    except Exception:
-        log.debug("scanner.opendtu_check_failed", ip=ip)
+    except Exception as exc:
+        log.debug("scanner.opendtu_check_failed", ip=ip, error=str(exc))
 
     return devices
+
+
+# Backward-compat wrapper for standalone usage
+async def _check_opendtu(ip: str, timeout: float) -> list[DiscoveredDevice]:
+    """Standalone check — creates its own session."""
+    import aiohttp
+
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=timeout)
+    ) as session:
+        return await _check_opendtu_with_session(ip, session)
 
 
 async def _scan_opendtu(
@@ -331,9 +339,11 @@ async def _scan_opendtu(
 ) -> list[DiscoveredDevice]:
     """Scan all hosts for OpenDTU instances on port 80.
 
-    Uses HTTP GET to /api/system/status to identify OpenDTU gateways,
-    then enumerates attached Hoymiles inverters.
+    Uses a SINGLE shared aiohttp session for all checks to avoid
+    connection pool conflicts when running inside the webapp event loop.
     """
+    import aiohttp
+
     # First probe port 80 on all hosts
     semaphore = asyncio.Semaphore(config.concurrency)
     http_hosts: list[str] = []
@@ -354,10 +364,14 @@ async def _scan_opendtu(
 
     log.info("scan.opendtu_probe_complete", http_open=len(http_hosts))
 
-    # Check each HTTP host for OpenDTU
+    # Check each HTTP host with a SHARED session (avoids event loop conflicts)
     all_devices: list[DiscoveredDevice] = []
-    for ip in http_hosts:
-        devices = await _check_opendtu(ip, config.modbus_timeout)
-        all_devices.extend(devices)
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=config.modbus_timeout),
+        connector=aiohttp.TCPConnector(limit=5, force_close=True),
+    ) as session:
+        for ip in http_hosts:
+            devices = await _check_opendtu_with_session(ip, session)
+            all_devices.extend(devices)
 
     return all_devices

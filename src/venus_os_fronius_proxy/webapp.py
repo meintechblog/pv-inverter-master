@@ -807,14 +807,66 @@ async def _broadcast_scan_error(app: web.Application, error: str) -> None:
             clients.discard(ws)
 
 
-async def _run_scan(app: web.Application, scan_config: ScanConfig) -> None:
-    """Run scan as background task, broadcasting progress via WS."""
+async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: bool = False) -> None:
+    """Run scan as background task, broadcasting progress via WS.
+
+    If auto_add=True, automatically add supported discovered devices to config
+    and start polling. Used for first-run onboarding and manual "Scan & Add".
+    """
     app["_scan_running"] = True
     try:
         def progress_cb(phase: str, current: int, total: int) -> None:
             asyncio.ensure_future(_broadcast_scan_progress(app, phase, current, total))
 
         devices = await scan_subnet(scan_config, progress_callback=progress_cb)
+
+        # Auto-add supported devices that aren't already configured
+        if auto_add and devices:
+            config: Config = app["config"]
+            existing_serials = {inv.serial for inv in config.inverters if inv.serial}
+            existing_hosts = {(inv.host, inv.port, inv.unit_id) for inv in config.inverters}
+            added = 0
+
+            for dev in devices:
+                if not dev.supported:
+                    continue
+
+                # Skip if already configured (by serial or host:port:unit_id)
+                if dev.serial_number and dev.serial_number in existing_serials:
+                    log.info("scan.auto_add_skipped", ip=dev.ip, serial=dev.serial_number, reason="already_configured")
+                    continue
+                if (dev.ip, dev.port, dev.unit_id) in existing_hosts:
+                    log.info("scan.auto_add_skipped", ip=dev.ip, reason="host_port_match")
+                    continue
+
+                entry = InverterEntry(
+                    host=dev.ip,
+                    port=dev.port,
+                    unit_id=dev.unit_id,
+                    enabled=True,
+                    manufacturer=dev.manufacturer,
+                    model=dev.model,
+                    serial=dev.serial_number,
+                    firmware_version=dev.firmware_version,
+                    type=dev.device_type,
+                    name=dev.model if dev.device_type == "opendtu" else "",
+                    gateway_host=dev.ip if dev.device_type == "opendtu" else "",
+                )
+                config.inverters.append(entry)
+                added += 1
+                log.info("scan.auto_added", device_id=entry.id, ip=dev.ip, manufacturer=dev.manufacturer, model=dev.model, type=dev.device_type)
+
+            if added > 0:
+                save_config(app["config_path"], config)
+                # Start newly added devices
+                for inv in config.inverters:
+                    if inv.enabled and inv.id not in {d_id for d_id in app["app_ctx"].devices}:
+                        try:
+                            await _reconfigure_active(app, config, device_id=inv.id, action="start")
+                        except Exception as exc:
+                            log.warning("scan.auto_start_failed", device_id=inv.id, error=str(exc))
+                log.info("scan.auto_add_complete", added=added, total_inverters=len(config.inverters))
+
         await _broadcast_scan_complete(app, devices)
     except Exception as e:
         log.error("scanner.background_scan_failed", error=str(e))
@@ -1173,8 +1225,12 @@ async def scanner_discover_handler(request: web.Request) -> web.Response:
     scan_unit_ids = body.get("scan_unit_ids", [1])
     scan_config = ScanConfig(ports=ports, skip_ips=skip_ips, scan_unit_ids=scan_unit_ids)
 
-    asyncio.create_task(_run_scan(app, scan_config))
-    return web.json_response({"status": "started"})
+    # Auto-add: default True if no inverters configured (first-run), else require explicit request
+    has_inverters = len(config.inverters) > 0
+    auto_add = body.get("auto_add", not has_inverters)
+
+    asyncio.create_task(_run_scan(app, scan_config, auto_add=auto_add))
+    return web.json_response({"status": "started", "auto_add": auto_add})
 
 
 async def _reconfigure_active(app: web.Application, config: Config, device_id: str = "", action: str = "") -> None:
