@@ -42,6 +42,9 @@ class InverterEntry:
     name: str = ""                # User-friendly display name
     gateway_host: str = ""        # OpenDTU gateway IP (opendtu type only)
     rated_power: int = 0           # Rated power in watts (0 = unknown)
+    throttle_order: int = 1           # TO 1 = first to throttle
+    throttle_enabled: bool = True     # False = monitoring-only (no limit commands)
+    throttle_dead_time_s: float = 0.0 # Per-device dead-time in seconds (default: no wait)
 
 
 @dataclass

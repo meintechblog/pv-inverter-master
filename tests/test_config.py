@@ -374,6 +374,51 @@ def test_save_config_roundtrip_new_fields(tmp_path: Path):
     assert reloaded.gateways["opendtu"][0].password == "pw123"
 
 
+def test_inverter_entry_throttle_defaults():
+    """InverterEntry has throttle_order=1, throttle_enabled=True, throttle_dead_time_s=0.0."""
+    from venus_os_fronius_proxy.config import InverterEntry
+
+    entry = InverterEntry()
+    assert entry.throttle_order == 1
+    assert entry.throttle_enabled is True
+    assert entry.throttle_dead_time_s == 0.0
+
+
+def test_load_config_throttle_fields(tmp_path: Path):
+    """YAML with throttle fields loads into InverterEntry correctly."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'inverters:\n'
+        '  - host: "10.0.0.1"\n'
+        '    throttle_order: 3\n'
+        '    throttle_enabled: false\n'
+        '    throttle_dead_time_s: 5.0\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    assert cfg.inverters[0].throttle_order == 3
+    assert cfg.inverters[0].throttle_enabled is False
+    assert cfg.inverters[0].throttle_dead_time_s == 5.0
+
+
+def test_load_config_throttle_defaults(tmp_path: Path):
+    """YAML without throttle fields uses defaults."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        'inverters:\n'
+        '  - host: "10.0.0.1"\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+    assert cfg.inverters[0].throttle_order == 1
+    assert cfg.inverters[0].throttle_enabled is True
+    assert cfg.inverters[0].throttle_dead_time_s == 0.0
+
+
 def test_get_gateway_for_inverter():
     """get_gateway_for_inverter returns correct GatewayConfig matching gateway_host."""
     from venus_os_fronius_proxy.config import (
