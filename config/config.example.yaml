@@ -34,5 +34,14 @@ night_mode:
 webapp:
   port: 80  # HTTP port for web interface
 
+# MQTT Publishing (optional -- publishes inverter data to external MQTT broker)
+mqtt_publish:
+  enabled: false             # Set true to activate MQTT publishing
+  host: "mqtt-master.local"  # Broker hostname or IP
+  port: 1883                 # Broker port
+  topic_prefix: "pvproxy"    # MQTT topic prefix
+  interval_s: 5              # Publish interval in seconds
+  client_id: "pv-proxy-pub"  # MQTT client identifier
+
 # Logging
 log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR

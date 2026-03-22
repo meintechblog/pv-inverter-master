@@ -93,6 +93,17 @@ class ScannerConfig:
 
 
 @dataclass
+class MqttPublishConfig:
+    """Configuration for external MQTT data publishing."""
+    enabled: bool = False
+    host: str = "mqtt-master.local"
+    port: int = 1883
+    topic_prefix: str = "pvproxy"
+    interval_s: int = 5
+    client_id: str = "pv-proxy-pub"
+
+
+@dataclass
 class Config:
     inverters: list[InverterEntry] = field(default_factory=lambda: [InverterEntry()])
     gateways: dict[str, list[GatewayConfig]] = field(default_factory=dict)
@@ -101,6 +112,7 @@ class Config:
     webapp: WebappConfig = field(default_factory=WebappConfig)
     venus: VenusConfig = field(default_factory=VenusConfig)
     scanner: ScannerConfig = field(default_factory=ScannerConfig)
+    mqtt_publish: MqttPublishConfig = field(default_factory=MqttPublishConfig)
     virtual_inverter: VirtualInverterConfig = field(default_factory=VirtualInverterConfig)
     log_level: str = "INFO"
 
@@ -172,6 +184,10 @@ def load_config(path: str | None = None) -> Config:
         scanner=ScannerConfig(**{
             k: v for k, v in data.get("scanner", {}).items()
             if k in ScannerConfig.__dataclass_fields__
+        }),
+        mqtt_publish=MqttPublishConfig(**{
+            k: v for k, v in data.get("mqtt_publish", {}).items()
+            if k in MqttPublishConfig.__dataclass_fields__
         }),
         virtual_inverter=VirtualInverterConfig(**{
             k: v for k, v in data.get("virtual_inverter", {}).items()
