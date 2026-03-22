@@ -374,8 +374,10 @@ class TestWritePowerLimit:
         call_kwargs = session.post.call_args
         # Check URL contains /api/limit/config
         assert "/api/limit/config" in call_kwargs[0][0] or "/api/limit/config" in str(call_kwargs)
-        # Check JSON body
-        posted_json = call_kwargs[1].get("json", call_kwargs.kwargs.get("json"))
+        # Check form-data body (OpenDTU expects data= with JSON string)
+        import json
+        form_data = call_kwargs[1].get("data", call_kwargs.kwargs.get("data"))
+        posted_json = json.loads(form_data["data"])
         assert posted_json["serial"] == "112183818450"
         assert posted_json["limit_type"] == 1
         assert posted_json["limit_value"] == 50.0
@@ -390,8 +392,10 @@ class TestWritePowerLimit:
         result = await plugin.write_power_limit(False, 100.0)
 
         assert result.success is True
+        import json
         call_kwargs = session.post.call_args
-        posted_json = call_kwargs[1].get("json", call_kwargs.kwargs.get("json"))
+        form_data = call_kwargs[1].get("data", call_kwargs.kwargs.get("data"))
+        posted_json = json.loads(form_data["data"])
         assert posted_json["limit_value"] == 100.0
 
 

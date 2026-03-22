@@ -298,9 +298,11 @@ class OpenDTUPlugin(InverterPlugin):
             "limit_type": 1,  # Relative percentage
             "limit_value": limit_pct,
         }
+        import json as _json
+        form_data = {"data": _json.dumps(payload)}
 
         try:
-            async with self._session.post(url, json=payload) as resp:
+            async with self._session.post(url, data=form_data) as resp:
                 await resp.json()
 
             self._last_limit_ts = time.monotonic()
