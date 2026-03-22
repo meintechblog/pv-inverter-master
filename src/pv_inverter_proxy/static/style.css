@@ -2018,17 +2018,24 @@ body {
     margin-left: auto;
 }
 
+.ve-sidebar-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 .ve-sidebar-add-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 12px 16px;
-    padding: 8px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
     background: none;
     border: 1px dashed var(--ve-border);
-    border-radius: var(--ve-radius-sm);
+    border-radius: 50%;
     color: var(--ve-text-dim);
-    font-size: 1.2rem;
+    font-size: 0.85rem;
+    line-height: 1;
     cursor: pointer;
     transition: color var(--ve-duration-fast) var(--ve-easing-default),
                 border-color var(--ve-duration-fast) var(--ve-easing-default);
@@ -2267,10 +2274,6 @@ body {
     .ve-sidebar-group-header .ve-chevron {
         display: none;
     }
-    .ve-sidebar-add-btn {
-        margin: 8px;
-        padding: 6px;
-    }
 }
 @media (max-width: 768px) {
     .ve-sidebar-device {
@@ -2287,10 +2290,6 @@ body {
     }
     .ve-sidebar-group-header .ve-chevron {
         display: inline;
-    }
-    .ve-sidebar-add-btn {
-        margin: 12px 16px;
-        padding: 8px;
     }
     .ve-device-tabs {
         overflow-x: auto;

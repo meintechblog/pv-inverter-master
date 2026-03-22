@@ -85,8 +85,10 @@ class TestSidebarNavigation:
         assert 'id="device-sidebar"' in html
 
     def test_add_device_button(self):
-        html = _read_static("index.html")
-        assert 'id="btn-add-device"' in html
+        """Add button is rendered inline in INVERTERS group header by JS."""
+        js = _read_static("app.js")
+        assert 'btn-add-device' in js
+        assert 'showAddDeviceModal' in js
 
     def test_device_content_area(self):
         html = _read_static("index.html")

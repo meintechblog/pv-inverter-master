@@ -105,7 +105,7 @@ function renderSidebar(devices) {
 
     // INVERTERS group
     if (inverters.length > 0) {
-        container.appendChild(createSidebarGroup('INVERTERS', inverters));
+        container.appendChild(createSidebarGroup('INVERTERS', inverters, true));
     }
 
     // VENUS OS group
@@ -127,14 +127,17 @@ function renderSidebar(devices) {
     highlightActiveSidebar();
 }
 
-function createSidebarGroup(label, devices) {
+function createSidebarGroup(label, devices, showAddBtn) {
     var group = document.createElement('div');
     group.className = 've-sidebar-group';
 
     var header = document.createElement('div');
     header.className = 've-sidebar-group-header';
-    header.innerHTML = '<span>' + label + '</span><span class="ve-chevron">&#9660;</span>';
-    header.addEventListener('click', function() {
+    var addBtnHtml = showAddBtn ? '<button class="ve-sidebar-add-btn" id="btn-add-device" title="Add Inverter">+</button>' : '';
+    header.innerHTML = '<span>' + label + '</span><span class="ve-sidebar-header-right">' + addBtnHtml + '<span class="ve-chevron">&#9660;</span></span>';
+    header.addEventListener('click', function(e) {
+        // Don't toggle collapse when clicking the add button
+        if (e.target.closest('.ve-sidebar-add-btn')) return;
         var items = group.querySelector('.ve-sidebar-group-items');
         var chevron = header.querySelector('.ve-chevron');
         if (items.classList.contains('ve-sidebar-group-items--collapsed')) {
@@ -146,6 +149,15 @@ function createSidebarGroup(label, devices) {
         }
     });
     group.appendChild(header);
+
+    // Wire add button if present
+    if (showAddBtn) {
+        var addBtn = header.querySelector('.ve-sidebar-add-btn');
+        if (addBtn) addBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            showAddDeviceModal();
+        });
+    }
 
     var itemsContainer = document.createElement('div');
     itemsContainer.className = 've-sidebar-group-items';
@@ -1651,9 +1663,7 @@ function updateVirtualPVPage(data) {
 
 // ===== Add Device Flow =====
 
-document.getElementById('btn-add-device').addEventListener('click', function() {
-    showAddDeviceModal();
-});
+// Add device button is now inline in the INVERTERS sidebar group header
 
 function showAddDeviceModal() {
     var modal = document.createElement('div');
