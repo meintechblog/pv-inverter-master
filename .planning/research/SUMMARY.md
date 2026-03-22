@@ -1,193 +1,199 @@
 # Project Research Summary
 
-**Project:** Venus OS Fronius Proxy — v4.0 Multi-Source Virtual Inverter
-**Domain:** Multi-source PV aggregation proxy with device-centric management
-**Researched:** 2026-03-20
+**Project:** PV Inverter Proxy — MQTT Data Publishing (v5.0)
+**Domain:** Async Python MQTT publishing, Home Assistant integration, mDNS broker discovery
+**Researched:** 2026-03-22
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This v4.0 milestone transforms the proxy from a single-inverter bridge (SolarEdge SE30K -> Venus OS) into a multi-source virtual inverter that aggregates N physical inverters into one logical Fronius device. The core value proposition is that Venus OS continues to see exactly one SunSpec inverter, while the proxy transparently aggregates SolarEdge Modbus TCP and Hoymiles micro-inverters via OpenDTU REST API. The recommended approach requires no new Python dependencies (aiohttp already handles HTTP REST polling), adds 5 focused new modules (OpenDTU plugin, DeviceRegistry, AggregationLayer, PowerLimitDistributor, plugin factory), and modifies 7 existing files. The existing InverterPlugin ABC fits the OpenDTU use case without changes.
+The v5.0 milestone adds outbound MQTT publishing to an existing, production-grade asyncio proxy that already reads from SolarEdge and OpenDTU inverters, aggregates data, and exposes it via WebSocket and Modbus. The core challenge is not MQTT itself — that protocol is simple — but correctly integrating a new I/O-bound subsystem into a latency-sensitive poll loop without disrupting Venus OS Modbus communication or WebSocket dashboard updates. Research is unambiguous: use `aiomqtt` (native asyncio, wraps paho-mqtt) for the publisher, leave the existing hand-rolled Venus OS MQTT subscriber (`venus_reader.py`) untouched, and decouple publishing from the poll chain via an `asyncio.Queue`.
 
-The biggest architectural shift is decoupling `proxy.py` from a single plugin instance. Currently the poll loop, register cache, and Modbus server all assume one inverter. A new AggregationLayer must sit between per-device pollers and the register cache, summing physical values (not raw registers) before encoding into the SunSpec format Venus OS reads. This aggregation-in-physical-units requirement is non-negotiable: naive addition of raw SunSpec register values produces wrong results due to heterogeneous scale factors across device types.
+The recommended implementation has two new Python modules (`mqtt_publisher.py` and `mdns_discovery.py`), one shared refactored module (`mqtt_protocol.py` extracted from `venus_reader.py`), and targeted modifications to `config.py`, `context.py`, `__main__.py`, `webapp.py`, and the frontend. The single most valuable differentiator — Home Assistant MQTT Auto-Discovery — should be built into the initial architecture (retained config payloads with `unique_id`, `device`, availability topics, and correct `state_class`/`device_class` values) rather than bolted on later, because HA discovery payloads are structural and touch every published entity.
 
-The primary risks are operational rather than technical. OpenDTU power limits take 18-25 seconds to activate on Hoymiles hardware (vs 1-2 seconds for SolarEdge), which will cause Venus OS ESS regulation oscillation if not explicitly handled with per-device dead-times and priority-based sequential limiting. A secondary risk is the UI state management shift from monolithic global state to per-device context objects — this requires careful planning before any device-centric views are built. Both risks are well-understood and have clear mitigations identified in research.
+The main risk is event loop blocking: any synchronous I/O (DNS resolution, socket send without executor) in an `async def` will cause poll loop jitter and stale Modbus data to Venus OS. The architecture must enforce non-blocking MQTT I/O from the start. A secondary risk is Home Assistant discovery payload correctness — HA silently ignores malformed discovery messages, so testing requires `mosquitto_sub -t "homeassistant/#"` verification before claiming HA integration is complete.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v4.0 stack requires zero new dependencies. Every capability needed — async HTTP client, JSON parsing, concurrent polling, config persistence — is already present in the installed package set. `aiohttp.ClientSession` replaces pymodbus as the transport for OpenDTU, with `aiohttp.BasicAuth` handling write authentication. All aggregation is pure Python arithmetic on dataclasses. No message broker, database, or task queue is needed for 2-5 inverters on the same LAN.
+The existing codebase has zero external MQTT dependencies; `venus_reader.py` implements a hand-rolled MQTT 3.1.1 client over raw sockets. This is adequate for the Venus OS subscriber (read-only, single broker, QoS 0) but inadequate for a publisher that needs QoS 1, LWT (Last Will and Testament), retain flags, and reconnect with session persistence. Adding those capabilities to the raw socket client would recreate paho-mqtt poorly.
+
+Two new dependencies are warranted. `aiomqtt>=2.3,<3.0` provides a native asyncio MQTT client (async context manager, `await client.publish()`, built-in reconnect, LWT) built on battle-tested paho-mqtt. `zeroconf>=0.140,<1.0` provides `AsyncZeroconf`/`AsyncServiceBrowser` for discovering `_mqtt._tcp.local.` services without subprocess calls. Both are actively maintained, used by Home Assistant, and compatible with the project's Python 3.12 + asyncio architecture. No other new dependencies are needed: JSON serialization uses stdlib `json`, scheduling uses `asyncio.sleep`, topic strings use f-strings, and config uses the established dataclass pattern.
+
+Note: ARCHITECTURE.md recommends staying with raw sockets for the publisher (consistent with `venus_reader.py`), while STACK.md and PITFALLS.md both recommend `aiomqtt`. The pitfalls analysis is decisive here — raw sockets lack QoS 1 PUBACK tracking, LWT support, and proper reconnect, and extending the hand-rolled client duplicates paho-mqtt poorly. **Use aiomqtt.**
 
 **Core technologies:**
-- `aiohttp.ClientSession`: OpenDTU REST polling and limit control — already a dependency, async-native, no reason to add httpx
-- `asyncio.gather`: parallel polling of all device plugins — same pattern as existing code, handles per-device exceptions without killing others
-- Python dataclasses: DeviceEntry, VirtualInverterConfig, PowerLimitConfig, AppContext — sufficient for config validation without pydantic's 5MB overhead
-- Extended YAML config: backward-compatible `type` field on InverterEntry — existing migration path handles v3.1 -> v4.0 transparently with a default of `"solaredge"`
-- Vanilla JS with per-device state map: zero-dependency frontend extended with `_devices[id]` context objects — preserves the no-build-tooling constraint
+- `aiomqtt>=2.3,<3.0`: Async MQTT publisher — native asyncio, no threading, QoS 0/1, LWT, auto-reconnect; v2.4.0 released May 2025, actively maintained.
+- `zeroconf>=0.140,<1.0`: mDNS broker autodiscovery — `AsyncServiceBrowser` for `_mqtt._tcp.local.`; v0.148.0 released Oct 2025, used by Home Assistant.
+- stdlib `json`, `asyncio`, `dataclasses`: No new dependencies for config, serialization, or scheduling.
 
 ### Expected Features
 
-**Must have (table stakes) — without these v4.0 has no value:**
-- OpenDTU plugin (poll + display) — foundation; without Hoymiles data there is nothing to aggregate
-- Virtual inverter aggregation — the core value proposition; Venus OS sees one Fronius, receives sum of all sources
-- Aggregated Model 120 nameplate — Venus OS needs correct WRtg for ESS calculations; wrong value = wrong power limiting
-- Device sidebar navigation — structural prerequisite; current 3-tab nav cannot accommodate N devices
-- Per-inverter dashboard — users must see individual source performance; reuses existing gauge/sparkline/phase components
-- Aggregate dashboard (Virtual PV view) — the home view; combined power, total yield, all-source health at a glance
-- Per-inverter config — each source needs editable connection settings with type-specific fields
-- Source health indicators — without per-source status dots users cannot diagnose which source is down
-- OpenDTU power limit control — Venus OS ESS sends limit commands; if Hoymiles cannot be limited it defeats zero-export setups
+The MQTT publishing ecosystem (SolarAssistant, deye-inverter-mqtt, growatt2mqtt) sets clear user expectations. Per-device JSON topics, configurable broker, configurable publish interval, an availability topic, and a status indicator in the webapp are all table stakes. Home Assistant MQTT Auto-Discovery is the high-value differentiator that turns this from "another MQTT publisher" into "zero-config HA integration."
 
-**Should have (differentiators that make v4.0 feel complete):**
-- Priority-based power limiting — throttle cheapest/least-critical inverter first; without it proxy splits equally which is rarely correct
-- Per-inverter exclusion from limiting — boolean flag, large value for mixed setups
-- Venus OS as own device section — consolidates scattered Venus OS info into coherent sidebar view
-- Custom virtual inverter name — user names the aggregate device shown to Venus OS
-- Source contribution breakdown — visual proof multi-source is working (stacked bar or percentage labels)
+**Must have (table stakes):**
+- Per-device MQTT topics with JSON payloads (physical units from DashboardCollector snapshots)
+- Virtual aggregated device topic (mirrors the existing virtual PV plant in the proxy)
+- Configurable broker host/port, topic prefix, publish interval (default 5s)
+- Availability topic with LWT (`pv-proxy/status` online/offline, `retain=True`)
+- Enable/disable toggle — opt-in, not forced on existing deployments
+- Broker connection status dot in webapp (reuse `ve-dot` component)
 
-**Defer to v4.1+:**
-- Central "+" device management wizard — users can add via config page initially
-- Per-inverter register viewer for OpenDTU — SolarEdge viewer exists; OpenDTU equivalent can follow
-- OpenDTU auto-discovery via HTTP scan — users typically know their OpenDTU IP
-- Graceful degradation with last-known-value decay — initially zero-fill offline sources with error state shown
+**Should have (differentiators):**
+- Home Assistant MQTT Auto-Discovery with correct `device_class`, `state_class`, `unique_id`, `device` grouping, and Energy Dashboard-ready sensors (`total_increasing` for energy)
+- mDNS broker autodiscovery (`_mqtt._tcp.local.`) as a first-setup UX aid, falling back to manual hostname entry
+- Per-device availability topics alongside the global availability topic
+
+**Defer (v2+):**
+- Publish-on-change with max-staleness interval (good optimization, adds snapshot diff complexity)
+- Per-device publish enable/disable (all enabled devices publish in v5.0)
+- TLS/authentication (explicitly out of scope: same-LAN, no internet exposure per PROJECT.md)
+- Historical data replay (MQTT is real-time; history is the consumer's job)
+- QoS 2 (exactly-once delivery): massive overhead for telemetry that refreshes every few seconds
 
 ### Architecture Approach
 
-The target architecture introduces an AggregationLayer as the central new abstraction. Each physical inverter runs its own asyncio poll task managed by a DeviceRegistry. When any device poll completes, the AggregationLayer recalculates the aggregated register set and writes it to the single Modbus-facing RegisterCache. Venus OS reads from this aggregated cache unchanged. Power limit writes from Venus OS are intercepted by a new PowerLimitDistributor that applies priority ordering and dead-times before calling each device plugin's `write_power_limit()`. The frontend shifts from fixed tabs to dynamic device-centric navigation with per-device state objects in `_devices[id]`.
+The MQTT publisher integrates at the `_on_aggregation_broadcast` callback — the same point where WebSocket broadcasts originate — rather than inside the poll loop or as an independent timer. This gives it access to already-decoded snapshot dicts, correct timing (fires after aggregation, not mid-poll), and both per-device and virtual data. Publishing is decoupled from the broadcast chain via an `asyncio.Queue` (bounded, `maxsize=100`) so that a slow or unreachable broker never stalls the poll pipeline. A separate asyncio Task drains the queue and manages the aiomqtt connection lifecycle independently.
 
 **Major components:**
-1. `device_registry.py` (NEW) — manages DeviceEntry lifecycle: plugin creation, poll task start/stop, per-device connection managers and dashboard collectors
-2. `plugins/opendtu.py` (NEW) — implements InverterPlugin ABC over HTTP REST; synthesizes SunSpec uint16 registers from OpenDTU JSON so the existing DashboardCollector works unchanged
-3. `aggregation.py` (NEW) — sums active device outputs in physical units (W, A, V, Wh), re-encodes with fixed scale factors, writes to RegisterCache; triggered event-driven after each device poll
-4. `power_distributor.py` (NEW) — receives Venus OS limit commands, distributes by priority config with per-device dead-times (30s for Hoymiles, 2s for SolarEdge)
-5. `plugins/__init__.py` (NEW) — plugin factory: `create_plugin(entry: InverterEntry) -> InverterPlugin` dispatches on `entry.type`
-6. Modified `proxy.py` — decoupled from single plugin; accepts AggregationLayer + PowerLimitDistributor; `_poll_loop` extracted to DeviceRegistry
-7. Modified `webapp.py` — device CRUD endpoints, per-device snapshots, multi-device WebSocket format with `devices` dict + `virtual` aggregated key
-8. Modified `config.py` — adds `type` field (default `"solaredge"` for backward compat), VirtualInverterConfig, PowerLimitConfig, typed AppContext replacing flat shared_ctx dict
+1. `mqtt_protocol.py` (NEW, refactored from `venus_reader.py`) — shared raw MQTT socket helpers; eliminates duplication and gives venus_reader.py a stable foundation to import from
+2. `mqtt_publisher.py` (NEW) — `MqttPublisher` class using aiomqtt: connection lifecycle, `asyncio.Queue` drain loop, payload formatting, rate limiting via per-device timestamp gating, HA discovery emission on connect
+3. `mdns_discovery.py` (NEW, optional) — `AsyncZeroconf`-based `_mqtt._tcp.local.` browser; invoked as a one-time config aid, not a runtime dependency
+4. `MqttPublishConfig` dataclass in `config.py` (MODIFIED) — `enabled`, `host`, `port`, `topic_prefix`, `interval`, `client_id`, `autodiscovery`, `qos`
+5. `__main__.py` (MODIFIED) — wire publisher lifecycle (start/stop alongside Venus task), extend `_on_aggregation_broadcast` to push snapshots to queue
+6. `webapp.py` + frontend (MODIFIED) — config panel (broker, port, interval, enable), connection status dot, hot-reload on config save
 
-**Files unchanged:** `register_cache.py`, `sunspec_models.py`, `timeseries.py`, `scanner.py`, `venus_reader.py`, `connection.py`
+**Topic hierarchy (finalize before writing any publish code):**
+```
+pv-proxy/status                              -> "online" / "offline" (LWT, retain=True)
+pv-proxy/device/{device_id}/state            -> JSON telemetry payload (no retain)
+pv-proxy/device/{device_id}/availability     -> "online" / "offline"
+pv-proxy/virtual/state                       -> aggregated virtual inverter JSON
+pv-proxy/virtual/availability                -> "online" / "offline"
+homeassistant/sensor/{node_id}/{object_id}/config  -> HA discovery (retain=True)
+```
 
 ### Critical Pitfalls
 
-1. **Aggregating raw SunSpec registers (not physical units) produces wrong sums** — decode all values to physical units (W, A, V) before summing; re-encode with a single fixed scale factor per field; validate `abs(aggregated_power - sum(individual_powers)) < 10W`
+1. **Extending the raw socket client for publishing** — The hand-rolled MQTT in `venus_reader.py` lacks QoS 1 PUBACK tracking, retain flag support, and LWT. Extending it creates duplicated, unmaintainable code. Use `aiomqtt` for the publisher as a completely independent module; do not refactor `venus_reader.py` in this milestone.
 
-2. **OpenDTU power limit 18-25s latency causes Venus OS ESS oscillation** — mark device as "limit pending" after each send; suppress re-sends for 30s; implement dead-time in PowerLimitDistributor; default to SolarEdge-only limiting until user opts in to Hoymiles limiting
+2. **Publishing synchronously in the poll-loop broadcast chain** — Adding `await mqtt_client.publish()` directly in `_on_aggregation_broadcast` means a slow or unreachable broker stalls all inverter polling. Decouple via `asyncio.Queue`: broadcast chain pushes to queue, publisher task drains independently.
 
-3. **Single-plugin architecture baked into proxy.py creates race conditions when naively adding a second poller** — insert AggregationLayer between per-device pollers and the shared register cache before adding any second plugin; each device writes to its own isolated data store, never directly to the Modbus-facing cache
+3. **Blocking the event loop with DNS or socket I/O** — `socket.getaddrinfo("mqtt-master.local", 1883)` can take 2-5 seconds and blocks the entire event loop. Use `loop.run_in_executor()` for DNS resolution, or resolve once at startup. `aiomqtt` handles MQTT socket I/O non-blocking by design.
 
-4. **asyncio task leaks on device add/remove** — DeviceRegistry must track all tasks per device and cancel+await them on remove; use explicit task registry, not fire-and-forget `create_task`
+4. **Home Assistant discovery payload mistakes** — HA silently ignores malformed discovery messages. Required: `unique_id` (stable, based on `InverterEntry.id`), `device` block with consistent `identifiers`, `state_topic` matching actual publish topic, `retain=True` on all config payloads. Wrong `state_class` silently breaks Energy Dashboard. Test with `mosquitto_sub -t "homeassistant/#"` before claiming HA integration works.
 
-5. **Config migration breaks existing v3.1 installs** — `type: "solaredge"` default on InverterEntry means existing configs load without changes; add `config_version: 2` field; run migration step in `load_config()` that adds `type` to entries that lack it
-
-6. **One OpenDTU gateway serves multiple Hoymiles serials** — create one DeviceEntry per Hoymiles serial found in `/api/livedata/status` response, not one per OpenDTU endpoint; power limit POST requires the target inverter's serial number
+5. **No graceful shutdown for the publisher** — Without explicit inclusion in `run_with_shutdown()`, the publisher task may hang or skip sending the "offline" availability message. Publish `offline` before disconnecting on shutdown; use LWT as crash fallback. Cancel and `await` the publisher task in the shutdown sequence before stopping the device registry.
 
 ## Implications for Roadmap
 
-Based on research, the architecture's own build order is the correct phase sequence. Each phase has clear prerequisites and delivers independently testable value.
+Based on combined research, the natural build order respects two hard dependency chains: (a) shared MQTT primitives and publisher infrastructure must exist before any publish or discovery logic, and (b) the topic/payload schema and HA discovery format must be finalized before any live publish calls are written, because renaming topics after consumers exist is extremely disruptive. The queue-based decoupling architecture must also be in place before wiring live data flow.
 
-### Phase 1: Config Data Model + AppContext Refactor
-**Rationale:** Every subsequent phase requires the multi-device config structure. Cannot add OpenDTU or aggregation without `type` field on InverterEntry and typed AppContext replacing the flat shared_ctx dict. Config migration must be correct before any runtime changes.
-**Delivers:** Backward-compatible config that loads v3.1 files correctly; typed AppContext with `devices`, `aggregator`, `venus`, `config` structure; `config_version: 2` migration path; VirtualInverterConfig and PowerLimitConfig dataclasses
-**Addresses:** Table-stakes per-inverter config (data model foundation)
-**Avoids:** Pitfall 5 (config migration breaks installs), Pitfall 15 (unmanageable shared_ctx dict)
+### Phase 1: MQTT Protocol Extraction + Dependency Addition
 
-### Phase 2: OpenDTU Plugin
-**Rationale:** Self-contained, testable in isolation against real hardware at 192.168.3.98. Does not touch existing proxy code. All OpenDTU-specific decisions (poll interval, auth, serial-per-device, limit latency handling) must be locked in at the plugin level before aggregation uses it.
-**Delivers:** Working `plugins/opendtu.py` that polls `/api/livedata/status` at 5s interval, synthesizes SunSpec registers, writes power limits via `/api/limit/config`; firmware version check on connect; credential masking in API/logs; `plugins/__init__.py` plugin factory
-**Uses:** `aiohttp.ClientSession`, `aiohttp.BasicAuth` (no new dependencies)
-**Avoids:** Pitfall 2 (limit latency — per-device dead-time designed in from start), Pitfall 7 (ESP32 overload — 5s not 1s poll), Pitfall 10 (plaintext credentials masked), Pitfall 13 (firmware version compat via defensive parsing), Pitfall 16 (one-gateway-to-many-serials via per-serial DeviceEntry)
+**Rationale:** Zero-risk refactor that creates the shared foundation. Must happen first because both `venus_reader.py` and `mqtt_publisher.py` will import from `mqtt_protocol.py`. Adding `aiomqtt` and `zeroconf` to `pyproject.toml` here allows all subsequent phases to use them without revisiting packaging.
+**Delivers:** `mqtt_protocol.py` with extracted MQTT helpers (`_mqtt_connect`, `_mqtt_publish`, `_mqtt_subscribe`, `_parse_mqtt_messages`); `aiomqtt` and `zeroconf` in `pyproject.toml`; `venus_reader.py` updated to import from shared module; existing Venus OS integration unchanged and passing.
+**Addresses:** Pitfall 1 (raw socket duplication), Pitfall 2 (blocking I/O — aiomqtt selected here).
+**Avoids:** Any change to Venus OS subscriber behavior.
 
-### Phase 3: DeviceRegistry + Per-Device Poll Loops
-**Rationale:** Foundation for multi-device operation. Must exist before aggregation or REST API changes. Extracts poll loop from proxy.py into per-device asyncio tasks with proper lifecycle management.
-**Delivers:** `device_registry.py` with add/remove/enable/disable; per-device `ConnectionManager`, `DashboardCollector`, poll tasks; explicit task cancellation on remove; serial-number-based device identity
-**Addresses:** Device sidebar navigation (structural backend support)
-**Avoids:** Pitfall 8 (asyncio task leaks — explicit task registry), Pitfall 14 (UUID vs serial-number device identity)
+### Phase 2: Config + MqttPublisher Core (Queue Architecture)
 
-### Phase 4: AggregationLayer + Proxy Decoupling
-**Rationale:** This is the core architectural change. Decouples proxy.py from a single plugin and wires DeviceRegistry outputs through the AggregationLayer into the shared RegisterCache. After this phase, Venus OS sees the virtual aggregated inverter.
-**Delivers:** `aggregation.py` summing in physical units with fixed output scale factors; `proxy.py` refactored to accept AggregationLayer; aggregated Model 120 nameplate with combined WRtg; per-device night mode (global night = all sources sleeping); end-to-end: OpenDTU + SolarEdge -> aggregated -> Venus OS
-**Avoids:** Pitfall 1 (single-plugin architecture), Pitfall 3 (wrong scale factor sums — aggregate in physical units), Pitfall 11 (partial aggregation on source loss — never mark aggregated stale unless all sources stale)
+**Rationale:** Establishes the `MqttPublishConfig` dataclass and the core `MqttPublisher` class with queue-based decoupling before any topic, payload, or HA discovery logic. This phase is about architectural correctness, not features. Getting the queue and lifecycle right here prevents all Pitfall 3 variants.
+**Delivers:** `MqttPublishConfig` dataclass in `config.py`; `mqtt_publisher.py` with aiomqtt connection lifecycle (LWT, reconnect, clean session), bounded `asyncio.Queue(maxsize=100)`, drain loop, rate limiting via per-device timestamp gating, `stop()`/`start()` lifecycle for hot-reload; `context.py` updated with `mqtt_publisher` field; `__main__.py` shutdown sequence extended.
+**Uses:** `aiomqtt`, `MqttPublishConfig`, established asyncio Task pattern from existing `__main__.py`.
+**Avoids:** Pitfall 3 (poll loop coupling — queue decouples completely), Pitfall 9 (graceful shutdown — `stop()` publishes offline, drains queue, disconnects), Pitfall 11 (client ID collision — `pv-proxy-pub-{stable_hash}` not `pv-proxy`).
 
-### Phase 5: PowerLimitDistributor
-**Rationale:** Power limiting is the most safety-critical feature. Must work correctly before being exposed in UI. StalenessAwareSlaveContext write interception must route to the distributor, not any individual plugin.
-**Delivers:** `power_distributor.py` with priority-based sequential distribution; per-device dead-times (30s Hoymiles, 2s SolarEdge); feedback loop prevention via rate-limiting; power limit priority/exclusion config YAML section
-**Addresses:** Table-stakes OpenDTU power limit control; differentiator priority-based limiting; per-inverter exclusion from limiting
-**Avoids:** Pitfall 6 (Venus OS ESS feedback oscillation — dead-time + priority order), Pitfall 2 cascades (limit latency handled via pending state)
+### Phase 3: Topic Structure + Payload Design + HA Discovery
 
-### Phase 6: Device-Centric REST API
-**Rationale:** Backend API must exist before frontend can render device views. All device CRUD, per-device snapshots, and multi-device WebSocket format defined here.
-**Delivers:** New webapp endpoints (`/api/devices`, `/api/devices/{id}`, `/api/devices/{id}/config`, `/api/virtual`, `/api/power-limit/config`); multi-device WebSocket snapshot format with `devices` dict + `virtual` key; per-device register viewer data endpoint
-**Implements:** Architecture component: Modified `webapp.py`
+**Rationale:** Topic hierarchy and telemetry payload schema must be locked in before any live publish call is written. HA auto-discovery payloads belong in this same phase because they directly reference the topic names and use the same `state_class`/`device_class` values — retrofitting HA discovery onto the wrong topic structure requires renaming published topics, breaking all existing consumers.
+**Delivers:** Finalized topic hierarchy (see architecture above); `mqtt_payload()` function extracting ~15-18 fields from DashboardCollector snapshot (target 200-500 bytes, compact JSON via `separators=(",", ":")`); HA discovery config payloads for all 16 sensor entities (power, voltage, current, energy, temperature, status, efficiency, operating hours) with correct `unique_id`, `device` block, `state_class`, `device_class`, `availability_mode: all`; discovery published with `retain=True` on connect; `default_entity_id` used (not deprecated `object_id` — HA 2026.4).
+**Addresses:** Table stakes (per-device topics, JSON payloads, virtual device, availability), differentiator (HA auto-discovery, Energy Dashboard-ready sensors).
+**Avoids:** Pitfall 4 (HA discovery mistakes — retain, stable unique_id, correct state_class), Pitfall 5 (topic naming — hierarchical, device-keyed, designed before coding), Pitfall 8 (payload bloat — explicit field whitelist, excludes override_log and Venus internals).
 
-### Phase 7: Device-Centric Frontend
-**Rationale:** Pure frontend work, depends on all backend phases being complete. Dynamic navigation, per-device state management, and virtual PV view all built here.
-**Delivers:** Dynamic sidebar generated from `/api/devices`; per-device dashboard pages reusing existing gauge/sparkline/phase components; aggregate Virtual PV view; source contribution breakdown; power limit priority config UI (drag-reorder list); per-device health status dots in sidebar
-**Addresses:** All remaining table-stakes and differentiator UI features
-**Avoids:** Pitfall 9 (global state breaks multi-device navigation — use `_devices[id]` objects, hide/show not destroy/recreate), Pitfall 12 (WebSocket payload grows linearly — delta broadcasting, sparkline history sent once on connect)
+### Phase 4: Wire into Broadcast Chain + Lifecycle
+
+**Rationale:** Connect the fully designed publisher to live data only after the architecture is correct and the schema is finalized. This is the first phase where inverter data actually flows to the MQTT broker.
+**Delivers:** `_on_aggregation_broadcast` extended to push device and virtual snapshots to publisher queue; live MQTT publishing from real inverter data; graceful shutdown sequence (publishes offline, drains queue, disconnects); config hot-reload (cancel old publisher task, start new one — follows Venus task pattern in `webapp.py`); publish rate enforced at configurable interval (default 5s per device).
+**Implements:** Broadcast chain wiring, publisher task lifecycle in `__main__.py`.
+**Avoids:** Pitfall 6 (excessive publish rate — configurable interval, per-device timestamp gating), Pitfall 9 (shutdown — drain-then-offline sequence), Pitfall 10 (hot-reload — explicit stop/start, fresh queue on restart).
+
+### Phase 5: mDNS Broker Autodiscovery
+
+**Rationale:** mDNS discovery is a first-setup UX aid, not a runtime dependency. Implementing it after core publishing is working means a broken discovery mechanism never blocks data flow. Start with `socket.getaddrinfo()` via `run_in_executor` (zero new code, covers `.local` hostnames), then add `zeroconf` browser for "scan for brokers" button if needed.
+**Delivers:** `mdns_discovery.py` with `AsyncZeroconf` browse for `_mqtt._tcp.local.` (10-second timeout); one-time discovery flow (save result to config, fallback to manual entry); `getaddrinfo` via executor for hostname resolution at startup.
+**Addresses:** Differentiator (mDNS autodiscovery).
+**Avoids:** Pitfall 7 (mDNS race — discovery is config-time only, result persisted to YAML; runtime uses configured host with exponential-backoff reconnect), Pitfall 2 (blocking DNS — executor-wrapped getaddrinfo).
+
+### Phase 6: Webapp Config UI + Dashboard Status
+
+**Rationale:** User-facing surface comes after the backend is fully functional so the UI reflects real behavior. Follows established config panel and `ve-dot` design system patterns exactly — no new component patterns needed.
+**Delivers:** Config panel section for MQTT Publishing (broker host, port, topic prefix, interval, enable toggle, mDNS discover button); connection status `ve-dot` on dashboard (reuse existing pattern); dirty tracking + Save/Cancel buttons (existing `ve-input--dirty` pattern); REST API endpoints in `webapp.py` for config read/write and publisher connection status.
+**Uses:** Existing `ve-dot`, `ve-btn`, `ve-panel`, `ve-form-group`, `ve-input--dirty` design system components.
+**Addresses:** Table stakes (enable/disable toggle, broker status indicator, configurable broker connection).
 
 ### Phase Ordering Rationale
 
-- Config data model is Phase 1 because every other phase extends InverterEntry or AppContext; attempting any other phase without it requires reverting later
-- OpenDTU plugin is Phase 2 because it is fully isolated and can be validated against real hardware (192.168.3.98) without touching any running code
-- DeviceRegistry is Phase 3 because AggregationLayer needs it to iterate active devices; poll loop extraction also unblocks proxy.py decoupling
-- AggregationLayer is Phase 4 (not earlier) because it requires both the plugin and the registry to be stable; this is the highest-risk phase and needs clean inputs
-- PowerLimitDistributor is Phase 5 because proxy decoupling must be complete before write interception works correctly in the multi-device context
-- REST API (Phase 6) precedes Frontend (Phase 7) because the frontend discovers device list dynamically from the API and makes no hardcoded assumptions about device count or types
-- This ordering means at no point does a second poller exist without the aggregation boundary already in place — the primary architectural pitfall is structurally prevented
+- Phases 1-2 are pure infrastructure: shared protocol module, aiomqtt dependency, and core publisher class. No behavior visible to users, no risk to existing Venus OS or WebSocket functionality.
+- Phase 3 locks in the schema before any live publishing — prevents the disruptive mistake of renaming topics after HA dashboards and automations depend on them.
+- Phase 4 activates live data flow only after architecture is correct and schema is finalized.
+- Phase 5 (mDNS) is independent of Phases 3-4 and can be parallelized if needed, but comes after core publishing to avoid blocking on optional UX.
+- Phase 6 (UI) is last because it depends on having real backend state to reflect.
+- This ordering means the event loop is never put at risk: queue decoupling and aiomqtt non-blocking I/O are both in place before a single MQTT message is sent.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 4 (AggregationLayer):** Scale factor encoding math and the partial-aggregation staleness strategy need concrete implementation decisions before coding; specifically the "last-known-value with 60s decay" vs "zero-fill immediately" tradeoff for offline sources
-- **Phase 5 (PowerLimitDistributor):** Dead-time values (30s for Hoymiles) are best estimates from GitHub issues — validate against real hardware before hardcoding; the Venus OS EDPC refresh rate (currently ~5s) must be confirmed so dead-times are correctly sized relative to it
-- **Phase 7 (Frontend):** WebSocket delta protocol design (what triggers a broadcast, what fields are included, how sparkline history is served on connect) should be spec'd before implementation; the hide/show vs destroy/recreate navigation decision affects the entire DOM structure
+- **Phase 3 (HA Discovery):** HA discovery schema changes with each HA release. Verify current required fields against HA 2026.x documentation before implementation. The `default_entity_id` vs `object_id` deprecation (HA 2026.4) noted in research is MEDIUM confidence and needs confirmation against the specific HA version deployed.
+- **Phase 5 (mDNS):** Whether `mqtt-master.local` advertises `_mqtt._tcp.local.` via Avahi depends on the broker host's Avahi/mDNS configuration. Mosquitto does NOT do this by default (requires a separate Avahi service file). Verify before building the scan UI — if the broker does not advertise, `getaddrinfo` is the only viable approach and the scan button should be omitted.
 
 Phases with standard patterns (skip research-phase):
-- **Phase 1 (Config):** Dataclass extension with defaults is standard Python; config migration is already done once in this codebase (inverter: -> inverters:); no ambiguity
-- **Phase 2 (OpenDTU Plugin):** Official API docs are complete and HIGH confidence; the InverterPlugin ABC pattern is established with SolarEdge as the reference implementation
-- **Phase 3 (DeviceRegistry):** asyncio task lifecycle is well-documented; the per-device poll loop already exists in proxy.py and needs extraction, not reinvention
-- **Phase 6 (REST API):** aiohttp route patterns are well-established throughout the existing webapp.py
+- **Phase 1 (Protocol Extraction):** Pure Python refactor of existing code; well-understood.
+- **Phase 2 (Config + Core):** Follows the established `VenusConfig` dataclass pattern exactly; asyncio Task lifecycle follows `venus_mqtt_loop` pattern.
+- **Phase 4 (Wiring + Lifecycle):** Follows the Venus task cancel/restart pattern already present in `webapp.py`.
+- **Phase 6 (Config UI):** Follows existing config panel pattern with established design system components; no new component archetypes needed.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Zero new dependencies confirmed; all APIs in installed packages; OpenDTU API official docs verified; no alternatives seriously compete |
-| Features | HIGH | Existing codebase analyzed directly; OpenDTU API verified against official docs; Venus OS SunSpec behavior confirmed via victronenergy/dbus-fronius |
-| Architecture | HIGH | Direct code analysis of all source files; target architecture derived from actual coupling points identified in code; build order is dependency-driven not speculative |
-| Pitfalls | HIGH | Critical pitfalls grounded in specific codebase code paths (not speculation); OpenDTU limit latency sourced from GitHub issue #571 with measured numbers |
+| Stack | HIGH | aiomqtt and zeroconf are version-pinned, actively maintained, well-documented. Codebase analysis confirmed no existing paho-mqtt dependency. Raw-socket vs aiomqtt debate resolved by pitfalls analysis. |
+| Features | HIGH | HA MQTT discovery format verified against official docs. Table stakes derived from multiple real-world solar MQTT projects. HA 2026.4 `default_entity_id` change is MEDIUM confidence — confirm against target HA version. |
+| Architecture | HIGH | Based on direct codebase analysis (`venus_reader.py`, `__main__.py`, `aggregation.py`, `config.py`, `context.py`). Integration points identified precisely. Queue-based decoupling is the only correct architecture given the poll loop timing requirements. |
+| Pitfalls | HIGH | Pitfalls 1-3 derived from direct codebase analysis with specific code paths cited. Pitfall 4 from HA community reports and official docs. All pitfalls have specific, actionable prevention strategies. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **OpenDTU limit dead-time value:** 30s is derived from GitHub issues; measure on real Hoymiles HM-800 at 192.168.3.98 during Phase 2 testing and adjust the constant before Phase 5 implementation
-- **Venus OS EDPC refresh rate:** The existing 5-second EDPC refresh loop's exact interval should be confirmed against the Venus OS side to ensure dead-time sizing prevents double-sends without being unnecessarily long
-- **Two Hoymiles serials on one OpenDTU:** Research assumes two inverters (HM-400 + HM-600) but the actual serials at 192.168.3.98 must be confirmed from a live `/api/livedata/status` response during Phase 2; device count affects Phase 3 DeviceEntry design
-- **WebSocket broadcast batching threshold:** The 1Hz debounce recommendation for 5+ devices is a design estimate; with only 2-3 devices actual performance may not require batching — validate during Phase 6 before adding complexity
-- **SolarEdge scan exclusion during concurrent operation:** The scanner's exclusion list behavior for hosts with active connections needs a test scenario during Phase 3 to confirm no accidental disconnects when the config UI triggers discovery
+- **HA `default_entity_id` vs `object_id`:** Research flagged this as MEDIUM confidence. Confirm the exact HA version in the target deployment and whether `object_id` is still accepted or whether the migration is immediately required.
+- **Avahi/mDNS on `mqtt-master.local`:** Whether the target broker advertises `_mqtt._tcp.local.` is unknown. If it does not (Mosquitto default), the zeroconf browser finds nothing and `getaddrinfo` is sufficient. Verify before building the scan UI in Phase 5.
+- **DashboardCollector snapshot field names:** The payload design in Phase 3 depends on the exact field names produced by `DashboardCollector.collect_from_raw()`. Confirm field names match the telemetry payload schema in FEATURES.md before writing `mqtt_payload()` — field names may differ between SolarEdge and OpenDTU collectors.
+- **Client ID stability:** PITFALLS recommends `pv-proxy-pub-{short_hash}` derived from hostname. Confirm the LXC hostname is stable across reboots, or use a config-persisted UUID instead to guarantee stable client ID for QoS 1 session persistence.
+- **ARCHITECTURE.md vs STACK.md/PITFALLS.md conflict on raw sockets:** ARCHITECTURE.md recommends staying with raw sockets for the publisher for consistency with `venus_reader.py`. STACK.md and PITFALLS.md both recommend aiomqtt. Resolution: use aiomqtt. The raw socket approach cannot support QoS 1 PUBACK, LWT, or clean reconnect without reimplementing paho-mqtt.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct codebase analysis: `plugin.py`, `plugins/solaredge.py`, `proxy.py`, `config.py`, `__main__.py`, `webapp.py`, `dashboard.py`, `control.py`, `connection.py`
-- [OpenDTU Web API documentation](https://www.opendtu.solar/firmware/web_api/) — REST endpoints, authentication, response formats, limit_type semantics
-- [aiohttp ClientSession documentation](https://docs.aiohttp.org/en/stable/client.html) — already a dependency, no new integration needed
-- [SolarEdge SunSpec Technical Note](https://knowledge-center.solaredge.com/sites/kc/files/sunspec-implementation-technical-note.pdf) — single Modbus TCP connection limit confirmed
-- [OpenDTU GitHub Issue #571](https://github.com/tbnobody/OpenDTU/issues/571) — 25-90 second power limit latency on Hoymiles hardware, confirmed measurement
+- Codebase analysis: `venus_reader.py`, `__main__.py`, `aggregation.py`, `config.py`, `context.py`, `pyproject.toml`, `dashboard.py` — direct source of truth for integration points and existing patterns
+- [aiomqtt GitHub (empicano)](https://github.com/empicano/aiomqtt) — v2.4.0 May 2025; API design, LWT/QoS/reconnect capabilities
+- [python-zeroconf GitHub](https://github.com/python-zeroconf/python-zeroconf) — v0.148.0 Oct 2025; AsyncZeroconf API
+- [Home Assistant MQTT Integration](https://www.home-assistant.io/integrations/mqtt/) — discovery topic format, device grouping, origin field
+- [Home Assistant MQTT Sensor](https://www.home-assistant.io/integrations/sensor.mqtt/) — device_class, state_class, value_template
 
 ### Secondary (MEDIUM confidence)
-- [OpenDTU GitHub Discussion #602](https://github.com/tbnobody/OpenDTU/discussions/602) — limit_type and limit_value parameter usage
-- [OpenDTU GitHub Discussion #742](https://github.com/tbnobody/OpenDTU/discussions/742) — limit type 0=absolute watts, 1=relative percentage
-- [OpenDTU-OnBattery Dynamic Power Limiter](https://github.com/hoylabs/OpenDTU-OnBattery/wiki/Dynamic-Power-Limiter) — priority-based power distribution strategies
-- [dbus-opendtu Venus OS integration](https://github.com/henne49/dbus-opendtu) — alternative approach confirms OpenDTU API patterns
-- [SolarEdge single connection GitHub issue](https://github.com/binsentsu/home-assistant-solaredge-modbus/issues/82) — confirms single-client limitation in practice
-- [victronenergy/dbus-fronius](https://github.com/victronenergy/dbus-fronius) — Venus OS Fronius driver; SunSpec power limiting via Model 123/704
+- [SolarAssistant MQTT](https://solar-assistant.io/help/integration/mqtt) — topic structure patterns for solar monitoring
+- [deye-inverter-mqtt](https://github.com/kbialek/deye-inverter-mqtt) — publish intervals, publish-on-change, availability topics
+- [EMQ Python MQTT Clients Guide 2025](https://www.emqx.com/en/blog/comparision-of-python-mqtt-client) — comparison of Python MQTT clients
+- [HiveMQ MQTT Topic Best Practices](https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/) — topic naming conventions
+- [HA 2026.4 discovery deprecation](https://github.com/jomjol/AI-on-the-edge-device/issues/3932) — `object_id` to `default_entity_id` migration
+- [HA Community: MQTT discovery + JSON](https://community.home-assistant.io/t/mqtt-auto-discovery-and-json-payload/409459) — JSON payload patterns
+- [HA Community: Huawei Solar MQTT](https://community.home-assistant.io/t/app-huabus-huawei-solar-modbus-to-mqtt-sun2-3-5-000-mqtt-home-assistant-auto-discovery/958230) — real-world 68-entity solar HA discovery as pattern reference
 
-### Tertiary (LOW confidence — needs validation)
-- [OpenDTU GitHub: API breaking changes](https://github.com/tbnobody/OpenDTU) — changelog analysis; exact version compatibility ranges need validation against the target firmware version running at 192.168.3.98
+### Tertiary (LOW confidence)
+- [growatt2mqtt](https://github.com/nygma2004/growatt2mqtt) — 4s publish interval reference only
+- [Home Assistant mDNS MQTT community discussion](https://community.home-assistant.io/t/mosquitto-broker-announcing-advertising-mqtt-service-via-mdns/343190) — `_mqtt._tcp` service type for Mosquitto Avahi configuration
 
 ---
-*Research completed: 2026-03-20*
+*Research completed: 2026-03-22*
 *Ready for roadmap: yes*

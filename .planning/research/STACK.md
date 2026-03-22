@@ -1,9 +1,19 @@
-# Technology Stack
+# Technology Stack: MQTT Data Publishing (v5.0)
 
-**Project:** Venus OS Fronius Proxy -- v4.0 Multi-Source Virtual Inverter
-**Researched:** 2026-03-20
-**Scope:** Stack additions for OpenDTU integration, virtual inverter aggregation, device registry
+**Project:** Venus OS Fronius Proxy
+**Researched:** 2026-03-22
+**Scope:** New dependencies for MQTT publishing, mDNS broker autodiscovery, configurable intervals
 **Overall confidence:** HIGH
+
+## Critical Context
+
+The existing codebase does **NOT** use paho-mqtt despite previous research stating otherwise. The Venus OS MQTT subscriber (`venus_reader.py`) is a hand-rolled raw-socket MQTT 3.1.1 implementation (~100 LOC) that handles CONNECT, SUBSCRIBE, PUBLISH, and PINGREQ at the byte level. It runs blocking socket I/O via `run_in_executor` with QoS 0 only.
+
+This hand-rolled approach works for the Venus OS subscriber (single broker, known topics, read-mostly) but is inadequate for a proper MQTT publisher because:
+- No QoS 1 support (no PUBACK handling) -- data publishing benefits from at-least-once delivery
+- No Last Will and Testament (LWT) -- consumers need to know when the publisher goes offline
+- No reconnect with session persistence -- published data would be lost on disconnect
+- No proper MQTT packet framing for large payloads
 
 ## Existing Stack (DO NOT CHANGE)
 
@@ -11,258 +21,209 @@
 |------------|---------|---------|
 | Python | 3.12 | Runtime |
 | pymodbus | >=3.6,<4.0 | Modbus TCP server + SolarEdge client |
-| aiohttp | >=3.10,<4.0 | HTTP server, WebSocket, REST API |
-| paho-mqtt | (installed) | Venus OS MQTT integration |
+| aiohttp | >=3.10,<4.0 | HTTP server, WebSocket, REST API, OpenDTU client |
 | structlog | >=24.0 | Structured JSON logging |
 | PyYAML | >=6.0,<7.0 | Configuration files |
 | Vanilla JS | -- | Frontend (zero dependencies, no build) |
 
-## Stack Additions for v4.0
+## Recommended Stack Additions
 
-### ZERO new Python dependencies needed
+### MQTT Publishing Client
 
-The key finding: **aiohttp already includes `aiohttp.ClientSession`**, which is the HTTP client needed for OpenDTU REST API polling. No new library is required.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| aiomqtt | >=2.3,<3.0 | Async MQTT client for publishing inverter data | Native asyncio (`async with`/`async for`), wraps battle-tested paho-mqtt, supports QoS 0/1/2, LWT, clean sessions, auto-reconnect. Fits the existing asyncio architecture perfectly. |
+| paho-mqtt | >=2.0,<3.0 | Transitive dependency of aiomqtt | Installed automatically. Not used directly. |
 
-### OpenDTU REST API Client
+**Why aiomqtt over alternatives:**
+- The project is 100% asyncio. aiomqtt is the idiomatic asyncio MQTT client -- no callbacks, no threading, just `await client.publish()`.
+- The existing `venus_reader.py` uses `run_in_executor` to bridge blocking sockets into asyncio. aiomqtt eliminates this anti-pattern for the publisher.
+- paho-mqtt alone would require callback wiring and thread synchronization with the asyncio event loop.
+- Extending the hand-rolled client for QoS 1, LWT, and reconnect would be reinventing paho-mqtt poorly.
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| HTTP client library | `aiohttp.ClientSession` | Already a dependency. Async-native. Supports GET for polling and POST for limit control. No reason to add `httpx` or `requests`. |
-| Authentication | HTTP Basic Auth via `aiohttp.BasicAuth` | OpenDTU uses Basic Auth (admin:password). `aiohttp.BasicAuth` is built-in to aiohttp -- no dependency needed. |
-| Polling pattern | Async loop with `asyncio.sleep` | Same pattern as SolarEdge Modbus polling. Reuse `ConnectionManager` for reconnection/backoff. |
+**Key aiomqtt features used:**
+- `Client(hostname, port)` with `async with` for connection lifecycle
+- `client.publish(topic, payload, qos=)` for data publishing
+- `will=Will(topic, payload)` for LWT (offline detection)
+- Built-in reconnect on connection loss
 
-**OpenDTU API endpoints used:**
+**Confidence:** HIGH -- aiomqtt v2.4.0 released May 2025, actively maintained, 491+ GitHub stars, well-documented.
 
-| Endpoint | Method | Auth | Purpose |
-|----------|--------|------|---------|
-| `/api/livedata/status` | GET | No (readonly) | Poll all inverter data (AC power, DC strings, temperature, yields) |
-| `/api/livedata/status?inv=<serial>` | GET | No | Detailed per-inverter data with all DC string channels |
-| `/api/limit/status` | GET | No | Current power limit percentage and set status |
-| `/api/limit/config` | POST | Yes (Basic) | Set power limit: `{"serial": "...", "limit_type": 1, "limit_value": 50}` |
+### mDNS Broker Autodiscovery
 
-**Response data mapping (OpenDTU -> InverterPlugin interface):**
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| zeroconf | >=0.140,<1.0 | mDNS/DNS-SD service discovery for `_mqtt._tcp.local.` | Pure Python, asyncio-native (`AsyncZeroconf`, `AsyncServiceBrowser`), actively maintained (v0.148.0, Oct 2025). Used by Home Assistant for the same purpose. |
 
-| OpenDTU field | SunSpec equivalent | Notes |
-|---------------|-------------------|-------|
-| `inverters[].AC.0.Power.v` | `ac_power` (W) | Direct map |
-| `inverters[].AC.0.Voltage.v` | `ac_voltage_an` (V) | Single-phase micro-inverter |
-| `inverters[].AC.0.Current.v` | `ac_current` (A) | Direct map |
-| `inverters[].AC.0.Frequency.v` | `ac_frequency` (Hz) | Direct map |
-| `inverters[].DC.{0,1,2,3}.Power.v` | `dc_power` (W) | Sum all DC strings |
-| `inverters[].DC.{0,1,2,3}.Voltage.v` | `dc_voltage` (V) | Average or per-string |
-| `inverters[].DC.{0,1,2,3}.YieldTotal.v` | `ac_energy` (Wh) | Cumulative |
-| `inverters[].DC.{0,1,2,3}.YieldDay.v` | `daily_energy_wh` | Daily yield |
-| `inverters[].INV.0.Temperature.v` | `temperature_cab` (C) | Inverter temperature |
-| `inverters[].limit_relative` | Power limit % | Current active limit |
-| `inverters[].reachable` | Connection state | Maps to ConnectionState |
-| `inverters[].producing` | Operating status | MPPT vs SLEEPING |
+**Why zeroconf:**
+- The standard `_mqtt._tcp.local.` service type is what Mosquitto brokers advertise via Avahi/mDNS. The target broker `mqtt-master.local` almost certainly advertises this.
+- zeroconf has first-class async support via `AsyncZeroconf` and `AsyncServiceBrowser` -- no executor bridging needed.
+- Only library in the Python ecosystem that does mDNS service browsing properly. There is no real alternative.
+- Lightweight one-shot discovery: browse for `_mqtt._tcp.local.`, collect results for a few seconds, pick best match, done.
 
-### Plugin Architecture Extension
+**Confidence:** HIGH -- python-zeroconf v0.148.0 released Oct 2025, >1000 GitHub stars, used by Home Assistant core.
 
-**No changes to `InverterPlugin` ABC needed.** The existing 6-method interface (`connect`, `poll`, `get_static_common_overrides`, `get_model_120_registers`, `write_power_limit`, `reconfigure`, `close`) covers the OpenDTU use case:
+### No Other Dependencies Needed
 
-| Method | OpenDTU Implementation |
-|--------|----------------------|
-| `connect()` | Create `aiohttp.ClientSession`, verify `/api/livedata/status` is reachable |
-| `poll()` | GET `/api/livedata/status`, transform JSON to `PollResult` (common_registers + inverter_registers as uint16 arrays) |
-| `get_static_common_overrides()` | Manufacturer="Fronius", Model from OpenDTU inverter name |
-| `get_model_120_registers()` | Synthesize Model 120 from Hoymiles specs (e.g., HM-800 = 800W rated) |
-| `write_power_limit()` | POST `/api/limit/config` with `{"serial": "...", "limit_type": 1, "limit_value": pct}` |
-| `reconfigure()` | Close session, update host/port/credentials |
-| `close()` | Close `aiohttp.ClientSession` |
-
-**Key difference from SolarEdge:** OpenDTU returns JSON (not Modbus registers). The plugin must synthesize uint16 register arrays from JSON fields to match the `PollResult` format. This is a translation layer inside the plugin, invisible to the rest of the system.
-
-### Virtual Inverter Aggregation
-
-**No new library needed.** Aggregation is pure arithmetic on `PollResult` data:
-
-| Aggregation | Method | Notes |
-|-------------|--------|-------|
-| AC Power | Sum all active inverters' `ac_power` | Straightforward addition |
-| AC Current | Sum all inverters' `ac_current` | Currents add in parallel |
-| AC Voltage | Average (or use primary inverter) | Voltage should be same across grid-tied inverters |
-| Frequency | Average (or use primary inverter) | Same grid = same frequency |
-| Energy Total | Sum all `ac_energy` values | Each inverter tracks independently |
-| Temperature | Max across all inverters | Report hottest for safety |
-| Status | Worst-case (FAULT > THROTTLED > MPPT > SLEEPING) | Conservative reporting |
-
-**Implementation pattern:** A new `VirtualInverterAggregator` class that:
-1. Holds references to multiple `InverterPlugin` instances
-2. Polls all in parallel via `asyncio.gather`
-3. Merges results into a single `PollResult` for the Modbus server
-4. Distributes power limit commands according to priority rules
-
-### Device Registry Pattern
-
-**No new library needed.** Pure Python dataclasses + dict registry:
-
-```python
-@dataclass
-class DeviceEntry:
-    id: str                    # UUID-based, like existing InverterEntry.id
-    type: str                  # "solaredge" | "opendtu" | "venus"
-    name: str                  # User-defined display name
-    enabled: bool
-    config: dict               # Type-specific configuration
-    plugin: InverterPlugin | None  # Runtime reference (not persisted)
-```
-
-**Config schema extension (YAML):**
-
-```yaml
-# Existing format (backward compatible):
-inverters:
-  - id: "abc123def456"
-    host: "192.168.3.18"
-    port: 1502
-    unit_id: 1
-    type: "solaredge"        # NEW field, default "solaredge" for migration
-    enabled: true
-
-  - id: "789xyz012345"
-    host: "192.168.3.98"
-    port: 80                 # OpenDTU web port
-    type: "opendtu"          # NEW field
-    serial: "114184835288"   # Hoymiles serial (for limit commands)
-    auth_user: "admin"       # OpenDTU credentials
-    auth_pass: "openDTU42"   # Default OpenDTU password
-    enabled: true
-
-# NEW section:
-virtual_inverter:
-  name: "PV Gesamtanlage"    # Display name for Venus OS
-  rated_power_w: 30800       # Sum of all inverter ratings (30000 + 800)
-```
-
-### Power Limit Distribution
-
-**No new library needed.** Priority-based distribution using a simple strategy pattern:
-
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| Proportional | Distribute limit proportionally by rated power | Default, fair distribution |
-| Priority | Limit lowest-priority inverter first | Protect primary inverter |
-| Exclude | Skip specific inverters from limiting | Micro-inverters exempt |
-
-### Frontend Additions
-
-**No new JS libraries.** Existing patterns cover all needs:
-
-| Need | Existing Pattern |
-|------|-----------------|
-| Device list/cards | `ve-card` + `ve-panel` components |
-| Per-device dashboard | Reuse gauge, sparkline, phase table |
-| Device type icons | CSS-only (SVG in CSS or unicode) |
-| Tab navigation per device | Hash routing (`#device/<id>/dashboard`) |
-| Add device flow | Modal pattern from config page |
+| Category | Decision | Rationale |
+|----------|----------|-----------|
+| JSON serialization | Use stdlib `json` | Payloads are small dicts (~500 bytes). No need for orjson/ujson. |
+| Scheduling | Use `asyncio.sleep` in a loop | Configurable interval (e.g., 5s) in an `async while True` loop. The existing poll loops already use this exact pattern. |
+| Topic templating | Use f-strings | Topics like `pv-proxy/{device_id}/power` are simple string formatting. No Jinja2 needed. |
+| Config validation | Use existing dataclass pattern | Add a `MqttPublishConfig` dataclass to `config.py` following the established `VenusConfig` pattern. |
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| HTTP client | aiohttp.ClientSession | httpx | Already have aiohttp; adding httpx means a new dependency for zero benefit |
-| HTTP client | aiohttp.ClientSession | urllib3/requests | Not async-native; would need run_in_executor, adds complexity |
-| Config format | Extended YAML | SQLite/JSON | YAML is established pattern, migration path is clean |
-| Aggregation | In-process Python | Message broker (Redis) | Massive overkill for 2-5 inverters on same LAN |
-| Device registry | Dict + dataclasses | SQLAlchemy/TinyDB | Out-of-scope complexity; in-memory + YAML persistence is sufficient |
-| Plugin discovery | Explicit dict mapping | pluggy/entry_points | Only 2 plugin types; dynamic discovery is premature abstraction |
+| MQTT client | aiomqtt | paho-mqtt (direct) | Callback-based, requires thread bridging with asyncio. aiomqtt wraps it with clean async API. |
+| MQTT client | aiomqtt | Extend hand-rolled client in venus_reader.py | Would need QoS 1 PUBACK, LWT, reconnect, session persistence -- essentially reimplementing paho-mqtt poorly. |
+| MQTT client | aiomqtt | gmqtt | Less maintained, fewer users, no paho-mqtt foundation. |
+| mDNS | zeroconf | avahi-browse (subprocess) | External dependency on avahi-daemon, parsing subprocess output is fragile, not async. |
+| mDNS | zeroconf | socket.getaddrinfo for mqtt-master.local | Only resolves a known hostname. Does not discover unknown brokers on the LAN. |
+
+## Integration Points
+
+### Architecture Fit
+
+```
+DeviceRegistry (poll loops)
+    |
+    v per-device snapshot (DashboardCollector)
+    |
+    +---> WebSocket broadcast (existing, in webapp.py)
+    |
+    +---> MQTT Publisher (NEW, mqtt_publisher.py)
+              |
+              v aiomqtt.Client
+              |
+              v mqtt-master.local:1883
+```
+
+### MQTT Publisher Task
+
+The publisher runs as an asyncio task in `__main__.py`, alongside `venus_mqtt_loop` and device poll tasks. Pattern:
+
+```python
+async def mqtt_publish_loop(app_ctx: AppContext, config: MqttPublishConfig):
+    """Background task: publish device snapshots to external MQTT broker."""
+    if not config.enabled:
+        return
+
+    host = config.host
+    if config.autodiscovery:
+        discovered = await discover_mqtt_broker()  # zeroconf
+        if discovered:
+            host = discovered
+
+    will = aiomqtt.Will(
+        topic=f"{config.topic_prefix}/status",
+        payload=json.dumps({"online": False}),
+        qos=1, retain=True,
+    )
+
+    async with aiomqtt.Client(host, config.port, will=will) as client:
+        # Announce online
+        await client.publish(
+            f"{config.topic_prefix}/status",
+            json.dumps({"online": True}), qos=1, retain=True,
+        )
+        while True:
+            for dev_id, dev_state in app_ctx.devices.items():
+                snapshot = dev_state.collector.last_snapshot
+                if snapshot:
+                    await client.publish(
+                        f"{config.topic_prefix}/{dev_id}",
+                        json.dumps(snapshot), qos=config.qos,
+                    )
+            await asyncio.sleep(config.interval)
+```
+
+### Config Dataclass
+
+Add to `config.py` following the established `VenusConfig` pattern:
+
+```python
+@dataclass
+class MqttPublishConfig:
+    enabled: bool = False
+    host: str = "mqtt-master.local"    # Default target broker
+    port: int = 1883
+    client_id: str = "pv-inverter-proxy"
+    topic_prefix: str = "pv-proxy"     # -> pv-proxy/{device_id}/...
+    interval: float = 5.0              # Publish interval in seconds
+    autodiscovery: bool = True         # Try mDNS _mqtt._tcp before using host
+    qos: int = 0                       # 0 or 1
+```
+
+Add `mqtt_publish: MqttPublishConfig` field to the `Config` dataclass. Load from YAML section `mqtt_publish:` using the same filtered-kwargs pattern as all other config sections.
+
+### AppContext Extension
+
+Add to `context.py`:
+
+```python
+# MQTT Publisher state
+mqtt_publish_connected: bool = False
+mqtt_publish_broker: str = ""        # Resolved broker address
+mqtt_publish_task: object = None     # asyncio.Task
+```
+
+### Separation from Venus OS MQTT
+
+The Venus OS MQTT (`venus_reader.py`) and the new MQTT publisher are completely separate concerns:
+- **Venus MQTT**: Subscribes to Venus OS broker (192.168.3.146) for ESS settings. Hand-rolled raw-socket client, read-only.
+- **MQTT Publisher**: Publishes to external broker (mqtt-master.local). aiomqtt client, write-only.
+
+Do NOT refactor `venus_reader.py` to use aiomqtt in this milestone. It works, it is tested, and mixing concerns creates risk. Migration can happen in a future milestone if desired.
 
 ## What NOT to Add
 
 | Library | Why Not |
 |---------|---------|
-| `httpx` | aiohttp already has a capable async HTTP client |
-| `requests` | Not async; would block the event loop |
-| `pydantic` | Dataclasses are sufficient for config validation; pydantic adds 5MB+ |
-| `fastapi` | Already using aiohttp; no benefit to switching |
-| `sqlalchemy` / `tinydb` | No database needed; YAML config + in-memory state is the pattern |
-| `celery` / `dramatiq` | No task queue needed; asyncio.gather handles parallel polling |
-| `pluggy` | Only 2 plugin types; dict-based dispatch is simpler and debuggable |
-| Any JS framework | Zero-dependency vanilla JS is a core project constraint |
+| Home Assistant MQTT Discovery | Out of scope for v5.0. HA auto-discovery uses a specific JSON schema on `homeassistant/` topics. Add in a future milestone if needed. |
+| MQTT bridge/relay | Not needed. This is a simple publisher, not a broker-to-broker bridge. |
+| TLS/authentication libraries | Explicitly out of scope per PROJECT.md ("Alles im selben LAN, kein Internet-Exposure"). |
+| Database for message persistence | MQTT QoS handles delivery guarantees. No need for local queue/DB. |
+| orjson/msgpack | Payloads are tiny JSON dicts. stdlib `json` is fine. |
+| pydantic | Dataclasses are sufficient for config validation. Established project pattern. |
 
 ## Installation
 
 ```bash
-# No new packages needed for v4.0
-# Existing pyproject.toml dependencies cover everything:
-pip install -e .
+# New dependencies for v5.0
+pip install "aiomqtt>=2.3,<3.0" "zeroconf>=0.140,<1.0"
 ```
 
-The only code additions are:
-1. `src/venus_os_fronius_proxy/plugins/opendtu.py` -- new plugin file using `aiohttp.ClientSession`
-2. Device registry logic in existing `config.py` (extend `InverterEntry` with `type` field)
-3. Virtual inverter aggregation module (new file, pure Python)
-4. Frontend: extend existing `app.js` / `index.html` / `style.css`
-
-## Key Integration Points
-
-### aiohttp.ClientSession Lifecycle
-
-The `aiohttp.ClientSession` for OpenDTU polling must be created within an async context and properly closed on shutdown. Pattern:
-
-```python
-class OpenDTUPlugin(InverterPlugin):
-    def __init__(self, host: str, port: int = 80, serial: str = "",
-                 auth_user: str = "admin", auth_pass: str = "openDTU42"):
-        self.host = host
-        self.port = port
-        self.serial = serial
-        self._auth = aiohttp.BasicAuth(auth_user, auth_pass)
-        self._session: aiohttp.ClientSession | None = None
-        self._base_url = f"http://{host}:{port}"
-
-    async def connect(self) -> None:
-        self._session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=10)
-        )
-        # Verify connectivity
-        async with self._session.get(f"{self._base_url}/api/livedata/status") as resp:
-            resp.raise_for_status()
-
-    async def poll(self) -> PollResult:
-        async with self._session.get(
-            f"{self._base_url}/api/livedata/status?inv={self.serial}"
-        ) as resp:
-            data = await resp.json()
-            return self._json_to_poll_result(data)
-
-    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
-        payload = {
-            "serial": self.serial,
-            "limit_type": 1,  # relative (%)
-            "limit_value": limit_pct if enable else 100,
-        }
-        async with self._session.post(
-            f"{self._base_url}/api/limit/config",
-            json=payload,
-            auth=self._auth,
-        ) as resp:
-            return WriteResult(success=resp.status == 200)
-
-    async def close(self) -> None:
-        if self._session:
-            await self._session.close()
-            self._session = None
+Update `pyproject.toml`:
+```toml
+dependencies = [
+    "pymodbus>=3.6,<4.0",
+    "structlog>=24.0",
+    "PyYAML>=6.0,<7.0",
+    "aiohttp>=3.10,<4.0",
+    "aiomqtt>=2.3,<3.0",       # NEW: async MQTT publishing
+    "zeroconf>=0.140,<1.0",    # NEW: mDNS broker autodiscovery
+]
 ```
 
-### Parallel Polling in Aggregator
+**Dependency footprint:** aiomqtt pulls in paho-mqtt (~150KB). zeroconf is pure Python (~2MB installed). Total addition: ~2.5MB. Acceptable for an LXC deployment.
 
-```python
-async def poll_all(plugins: list[InverterPlugin]) -> list[PollResult]:
-    return await asyncio.gather(
-        *(p.poll() for p in plugins),
-        return_exceptions=True,
-    )
-```
+## New Files
 
-### Config Migration Path
+| File | Purpose |
+|------|---------|
+| `src/venus_os_fronius_proxy/mqtt_publisher.py` | MQTT publish loop, broker connection, payload formatting |
+| `src/venus_os_fronius_proxy/mdns_discovery.py` | mDNS `_mqtt._tcp.local.` broker discovery using zeroconf |
 
-Existing `inverters:` list entries without a `type` field default to `"solaredge"`. No migration script needed -- just a default value in the dataclass.
+Modified files: `config.py` (add `MqttPublishConfig`), `context.py` (add publisher state), `__main__.py` (start publisher task), `webapp.py` (config API endpoints), `app.js` + `index.html` + `style.css` (config UI).
 
 ## Sources
 
-- OpenDTU Web API documentation: https://www.opendtu.solar/firmware/web_api/ (HIGH confidence, official docs)
-- aiohttp ClientSession: https://docs.aiohttp.org/en/stable/client.html (HIGH confidence, already a dependency)
-- Existing codebase: `plugin.py`, `plugins/solaredge.py`, `config.py`, `proxy.py`, `dashboard.py`, `__main__.py` (HIGH confidence, validated source)
-- OpenDTU limit control: POST `/api/limit/config` with `limit_type: 1` (relative %) confirmed in official docs (HIGH confidence)
+- [aiomqtt GitHub (empicano)](https://github.com/empicano/aiomqtt) -- v2.4.0, May 2025
+- [aiomqtt PyPI](https://pypi.org/project/aiomqtt/) -- latest release info
+- [python-zeroconf GitHub](https://github.com/python-zeroconf/python-zeroconf) -- v0.148.0, Oct 2025
+- [zeroconf PyPI](https://pypi.org/project/zeroconf/) -- latest release info
+- [EMQ Python MQTT Clients Guide 2025](https://www.emqx.com/en/blog/comparision-of-python-mqtt-client) -- comparison of Python MQTT clients
+- [Home Assistant mDNS MQTT discussion](https://community.home-assistant.io/t/mosquitto-broker-announcing-advertising-mqtt-service-via-mdns/343190) -- _mqtt._tcp service type for Mosquitto
+- Existing codebase: `venus_reader.py`, `config.py`, `context.py`, `device_registry.py`, `__main__.py` (HIGH confidence, source of truth)
