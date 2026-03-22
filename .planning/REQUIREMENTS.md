@@ -9,8 +9,8 @@ Requirements for MQTT Data Publishing milestone. Each maps to roadmap phases.
 
 ### MQTT Publishing
 
-- [ ] **PUB-01**: Proxy publisht Inverter-Daten (Leistung, Spannung, Strom, Temperatur, Status) pro Device an MQTT Broker
-- [ ] **PUB-02**: Proxy publisht aggregierte Virtual-PV-Daten (Gesamtleistung, Contributions) an MQTT Broker
+- [x] **PUB-01**: Proxy publisht Inverter-Daten (Leistung, Spannung, Strom, Temperatur, Status) pro Device an MQTT Broker
+- [x] **PUB-02**: Proxy publisht aggregierte Virtual-PV-Daten (Gesamtleistung, Contributions) an MQTT Broker
 - [x] **PUB-03**: Publish-Intervall ist konfigurierbar (Default: 5s)
 - [ ] **PUB-04**: Publisher nutzt Change-based Optimization — kein Publish wenn Daten unveraendert
 - [x] **PUB-05**: Publisher nutzt LWT fuer Online/Offline-Availability-Tracking
@@ -18,9 +18,9 @@ Requirements for MQTT Data Publishing milestone. Each maps to roadmap phases.
 
 ### Home Assistant Integration
 
-- [ ] **HA-01**: Publisher sendet MQTT Auto-Discovery Config Payloads fuer alle Sensoren
-- [ ] **HA-02**: Sensoren haben korrekte device_class und state_class fuer HA Energy Dashboard
-- [ ] **HA-03**: Inverter erscheinen als gruppierte Devices in HA (Manufacturer, Model, SW Version)
+- [x] **HA-01**: Publisher sendet MQTT Auto-Discovery Config Payloads fuer alle Sensoren
+- [x] **HA-02**: Sensoren haben korrekte device_class und state_class fuer HA Energy Dashboard
+- [x] **HA-03**: Inverter erscheinen als gruppierte Devices in HA (Manufacturer, Model, SW Version)
 - [ ] **HA-04**: Availability-Entity pro Device reagiert auf LWT
 
 ### Broker Connectivity
@@ -58,15 +58,15 @@ Requirements for MQTT Data Publishing milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PUB-01 | Phase 26 | Pending |
-| PUB-02 | Phase 26 | Pending |
+| PUB-01 | Phase 26 | Complete |
+| PUB-02 | Phase 26 | Complete |
 | PUB-03 | Phase 25 | Complete |
 | PUB-04 | Phase 26 | Pending |
 | PUB-05 | Phase 25 | Complete |
 | PUB-06 | Phase 26 | Pending |
-| HA-01 | Phase 26 | Pending |
-| HA-02 | Phase 26 | Pending |
-| HA-03 | Phase 26 | Pending |
+| HA-01 | Phase 26 | Complete |
+| HA-02 | Phase 26 | Complete |
+| HA-03 | Phase 26 | Complete |
 | HA-04 | Phase 26 | Pending |
 | CONN-01 | Phase 25 | Complete |
 | CONN-02 | Phase 25 | Complete |
