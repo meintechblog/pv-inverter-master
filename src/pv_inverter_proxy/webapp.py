@@ -1120,17 +1120,18 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
 
     control.save_ui_state()
 
-    # Find first SolarEdge plugin for immediate write
-    plugin = request.app.get("plugin")  # Legacy single-plugin
-    if plugin is None:
-        # Multi-device: find first solaredge plugin
-        config = request.app["config"]
-        for inv in config.inverters:
-            if inv.type == "solaredge" and inv.enabled:
-                ds = app_ctx.devices.get(inv.id)
-                if ds and ds.plugin:
-                    plugin = ds.plugin
-                    break
+    # Collect all enabled plugins for immediate write
+    config = request.app["config"]
+    plugins = []
+    for inv in config.inverters:
+        if inv.enabled:
+            ds = app_ctx.devices.get(inv.id)
+            if ds and ds.plugin:
+                plugins.append(ds.plugin)
+    # Fallback: legacy single-plugin
+    legacy = request.app.get("plugin")
+    if not plugins and legacy is not None:
+        plugins = [legacy]
 
     if control.clamp_max_pct < 100:
         effective_pct = max(control.clamp_max_pct, 1)  # Max clamp, at least 1%
@@ -1139,11 +1140,11 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
         control.last_source = "webapp"
         control.last_change_ts = __import__("time").time()
         control.webapp_revert_at = None
-        if plugin is not None:
+        for plugin in plugins:
             await plugin.write_power_limit(True, effective_pct)
     elif control.last_source == "webapp" and control.clamp_max_pct >= 100:
         # Max set back to 100% -- disable webapp limit
-        if plugin is not None:
+        for plugin in plugins:
             await plugin.write_power_limit(True, 100.0)
         control.update_wmaxlim_ena(0)
         control.last_source = "none"
