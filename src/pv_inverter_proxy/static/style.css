@@ -1130,6 +1130,18 @@ body {
     font-size: 0.85em;
     color: var(--ve-text-dim);
 }
+.ve-gauge-clamp {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 8px;
+    width: 100%;
+}
+.ve-clamp-label {
+    font-size: 0.8rem;
+}
+
 .ve-ctrl-dropdown {
     background: var(--ve-bg);
     color: var(--ve-text);
