@@ -11,6 +11,7 @@ Constants reference SolarEdge SE30K proprietary registers
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import struct
 import time
@@ -121,11 +122,10 @@ class ControlState:
 
     def _load_last_limit(self) -> None:
         """Restore last Venus OS power limit from disk."""
-        import json, time as _time
         try:
             with open(_LAST_LIMIT_FILE) as f:
                 data = json.load(f)
-            age = _time.time() - data.get("ts", 0)
+            age = time.time() - data.get("ts", 0)
             # Only restore if less than 5 minutes old
             if age < 300 and data.get("source") == "venus_os":
                 self.wmaxlimpct_raw = data["raw"]
@@ -138,13 +138,12 @@ class ControlState:
 
     def save_last_limit(self) -> None:
         """Persist current limit for restart recovery."""
-        import json, time as _time
         try:
             with open(_LAST_LIMIT_FILE, "w") as f:
                 json.dump({
                     "raw": self.wmaxlimpct_raw,
                     "source": self.last_source,
-                    "ts": _time.time(),
+                    "ts": time.time(),
                 }, f)
         except OSError:
             pass
@@ -153,7 +152,6 @@ class ControlState:
 
     def _load_ui_state(self) -> None:
         """Load persistent UI state (clamp values, lock)."""
-        import json, time as _time
         try:
             with open(self._UI_STATE_FILE) as f:
                 data = json.load(f)
@@ -162,18 +160,17 @@ class ControlState:
             self.device_clamps = data.get("device_clamps", {})
             # Restore lock only if not expired
             if data.get("is_locked") and data.get("lock_ts", 0) > 0:
-                age = _time.time() - data["lock_ts"]
+                age = time.time() - data["lock_ts"]
                 remaining = 900 - age
                 if remaining > 0:
                     self.is_locked = True
-                    self.lock_expires_at = _time.monotonic() + remaining
+                    self.lock_expires_at = time.monotonic() + remaining
                     logger.info("Restored Venus OS lock (%.0fs remaining)", remaining)
         except (FileNotFoundError, json.JSONDecodeError, KeyError):
             pass
 
     def save_ui_state(self) -> None:
         """Persist clamp + lock state for restart recovery."""
-        import json, time as _time
         try:
             with open(self._UI_STATE_FILE, "w") as f:
                 json.dump({
@@ -181,7 +178,7 @@ class ControlState:
                     "clamp_max_pct": self.clamp_max_pct,
                     "device_clamps": self.device_clamps,
                     "is_locked": self.is_locked,
-                    "lock_ts": _time.time() if self.is_locked else 0,
+                    "lock_ts": time.time() if self.is_locked else 0,
                 }, f)
         except OSError:
             pass

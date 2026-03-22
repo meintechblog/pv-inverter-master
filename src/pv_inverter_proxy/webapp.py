@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 import weakref
+from typing import Any
 
 from aiohttp import web
 
@@ -408,7 +409,7 @@ async def config_save_handler(request: web.Request) -> web.Response:
 
             if venus_host:
                 # Start new venus MQTT loop
-                app_ctx.venus_task = asyncio.ensure_future(
+                app_ctx.venus_task = asyncio.create_task(
                     venus_mqtt_loop(app_ctx, venus_host, venus_port, venus_portal_id)
                 )
             else:
@@ -630,26 +631,7 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
 
         # Send virtual snapshot
         if sent_any:
-            total_power_w = 0
-            contributions = []
-            distributor = getattr(ws_app_ctx, "device_registry", None) and ws_app_ctx.device_registry.distributor
-            device_limits = distributor.get_device_limits() if distributor is not None else {}
-            for inv in config.inverters:
-                ds = ws_app_ctx.devices.get(inv.id)
-                power_w = 0
-                if ds and ds.collector and ds.collector.last_snapshot:
-                    snap_inv = ds.collector.last_snapshot.get("inverter", {})
-                    power_w = snap_inv.get("ac_power_w", 0)
-                total_power_w += power_w
-                display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
-                contributions.append({
-                    "device_id": inv.id,
-                    "name": display_name,
-                    "power_w": power_w,
-                    "throttle_order": inv.throttle_order,
-                    "throttle_enabled": inv.throttle_enabled,
-                    "current_limit_pct": device_limits.get(inv.id, 100.0),
-                })
+            total_power_w, contributions = _build_virtual_contributions(ws_app_ctx, config)
             await ws.send_json({"type": "virtual_snapshot", "data": {
                 "total_power_w": total_power_w,
                 "virtual_name": config.virtual_inverter.name,
@@ -762,27 +744,7 @@ async def broadcast_virtual_snapshot(app: web.Application) -> None:
     if app_ctx is None or config is None:
         return
 
-    total_power_w = 0
-    contributions = []
-    distributor = getattr(app_ctx, "device_registry", None) and app_ctx.device_registry.distributor
-    device_limits = distributor.get_device_limits() if distributor is not None else {}
-
-    for inv in config.inverters:
-        ds = app_ctx.devices.get(inv.id)
-        power_w = 0
-        if ds and ds.collector and ds.collector.last_snapshot:
-            snap_inv = ds.collector.last_snapshot.get("inverter", {})
-            power_w = snap_inv.get("ac_power_w", 0)
-        total_power_w += power_w
-        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
-        contributions.append({
-            "device_id": inv.id,
-            "name": display_name,
-            "power_w": power_w,
-            "throttle_order": inv.throttle_order,
-            "throttle_enabled": inv.throttle_enabled,
-            "current_limit_pct": device_limits.get(inv.id, 100.0),
-        })
+    total_power_w, contributions = _build_virtual_contributions(app_ctx, config)
 
     payload = json.dumps({"type": "virtual_snapshot", "data": {
         "total_power_w": total_power_w,
@@ -808,6 +770,42 @@ async def broadcast_virtual_snapshot(app: web.Application) -> None:
             })
         except asyncio.QueueFull:
             pass
+
+
+def _build_virtual_contributions(
+    app_ctx: Any, config: Config,
+) -> tuple[float, list[dict]]:
+    """Aggregate power and per-device contributions for the virtual inverter.
+
+    Returns (total_power_w, contributions) where contributions is a list of
+    dicts suitable for the virtual_snapshot payload.
+    """
+    total_power_w = 0
+    contributions: list[dict] = []
+    distributor = (
+        getattr(app_ctx, "device_registry", None)
+        and app_ctx.device_registry.distributor
+    )
+    device_limits = distributor.get_device_limits() if distributor is not None else {}
+
+    for inv in config.inverters:
+        ds = app_ctx.devices.get(inv.id)
+        power_w = 0
+        if ds and ds.collector and ds.collector.last_snapshot:
+            snap_inv = ds.collector.last_snapshot.get("inverter", {})
+            power_w = snap_inv.get("ac_power_w", 0)
+        total_power_w += power_w
+        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
+        contributions.append({
+            "device_id": inv.id,
+            "name": display_name,
+            "power_w": power_w,
+            "throttle_order": inv.throttle_order,
+            "throttle_enabled": inv.throttle_enabled,
+            "current_limit_pct": device_limits.get(inv.id, 100.0),
+        })
+
+    return total_power_w, contributions
 
 
 def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
@@ -841,12 +839,11 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
         "enabled": bool(config.venus.host),
         "connection_state": venus_conn,
     })
-    import time as _time
     virtual_conn = "disconnected"
     webapp = getattr(app_ctx, "webapp", None)
     slave_ctx = webapp.get("slave_ctx") if webapp is not None else None
     if slave_ctx and getattr(slave_ctx, "last_successful_read", 0) > 0:
-        age = _time.monotonic() - slave_ctx.last_successful_read
+        age = time.monotonic() - slave_ctx.last_successful_read
         virtual_conn = "connected" if age < 30 else "disconnected"
     devices.append({
         "id": "virtual",
@@ -955,7 +952,7 @@ async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: boo
     await asyncio.sleep(1)  # Let active polls finish
     try:
         def progress_cb(phase: str, current: int, total: int) -> None:
-            asyncio.ensure_future(_broadcast_scan_progress(app, phase, current, total))
+            asyncio.create_task(_broadcast_scan_progress(app, phase, current, total))
 
         devices = await scan_subnet(scan_config, progress_callback=progress_cb)
 
@@ -1232,7 +1229,7 @@ def _mqtt_write_venus(host: str, port: int, portal_id: str, path: str, value) ->
                 b |= 0x80
             hdr.append(b)
         s.send(bytes(hdr) + struct.pack("!H", len(topic)) + topic + msg)
-        import time; time.sleep(0.5)
+        time.sleep(0.5)
         s.send(bytes([0xE0, 0x00]))  # DISCONNECT
         s.close()
         return True
@@ -1448,69 +1445,7 @@ async def devices_list_handler(request: web.Request) -> web.Response:
     """Return list of all devices: inverters + venus + virtual pseudo-devices."""
     config: Config = request.app["config"]
     app_ctx = request.app["app_ctx"]
-    devices = []
-
-    for inv in config.inverters:
-        ds = app_ctx.devices.get(inv.id)
-        # Determine connection state
-        conn_state = "unknown"
-        if ds and ds.conn_mgr:
-            conn_state = ds.conn_mgr.state.value
-        # Determine power
-        power_w = 0
-        if ds and ds.collector and ds.collector.last_snapshot:
-            snap_inv = ds.collector.last_snapshot.get("inverter", {})
-            power_w = snap_inv.get("ac_power_w", 0)
-        # Display name
-        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
-        devices.append({
-            "id": inv.id,
-            "name": display_name,
-            "type": inv.type,
-            "enabled": inv.enabled,
-            "host": inv.host,
-            "connection_state": conn_state,
-            "power_w": power_w,
-        })
-
-    # Venus pseudo-device
-    venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
-    devices.append({
-        "id": "venus",
-        "name": config.venus.name or "Venus OS",
-        "type": "venus",
-        "enabled": bool(config.venus.host),
-        "connection_state": venus_conn,
-    })
-
-    # Virtual pseudo-device — connection_state reflects Venus OS reading our Modbus
-    import time
-    slave_ctx = request.app.get("slave_ctx")
-    virtual_conn = "disconnected"
-    if slave_ctx and slave_ctx.last_successful_read > 0:
-        age = time.monotonic() - slave_ctx.last_successful_read
-        virtual_conn = "connected" if age < 30 else "disconnected"
-    devices.append({
-        "id": "virtual",
-        "name": config.virtual_inverter.name,
-        "type": "virtual",
-        "connection_state": virtual_conn,
-    })
-    mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
-    devices.append({
-        "id": "mqtt_pub",
-        "name": config.mqtt_publish.name or "MQTT Publishing",
-        "type": "mqtt_pub",
-        "enabled": config.mqtt_publish.enabled,
-        "connection_state": mqtt_pub_conn,
-        "stats": {
-            "messages": app_ctx.mqtt_pub_messages,
-            "bytes": app_ctx.mqtt_pub_bytes,
-            "skipped": app_ctx.mqtt_pub_skipped,
-            "last_ts": app_ctx.mqtt_pub_last_ts,
-        },
-    })
-
+    devices = _build_device_list(app_ctx, config)
     return web.json_response({"devices": devices})
 
 
@@ -1564,29 +1499,7 @@ async def virtual_snapshot_handler(request: web.Request) -> web.Response:
     config: Config = request.app["config"]
     app_ctx = request.app["app_ctx"]
 
-    total_power_w = 0
-    contributions = []
-
-    # Get throttle limits from distributor if available
-    distributor = getattr(app_ctx, "device_registry", None) and app_ctx.device_registry.distributor
-    device_limits = distributor.get_device_limits() if distributor is not None else {}
-
-    for inv in config.inverters:
-        ds = app_ctx.devices.get(inv.id)
-        power_w = 0
-        if ds and ds.collector and ds.collector.last_snapshot:
-            snap_inv = ds.collector.last_snapshot.get("inverter", {})
-            power_w = snap_inv.get("ac_power_w", 0)
-        total_power_w += power_w
-        display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
-        contributions.append({
-            "device_id": inv.id,
-            "name": display_name,
-            "power_w": power_w,
-            "throttle_order": inv.throttle_order,
-            "throttle_enabled": inv.throttle_enabled,
-            "current_limit_pct": device_limits.get(inv.id, 100.0),
-        })
+    total_power_w, contributions = _build_virtual_contributions(app_ctx, config)
 
     return web.json_response({
         "total_power_w": total_power_w,
@@ -1726,10 +1639,13 @@ async def config_export_handler(request: web.Request) -> web.Response:
     except FileNotFoundError:
         return web.json_response({"error": "Config file not found"}, status=404)
 
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{ts}_pv-inverter-proxy.yaml"
     return web.Response(
         body=yaml_content,
         content_type="application/x-yaml",
-        headers={"Content-Disposition": "attachment; filename=pv-inverter-proxy.yaml"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

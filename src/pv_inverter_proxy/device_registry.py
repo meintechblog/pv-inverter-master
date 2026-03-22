@@ -229,7 +229,7 @@ async def _device_poll_loop(
                     await plugin.connect()
                     log.info("plugin_reconnected")
                 except Exception:
-                    pass
+                    log.debug("plugin_reconnect_failed", exc_info=True)
 
             result = await plugin.poll()
             poll_counter["total"] += 1
@@ -250,7 +250,7 @@ async def _device_poll_loop(
                     try:
                         nameplate_regs = plugin.get_model_120_registers()
                     except Exception:
-                        pass
+                        log.debug("nameplate_register_error", exc_info=True)
 
                 # Update DashboardCollector with decoded snapshot
                 if device_state.collector is not None:

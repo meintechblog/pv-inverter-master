@@ -6,6 +6,7 @@ Supports power limiting via POST /api/limit/config with dead-time guard.
 """
 from __future__ import annotations
 
+import json
 import time
 
 import aiohttp
@@ -298,8 +299,7 @@ class OpenDTUPlugin(InverterPlugin):
             "limit_type": 1,  # Relative percentage
             "limit_value": limit_pct,
         }
-        import json as _json
-        form_data = {"data": _json.dumps(payload)}
+        form_data = {"data": json.dumps(payload)}
 
         try:
             async with self._session.post(url, data=form_data) as resp:

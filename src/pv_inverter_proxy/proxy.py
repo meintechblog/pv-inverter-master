@@ -97,7 +97,6 @@ class StalenessAwareSlaveContext(ModbusDeviceContext):
         """
         if self._cache.is_stale:
             raise Exception("Cache stale: no successful poll within timeout")
-        import time
         self.last_successful_read = time.monotonic()
         self.read_count += 1
         return super().getValues(fc_as_hex, address, count)
@@ -417,7 +416,7 @@ async def run_modbus_server(
                         # when Model 123 write is detected in async_setValues
                         app_ctx._last_modbus_client_ip = peername[0]
                 except Exception:
-                    pass
+                    logger.debug("Failed to capture Modbus client IP", exc_info=True)
             return _orig_connection_made(transport)
 
         handler.connection_made = _capture_ip_connection_made

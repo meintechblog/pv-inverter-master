@@ -108,6 +108,9 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                              devices=len([i for i in inverters if i.enabled]),
                              virtual=bool(virtual_name))
 
+                # Import payload builders once (not per iteration)
+                from pv_inverter_proxy.mqtt_payloads import device_payload, virtual_payload
+
                 # Consume from queue, throttle to interval_s, publish latest per key
                 last_published: dict[str, str] = {}  # last JSON sent per topic key
                 pending: dict[str, dict] = {}        # latest msg per topic key
@@ -148,7 +151,6 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                         msg_type = pmsg.get("type")
 
                         if msg_type == "device":
-                            from pv_inverter_proxy.mqtt_payloads import device_payload
                             payload = device_payload(pmsg["snapshot"], device_name=pmsg.get("device_name", ""))
                             payload_json = json.dumps(payload, separators=(",", ":"))
                             device_id = pmsg["device_id"]
@@ -165,7 +167,6 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                             ctx.mqtt_pub_last_ts = time.time()
 
                         elif msg_type == "virtual":
-                            from pv_inverter_proxy.mqtt_payloads import virtual_payload
                             payload = virtual_payload(pmsg["virtual_data"])
                             payload_json = json.dumps(payload, separators=(",", ":"))
 
