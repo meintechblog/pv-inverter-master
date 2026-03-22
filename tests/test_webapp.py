@@ -14,7 +14,6 @@ from pv_inverter_proxy.config import Config, InverterEntry, VenusConfig, WebappC
 from pv_inverter_proxy.connection import ConnectionManager, ConnectionState
 from pv_inverter_proxy.context import AppContext, DeviceState
 from pv_inverter_proxy.control import ControlState, OverrideLog
-from pv_inverter_proxy.plugin import WriteResult
 from pv_inverter_proxy.register_cache import RegisterCache
 from pv_inverter_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
 
@@ -76,22 +75,12 @@ def mock_config(tmp_path):
 
 
 @pytest.fixture
-def mock_plugin():
-    """Create a mock InverterPlugin."""
-    plugin = AsyncMock()
-    plugin.host = "192.168.3.18"
-    plugin.port = 1502
-    plugin.unit_id = 1
-    return plugin
-
-
-@pytest.fixture
-async def client(shared_ctx, mock_config, mock_plugin):
+async def client(shared_ctx, mock_config):
     """Create an aiohttp test client for the webapp."""
     from pv_inverter_proxy.webapp import create_webapp
 
     config, config_path = mock_config
-    runner = await create_webapp(shared_ctx, config, config_path, mock_plugin)
+    runner = await create_webapp(shared_ctx, config, config_path)
     # Get the app from the runner
     app = runner.app
     server = TestServer(app)
@@ -224,11 +213,8 @@ async def test_registers_no_se_poll(client, shared_ctx):
 # ---------- POST /api/power-limit ----------
 
 
-async def test_power_limit_set_valid(client, shared_ctx, mock_plugin):
+async def test_power_limit_set_valid(client, shared_ctx):
     """POST /api/power-limit with action=set, valid limit_pct returns 200."""
-    mock_plugin.write_power_limit = AsyncMock(
-        return_value=WriteResult(success=True)
-    )
     resp = await client.post("/api/power-limit", json={
         "action": "set",
         "limit_pct": 50.0,
@@ -237,7 +223,6 @@ async def test_power_limit_set_valid(client, shared_ctx, mock_plugin):
     data = await resp.json()
     assert data["success"] is True
     assert data["error"] is None
-    mock_plugin.write_power_limit.assert_called_once_with(True, 50.0)
 
     # ControlState should be updated
     cs = shared_ctx.control_state
@@ -246,7 +231,7 @@ async def test_power_limit_set_valid(client, shared_ctx, mock_plugin):
     assert cs.wmaxlim_ena == 1
 
 
-async def test_power_limit_set_invalid(client, mock_plugin):
+async def test_power_limit_set_invalid(client):
     """POST /api/power-limit with limit_pct=150 returns 400."""
     resp = await client.post("/api/power-limit", json={
         "action": "set",
@@ -255,14 +240,10 @@ async def test_power_limit_set_invalid(client, mock_plugin):
     assert resp.status == 400
     data = await resp.json()
     assert data["success"] is False
-    mock_plugin.write_power_limit.assert_not_called()
 
 
-async def test_power_limit_enable_disable(client, shared_ctx, mock_plugin):
+async def test_power_limit_enable_disable(client, shared_ctx):
     """POST /api/power-limit with action=enable and disable work."""
-    mock_plugin.write_power_limit = AsyncMock(
-        return_value=WriteResult(success=True)
-    )
     # First set a limit to have a value
     shared_ctx.control_state.update_wmaxlimpct(5000)
 
@@ -280,19 +261,16 @@ async def test_power_limit_enable_disable(client, shared_ctx, mock_plugin):
     assert shared_ctx.control_state.last_source == "none"
 
 
-async def test_power_limit_feedback(client, shared_ctx, mock_plugin):
-    """POST response includes success/error from WriteResult (CTRL-07)."""
-    mock_plugin.write_power_limit = AsyncMock(
-        return_value=WriteResult(success=False, error="Inverter timeout")
-    )
+async def test_power_limit_set_accepted_locally(client, shared_ctx):
+    """POST /api/power-limit set action is accepted locally (no plugin needed)."""
     resp = await client.post("/api/power-limit", json={
         "action": "set",
-        "limit_pct": 50.0,
+        "limit_pct": 75.0,
     })
     assert resp.status == 200
     data = await resp.json()
-    assert data["success"] is False
-    assert data["error"] == "Inverter timeout"
+    assert data["success"] is True
+    assert shared_ctx.control_state.wmaxlimpct_raw == 75
 
 
 # ---------- POST /api/venus-lock (Phase 11) ----------
@@ -601,7 +579,7 @@ async def test_inverters_delete_not_found(client):
     assert resp.status == 404
 
 
-async def test_inverters_delete_active_reconfigures(client, mock_plugin):
+async def test_inverters_delete_active_reconfigures(client):
     """Deleting the active inverter removes it from config."""
     config: Config = client.app["config"]
     active_id = config.inverters[0].id
@@ -632,9 +610,8 @@ async def test_config_get_returns_inverters_list(client):
         assert "host" in inv
 
 
-async def test_config_save_old_format(client, mock_plugin):
+async def test_config_save_old_format(client):
     """POST /api/config with {"inverter": {...}} updates the active inverter (backward compat)."""
-    mock_plugin.reconfigure = AsyncMock()
     resp = await client.post("/api/config", json={
         "inverter": {"host": "10.0.0.77", "port": 1502, "unit_id": 1},
         "venus": {"host": "", "port": 1883, "portal_id": ""},
@@ -672,9 +649,8 @@ async def test_scanner_discover_concurrent_guard(client):
     client.app["_scan_running"] = False
 
 
-async def test_config_save_new_format(client, mock_plugin):
+async def test_config_save_new_format(client):
     """POST /api/config with {"inverters": [...]} replaces entire inverter list."""
-    mock_plugin.reconfigure = AsyncMock()
     resp = await client.post("/api/config", json={
         "inverters": [
             {"host": "10.0.0.1", "port": 502, "unit_id": 1},

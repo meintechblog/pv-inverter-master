@@ -1041,7 +1041,6 @@ async def power_limit_handler(request: web.Request) -> web.Response:
 
     app_ctx = request.app["app_ctx"]
     control = app_ctx.control_state
-    plugin = request.app.get("plugin")
     override_log = app_ctx.override_log
 
     # No Venus OS priority block -- manual limit is additive (min of webapp + venus wins)
@@ -1067,21 +1066,13 @@ async def power_limit_handler(request: web.Request) -> web.Response:
                 {"success": False, "error": error}, status=400,
             )
 
-        if plugin is not None:
-            result = await plugin.write_power_limit(True, limit_pct)
-            if not result.success:
-                return web.json_response({"success": False, "error": result.error})
-        # Accept locally (power limit distribution deferred to Phase 23)
+        # Accept locally (power limit distribution handled by PowerLimitDistributor)
         control.set_from_webapp(raw_value, 1)
         if override_log is not None:
             override_log.append("webapp", "set", limit_pct)
         return web.json_response({"success": True, "error": None})
 
     elif action == "enable":
-        if plugin is not None:
-            result = await plugin.write_power_limit(True, control.wmaxlimpct_float)
-            if not result.success:
-                return web.json_response({"success": False, "error": result.error})
         control.update_wmaxlim_ena(1)
         control.last_source = "webapp"
         control.last_change_ts = time.time()
@@ -1091,10 +1082,6 @@ async def power_limit_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": True, "error": None})
 
     else:  # disable
-        if plugin is not None:
-            result = await plugin.write_power_limit(False, 0.0)
-            if not result.success:
-                return web.json_response({"success": False, "error": result.error})
         control.update_wmaxlim_ena(0)
         control.last_source = "none"
         control.webapp_revert_at = None
@@ -1289,8 +1276,6 @@ async def venus_lock_handler(request: web.Request) -> web.Response:
     control = app_ctx.control_state
     override_log = app_ctx.override_log
 
-    plugin = request.app.get("plugin")
-
     if action == "lock":
         permanent = body.get("permanent", False)
         control.lock(duration_s=0 if permanent else 900.0)
@@ -1298,8 +1283,6 @@ async def venus_lock_handler(request: web.Request) -> web.Response:
         control.update_wmaxlimpct(100)
         control.update_wmaxlim_ena(0)
         control.last_source = "none"
-        if plugin is not None:
-            await plugin.write_power_limit(True, 100.0)
         control.save_ui_state()
         if override_log is not None:
             override_log.append("webapp", "lock", None, "Venus OS writes blocked, limit reset to 100%")
@@ -1696,7 +1679,6 @@ async def create_webapp(
     app_ctx: object,
     config: Config,
     config_path: str,
-    plugin: object,
 ) -> web.AppRunner:
     """Create and set up the aiohttp webapp.
 
@@ -1706,7 +1688,6 @@ async def create_webapp(
     app["app_ctx"] = app_ctx
     app["config"] = config
     app["config_path"] = config_path
-    app["plugin"] = plugin
     app["start_time"] = time.monotonic()
     app["reconfiguring"] = False
     app["_scan_running"] = False

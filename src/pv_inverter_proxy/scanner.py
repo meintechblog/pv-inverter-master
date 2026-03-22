@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from ipaddress import IPv4Address, IPv4Network
 from typing import Callable
 
+import aiohttp
 import structlog
 from pymodbus.client import AsyncModbusTcpClient
 
@@ -326,8 +327,6 @@ async def _check_opendtu_with_session(
 # Backward-compat wrapper for standalone usage
 async def _check_opendtu(ip: str, timeout: float) -> list[DiscoveredDevice]:
     """Standalone check — creates its own session."""
-    import aiohttp
-
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=timeout)
     ) as session:
@@ -344,8 +343,6 @@ async def _scan_opendtu(
     Uses a SINGLE shared aiohttp session for all checks to avoid
     connection pool conflicts when running inside the webapp event loop.
     """
-    import aiohttp
-
     # First probe port 80 on all hosts
     semaphore = asyncio.Semaphore(config.concurrency)
     http_hosts: list[str] = []

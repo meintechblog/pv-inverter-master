@@ -142,7 +142,7 @@ class PowerLimitDistributor:
         remaining = allowed_watts
 
         # Group by throttle_order
-        for _to_num, group_iter in groupby(eligible, key=lambda ds: ds.entry.throttle_order):
+        for to_num, group_iter in groupby(eligible, key=lambda ds: ds.entry.throttle_order):
             group = list(group_iter)
             group_rated = sum(ds.entry.rated_power for ds in group)
 
@@ -155,8 +155,8 @@ class PowerLimitDistributor:
                 # This group gets throttled -- split remaining equally by device count
                 per_device_watts = remaining / len(group) if len(group) > 0 else 0.0
                 for ds in group:
-                    pct = (per_device_watts / ds.entry.rated_power) * 100.0
-                    result[ds.device_id] = max(0.0, pct)
+                    pct = max(0.0, min(100.0, (per_device_watts / ds.entry.rated_power) * 100.0))
+                    result[ds.device_id] = round(pct, 1)
                 remaining = 0.0
 
             if remaining <= 0:

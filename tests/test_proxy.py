@@ -376,142 +376,79 @@ class TestProxyConstants:
 
 
 class TestVenusOsOverrideTracking:
-    @pytest.mark.asyncio
-    async def test_venus_override_sets_source(self):
-        """After _handle_control_write for WMaxLimPct, control.last_source == 'venus_os'."""
-        plugin = _make_mock_plugin(poll_success=True)
+    def test_local_control_write_sets_source(self):
+        """After _handle_local_control_write for WMaxLimPct, control.last_source == 'venus_os'."""
         initial_values = build_initial_registers()
         datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
         cache = RegisterCache(datablock, staleness_timeout=30.0)
         control = ControlState()
-        override_log = OverrideLog()
 
         # Set a webapp revert to verify it gets cancelled
         control.set_from_webapp(40, 1)
         assert control.webapp_revert_at is not None
 
         slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
+            cache=cache, plugin=None, control_state=control, hr=datablock,
         )
 
         # Write WMaxLimPct (offset 5 from MODEL_123_START=40149 -> addr 40154)
-        # Raw value 50 = 50% with SF=0
-        await slave_ctx._handle_control_write(40154, [50])
+        slave_ctx._handle_local_control_write(40154, [50])
 
         assert control.last_source == "venus_os"
         assert control.last_change_ts > 0
         assert control.webapp_revert_at is None  # cancelled
 
-    @pytest.mark.asyncio
-    async def test_venus_override_ena_sets_source(self):
-        """After _handle_control_write for WMaxLim_Ena, control.last_source == 'venus_os'."""
-        plugin = _make_mock_plugin(poll_success=True)
+    def test_local_control_write_ena_sets_source(self):
+        """After _handle_local_control_write for WMaxLim_Ena, control.last_source == 'venus_os'."""
         initial_values = build_initial_registers()
         datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
         cache = RegisterCache(datablock, staleness_timeout=30.0)
         control = ControlState()
 
         slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
+            cache=cache, plugin=None, control_state=control, hr=datablock,
         )
 
         # Write WMaxLim_Ena (offset 9 from MODEL_123_START -> addr 40158)
-        await slave_ctx._handle_control_write(40158, [1])
+        slave_ctx._handle_local_control_write(40158, [1])
 
         assert control.last_source == "venus_os"
         assert control.webapp_revert_at is None
 
 
-# ---------- Lock check in write path (Phase 11) ----------
+# ---------- Local control write behavior ----------
 
 
-class TestProxyLockBehavior:
-    @pytest.mark.asyncio
-    async def test_locked_wmaxlimpct_not_forwarded(self):
-        """When locked, WMaxLimPct write accepted but NOT forwarded to inverter."""
-        plugin = _make_mock_plugin(poll_success=True)
+class TestLocalControlWriteBehavior:
+    def test_local_wmaxlimpct_updates_control(self):
+        """_handle_local_control_write for WMaxLimPct updates control state."""
         initial_values = build_initial_registers()
         datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
         cache = RegisterCache(datablock, staleness_timeout=30.0)
         control = ControlState()
-        control.lock(900.0)
-        control.last_source = "webapp"  # Set a known source
 
         slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
+            cache=cache, plugin=None, control_state=control, hr=datablock,
         )
 
-        # Write WMaxLimPct while locked (raw 50 = 50% with SF=0)
-        await slave_ctx._handle_control_write(40154, [50])
+        slave_ctx._handle_local_control_write(40154, [50])
 
-        # Plugin should NOT have been called
-        plugin.write_power_limit.assert_not_called()
-        # Local register should still be updated
         assert control.wmaxlimpct_raw == 50
 
-    @pytest.mark.asyncio
-    async def test_locked_wmaxlim_ena_not_forwarded(self):
-        """When locked, WMaxLim_Ena write accepted but NOT forwarded to inverter."""
-        plugin = _make_mock_plugin(poll_success=True)
+    def test_local_wmaxlim_ena_updates_control(self):
+        """_handle_local_control_write for WMaxLim_Ena updates control state."""
         initial_values = build_initial_registers()
         datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
         cache = RegisterCache(datablock, staleness_timeout=30.0)
         control = ControlState()
-        control.lock(900.0)
-        control.last_source = "webapp"
 
         slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
+            cache=cache, plugin=None, control_state=control, hr=datablock,
         )
 
-        # Write WMaxLim_Ena while locked
-        await slave_ctx._handle_control_write(40158, [1])
+        slave_ctx._handle_local_control_write(40158, [1])
 
-        # Plugin should NOT have been called
-        plugin.write_power_limit.assert_not_called()
-        # Local register should still be updated
         assert control.wmaxlim_ena == 1
-
-    @pytest.mark.asyncio
-    async def test_locked_does_not_update_source(self):
-        """When locked, write does NOT call set_from_venus_os (source unchanged)."""
-        plugin = _make_mock_plugin(poll_success=True)
-        initial_values = build_initial_registers()
-        datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
-        cache = RegisterCache(datablock, staleness_timeout=30.0)
-        control = ControlState()
-        control.lock(900.0)
-        control.last_source = "webapp"
-
-        slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
-        )
-
-        await slave_ctx._handle_control_write(40154, [50])
-
-        # Source should NOT have changed to "venus_os"
-        assert control.last_source == "webapp"
-
-    @pytest.mark.asyncio
-    async def test_unlocked_still_forwards(self):
-        """When unlocked (default), write is forwarded to inverter normally."""
-        plugin = _make_mock_plugin(poll_success=True)
-        initial_values = build_initial_registers()
-        datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
-        cache = RegisterCache(datablock, staleness_timeout=30.0)
-        control = ControlState()
-        # is_locked defaults to False
-        control.update_wmaxlim_ena(1)  # Enable so the plugin is called
-
-        slave_ctx = StalenessAwareSlaveContext(
-            cache=cache, plugin=plugin, control_state=control, hr=datablock,
-        )
-
-        await slave_ctx._handle_control_write(40154, [50])
-
-        # Plugin SHOULD have been called
-        plugin.write_power_limit.assert_called_once()
-        assert control.last_source == "venus_os"
 
 
 # ---------- Venus OS Auto-Detection (Phase 15) ----------

@@ -150,7 +150,7 @@ def main():
             # This preserves Venus OS device discovery (per Pitfall 4 from research)
 
         # Start webapp (pass None for plugin -- multi-device mode)
-        runner = await create_webapp(app_ctx, config, app_ctx.config_path, plugin=None)
+        runner = await create_webapp(app_ctx, config, app_ctx.config_path)
         app_ctx.webapp = runner.app
         runner.app["slave_ctx"] = slave_ctx  # For Virtual PV connection status
         site = web.TCPSite(runner, "0.0.0.0", config.webapp.port)

@@ -559,12 +559,7 @@ async def scanner_client(tmp_path):
     config.inverter.host = "192.168.3.18"
     config_path = str(tmp_path / "config.yaml")
 
-    plugin = AsyncMock()
-    plugin.host = "192.168.3.18"
-    plugin.port = 1502
-    plugin.unit_id = 1
-
-    runner = await create_webapp(shared_ctx, config, config_path, plugin)
+    runner = await create_webapp(shared_ctx, config, config_path)
     app = runner.app
     server = TestServer(app)
     client = TestClient(server)

@@ -6,6 +6,8 @@ WebSocket broadcast.
 """
 from __future__ import annotations
 
+import datetime
+import json
 import time
 
 from pv_inverter_proxy.register_cache import RegisterCache
@@ -114,7 +116,6 @@ class DashboardCollector:
 
     def _load_daily_energy(self) -> None:
         """Load daily stats from persistent file (energy baseline, peak, hours)."""
-        import json, datetime
         try:
             with open(_DAILY_ENERGY_FILE) as f:
                 data = json.load(f)
@@ -129,7 +130,6 @@ class DashboardCollector:
 
     def _save_daily_stats(self, baseline_wh: int) -> None:
         """Persist daily stats to survive restarts."""
-        import json, datetime
         today = datetime.date.today().isoformat()
         try:
             with open(_DAILY_ENERGY_FILE, "w") as f:
@@ -182,7 +182,6 @@ class DashboardCollector:
                 inverter[key] = decoded[field_name]
 
         # Track daily energy (persistent across restarts, resets at midnight)
-        import datetime
         energy_wh = inverter.get("energy_total_wh", 0)
         today = datetime.date.today().isoformat()
 
@@ -362,7 +361,6 @@ class DashboardCollector:
         inverter["status"] = INVERTER_STATUS.get(status_code, f"UNKNOWN({status_code})")
 
         # Daily energy tracking
-        import datetime
         energy_wh = phys.get("energy_total_wh", 0)
         today = datetime.date.today().isoformat()
         if self._energy_date != today:
