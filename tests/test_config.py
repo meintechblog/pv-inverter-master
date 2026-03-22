@@ -8,7 +8,7 @@ import pytest
 
 def test_load_config_defaults(tmp_path: Path):
     """load_config() with nonexistent file returns Config with all defaults."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg = load_config(str(tmp_path / "nonexistent.yaml"))
 
@@ -25,7 +25,7 @@ def test_load_config_defaults(tmp_path: Path):
 
 def test_load_config_partial_override(tmp_path: Path):
     """YAML with partial inverter override keeps other defaults."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -41,7 +41,7 @@ def test_load_config_partial_override(tmp_path: Path):
 
 def test_load_config_log_level(tmp_path: Path):
     """YAML with log_level override returns correct level."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text('log_level: "DEBUG"\n')
@@ -53,7 +53,7 @@ def test_load_config_log_level(tmp_path: Path):
 
 def test_load_config_night_mode(tmp_path: Path):
     """YAML with night_mode override returns correct threshold."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text("night_mode:\n  threshold_seconds: 600.0\n")
@@ -65,7 +65,7 @@ def test_load_config_night_mode(tmp_path: Path):
 
 def test_venus_config_defaults():
     """VenusConfig() has host="", port=1883, portal_id=""."""
-    from venus_os_fronius_proxy.config import VenusConfig
+    from pv_inverter_proxy.config import VenusConfig
 
     vc = VenusConfig()
     assert vc.host == ""
@@ -75,7 +75,7 @@ def test_venus_config_defaults():
 
 def test_load_config_venus_section(tmp_path: Path):
     """load_config with venus section in YAML populates VenusConfig fields."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -91,7 +91,7 @@ def test_load_config_venus_section(tmp_path: Path):
 
 def test_load_config_missing_venus(tmp_path: Path):
     """load_config without venus section uses VenusConfig defaults (no crash)."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text('inverter:\n  host: "10.0.0.1"\n')
@@ -108,7 +108,7 @@ def test_load_config_missing_venus(tmp_path: Path):
 
 def test_inverter_entry_fields():
     """InverterEntry has all identity fields with correct defaults."""
-    from venus_os_fronius_proxy.config import InverterEntry
+    from pv_inverter_proxy.config import InverterEntry
 
     entry = InverterEntry()
     assert entry.host == "192.168.3.18"
@@ -125,7 +125,7 @@ def test_inverter_entry_fields():
 
 def test_inverter_entry_unique_ids():
     """Two InverterEntry instances have different id values."""
-    from venus_os_fronius_proxy.config import InverterEntry
+    from pv_inverter_proxy.config import InverterEntry
 
     a = InverterEntry()
     b = InverterEntry()
@@ -134,7 +134,7 @@ def test_inverter_entry_unique_ids():
 
 def test_config_inverters_is_list():
     """Config().inverters is a list containing one InverterEntry with default host."""
-    from venus_os_fronius_proxy.config import Config, InverterEntry
+    from pv_inverter_proxy.config import Config, InverterEntry
 
     cfg = Config()
     assert isinstance(cfg.inverters, list)
@@ -145,7 +145,7 @@ def test_config_inverters_is_list():
 
 def test_no_migration_code(tmp_path: Path):
     """load_config with old inverter: (singular) key ignores it (no migration)."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -161,7 +161,7 @@ def test_no_migration_code(tmp_path: Path):
 
 def test_fresh_install_default(tmp_path: Path):
     """load_config on nonexistent file returns Config with one InverterEntry."""
-    from venus_os_fronius_proxy.config import load_config, InverterEntry
+    from pv_inverter_proxy.config import load_config, InverterEntry
 
     cfg = load_config(str(tmp_path / "nonexistent.yaml"))
     assert isinstance(cfg.inverters, list)
@@ -171,7 +171,7 @@ def test_fresh_install_default(tmp_path: Path):
 
 def test_active_inverter_first_enabled():
     """get_active_inverter returns first entry where enabled=True."""
-    from venus_os_fronius_proxy.config import Config, InverterEntry, get_active_inverter
+    from pv_inverter_proxy.config import Config, InverterEntry, get_active_inverter
 
     cfg = Config(inverters=[
         InverterEntry(host="1.1.1.1", enabled=True),
@@ -184,7 +184,7 @@ def test_active_inverter_first_enabled():
 
 def test_active_inverter_skip_disabled():
     """With entries [disabled, enabled], returns the second."""
-    from venus_os_fronius_proxy.config import Config, InverterEntry, get_active_inverter
+    from pv_inverter_proxy.config import Config, InverterEntry, get_active_inverter
 
     cfg = Config(inverters=[
         InverterEntry(host="1.1.1.1", enabled=False),
@@ -197,7 +197,7 @@ def test_active_inverter_skip_disabled():
 
 def test_active_inverter_none_enabled():
     """All disabled returns None."""
-    from venus_os_fronius_proxy.config import Config, InverterEntry, get_active_inverter
+    from pv_inverter_proxy.config import Config, InverterEntry, get_active_inverter
 
     cfg = Config(inverters=[
         InverterEntry(host="1.1.1.1", enabled=False),
@@ -209,7 +209,7 @@ def test_active_inverter_none_enabled():
 
 def test_scanner_config_default_ports(tmp_path: Path):
     """Load config with no scanner section, verify default ports."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg = load_config(str(tmp_path / "nonexistent.yaml"))
     assert cfg.scanner.ports == [502, 1502]
@@ -217,7 +217,7 @@ def test_scanner_config_default_ports(tmp_path: Path):
 
 def test_scanner_config_yaml_roundtrip(tmp_path: Path):
     """Save config with custom scanner ports, reload, verify ports match."""
-    from venus_os_fronius_proxy.config import load_config, save_config, Config, ScannerConfig
+    from pv_inverter_proxy.config import load_config, save_config, Config, ScannerConfig
 
     cfg = Config(scanner=ScannerConfig(ports=[502, 1502, 8502]))
     cfg_file = str(tmp_path / "config.yaml")
@@ -229,7 +229,7 @@ def test_scanner_config_yaml_roundtrip(tmp_path: Path):
 
 def test_load_multi_inverter_format(tmp_path: Path):
     """YAML with inverters list loads correctly as list of InverterEntry."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -259,7 +259,7 @@ def test_load_multi_inverter_format(tmp_path: Path):
 
 def test_load_config_with_type_field(tmp_path: Path):
     """Config YAML with type: solaredge loads correctly."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -276,7 +276,7 @@ def test_load_config_with_type_field(tmp_path: Path):
 
 def test_load_config_opendtu_entry(tmp_path: Path):
     """Config YAML with type: opendtu, gateway_host, serial fields."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -300,7 +300,7 @@ def test_load_config_opendtu_entry(tmp_path: Path):
 
 def test_load_config_gateways_section(tmp_path: Path):
     """Config YAML with gateways: opendtu: [...] parses GatewayConfig."""
-    from venus_os_fronius_proxy.config import load_config, GatewayConfig
+    from pv_inverter_proxy.config import load_config, GatewayConfig
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -325,7 +325,7 @@ def test_load_config_gateways_section(tmp_path: Path):
 
 def test_load_config_name_field(tmp_path: Path):
     """Name field loaded for both solaredge and opendtu types."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -345,7 +345,7 @@ def test_load_config_name_field(tmp_path: Path):
 
 def test_save_config_roundtrip_new_fields(tmp_path: Path):
     """Save and reload preserves type, name, gateway_host, gateways."""
-    from venus_os_fronius_proxy.config import (
+    from pv_inverter_proxy.config import (
         Config, InverterEntry, GatewayConfig, save_config, load_config,
     )
 
@@ -376,7 +376,7 @@ def test_save_config_roundtrip_new_fields(tmp_path: Path):
 
 def test_inverter_entry_throttle_defaults():
     """InverterEntry has throttle_order=1, throttle_enabled=True, throttle_dead_time_s=0.0."""
-    from venus_os_fronius_proxy.config import InverterEntry
+    from pv_inverter_proxy.config import InverterEntry
 
     entry = InverterEntry()
     assert entry.throttle_order == 1
@@ -386,7 +386,7 @@ def test_inverter_entry_throttle_defaults():
 
 def test_load_config_throttle_fields(tmp_path: Path):
     """YAML with throttle fields loads into InverterEntry correctly."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -405,7 +405,7 @@ def test_load_config_throttle_fields(tmp_path: Path):
 
 def test_load_config_throttle_defaults(tmp_path: Path):
     """YAML without throttle fields uses defaults."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
@@ -421,7 +421,7 @@ def test_load_config_throttle_defaults(tmp_path: Path):
 
 def test_get_gateway_for_inverter():
     """get_gateway_for_inverter returns correct GatewayConfig matching gateway_host."""
-    from venus_os_fronius_proxy.config import (
+    from pv_inverter_proxy.config import (
         Config, InverterEntry, GatewayConfig, get_gateway_for_inverter,
     )
 
@@ -455,7 +455,7 @@ def test_get_gateway_for_inverter():
 
 def test_mqtt_publish_config_defaults(tmp_path: Path):
     """MqttPublishConfig defaults loaded from empty YAML."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg = load_config(str(tmp_path / "nonexistent.yaml"))
 
@@ -469,7 +469,7 @@ def test_mqtt_publish_config_defaults(tmp_path: Path):
 
 def test_mqtt_publish_config_override(tmp_path: Path):
     """All mqtt_publish fields overridden from YAML."""
-    from venus_os_fronius_proxy.config import load_config
+    from pv_inverter_proxy.config import load_config
 
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(

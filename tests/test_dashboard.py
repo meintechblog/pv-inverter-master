@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 import pytest
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
-from venus_os_fronius_proxy.connection import ConnectionManager, ConnectionState
-from venus_os_fronius_proxy.control import ControlState
-from venus_os_fronius_proxy.dashboard import DashboardCollector, _PB_OFFSET, DECODE_MAP
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
+from pv_inverter_proxy.connection import ConnectionManager, ConnectionState
+from pv_inverter_proxy.control import ControlState
+from pv_inverter_proxy.dashboard import DashboardCollector, _PB_OFFSET, DECODE_MAP
 
 
 def _make_cache_with_values(overrides: dict[int, int | list[int]] | None = None) -> RegisterCache:
@@ -321,7 +321,7 @@ def test_operating_hours_mppt_only(monkeypatch):
     def fake_monotonic():
         return mono_time[0]
 
-    import venus_os_fronius_proxy.dashboard as dash_mod
+    import pv_inverter_proxy.dashboard as dash_mod
     monkeypatch.setattr(dash_mod.time, "monotonic", fake_monotonic)
 
     # First collect: MPPT (code 4) -- baseline, no delta yet
@@ -435,7 +435,8 @@ def test_snapshot_venus_os_section():
 
 
 def test_snapshot_includes_venus_mqtt_connected():
-    """Snapshot includes venus_mqtt_connected=True when shared_ctx has the key."""
+    """Snapshot includes venus_mqtt_connected=True when app_ctx has the attr."""
+    from types import SimpleNamespace
     collector = DashboardCollector()
     overrides = _zero_sf_overrides()
     overrides[40093] = [0, 0]
@@ -444,14 +445,15 @@ def test_snapshot_includes_venus_mqtt_connected():
     overrides[40084] = 0
 
     cache = _make_cache_with_values(overrides)
-    ctx = {"venus_mqtt_connected": True, "last_se_poll": None}
-    snapshot = collector.collect(cache, shared_ctx=ctx)
+    ctx = SimpleNamespace(venus_mqtt_connected=True, venus_os_detected=False, venus_os_client_ip="", last_poll_data=None)
+    snapshot = collector.collect(cache, app_ctx=ctx)
 
     assert snapshot["venus_mqtt_connected"] is True
 
 
 def test_snapshot_venus_mqtt_default_false():
-    """venus_mqtt_connected defaults to False when key not in shared_ctx."""
+    """venus_mqtt_connected defaults to False when app_ctx has it False."""
+    from types import SimpleNamespace
     collector = DashboardCollector()
     overrides = _zero_sf_overrides()
     overrides[40093] = [0, 0]
@@ -460,13 +462,14 @@ def test_snapshot_venus_mqtt_default_false():
     overrides[40084] = 0
 
     cache = _make_cache_with_values(overrides)
-    snapshot = collector.collect(cache, shared_ctx={})
+    ctx = SimpleNamespace(venus_mqtt_connected=False, venus_os_detected=False, venus_os_client_ip="", last_poll_data=None)
+    snapshot = collector.collect(cache, app_ctx=ctx)
 
     assert snapshot["venus_mqtt_connected"] is False
 
 
 def test_snapshot_venus_mqtt_no_shared_ctx():
-    """venus_mqtt_connected is False when shared_ctx is None."""
+    """venus_mqtt_connected is False when app_ctx is None."""
     collector = DashboardCollector()
     overrides = _zero_sf_overrides()
     overrides[40093] = [0, 0]
@@ -475,7 +478,7 @@ def test_snapshot_venus_mqtt_no_shared_ctx():
     overrides[40084] = 0
 
     cache = _make_cache_with_values(overrides)
-    snapshot = collector.collect(cache, shared_ctx=None)
+    snapshot = collector.collect(cache, app_ctx=None)
 
     assert snapshot["venus_mqtt_connected"] is False
 

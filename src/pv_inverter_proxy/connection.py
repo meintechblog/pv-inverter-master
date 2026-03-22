@@ -10,7 +10,7 @@ from __future__ import annotations
 import enum
 import time
 
-from venus_os_fronius_proxy.sunspec_models import INVERTER_DID, INVERTER_LENGTH
+from pv_inverter_proxy.sunspec_models import INVERTER_DID, INVERTER_LENGTH
 
 
 class ConnectionState(enum.Enum):

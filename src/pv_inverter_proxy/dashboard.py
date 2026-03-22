@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import time
 
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.timeseries import TimeSeriesBuffer
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.timeseries import TimeSeriesBuffer
 
 # pymodbus internal +1 offset for datablock access
 _PB_OFFSET = 1
@@ -87,7 +87,7 @@ def _revert_remaining(control_state: object) -> float | None:
     return None
 
 
-_DAILY_ENERGY_FILE = "/etc/venus-os-fronius-proxy/daily_energy.json"
+_DAILY_ENERGY_FILE = "/etc/pv-inverter-proxy/daily_energy.json"
 
 
 class DashboardCollector:
@@ -325,13 +325,14 @@ class DashboardCollector:
         poll_counter: dict | None = None,
         control_state: object | None = None,
         app_ctx: object | None = None,
+        nameplate_registers: list[int] | None = None,
     ) -> dict:
         """Build snapshot directly from raw poll registers (no RegisterCache needed).
 
         Used by DeviceRegistry per-device poll loop in v4.0 multi-device mode.
         Reuses aggregation.decode_model_103_to_physical for consistent decode.
         """
-        from venus_os_fronius_proxy.aggregation import decode_model_103_to_physical
+        from pv_inverter_proxy.aggregation import decode_model_103_to_physical
 
         # Decode inverter identity from common registers
         def _decode_regs(regs: list[int]) -> str:
@@ -422,7 +423,7 @@ class DashboardCollector:
             "inverter": inverter,
             "inverter_name": f"{inverter_mfr} {inverter_model}".strip(),
             "inverter_serial": inverter_serial,
-            "rated_power_w": 0,
+            "rated_power_w": self._decode_rated_power(nameplate_registers),
             "control": control,
             "venus_os": {},
             "connection": connection,
@@ -447,6 +448,18 @@ class DashboardCollector:
 
         self._last_snapshot = snapshot
         return snapshot
+
+    @staticmethod
+    def _decode_rated_power(nameplate_registers: list[int] | None) -> int:
+        """Extract WRtg from Model 120 nameplate registers."""
+        if not nameplate_registers or len(nameplate_registers) < 5:
+            return 0
+        wrtg_raw = nameplate_registers[3]
+        wrtg_sf_raw = nameplate_registers[4]
+        wrtg_sf = wrtg_sf_raw - 65536 if wrtg_sf_raw > 32767 else wrtg_sf_raw
+        if wrtg_raw in (0x8000, 0xFFFF, 0):
+            return 0
+        return int(wrtg_raw * (10 ** wrtg_sf))
 
     @staticmethod
     def _read_int16(db: object, addr: int) -> int:

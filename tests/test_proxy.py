@@ -14,8 +14,8 @@ import pytest
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from pv_inverter_proxy.sunspec_models import (
     PROXY_UNIT_ID,
     encode_string,
     COMMON_DID,
@@ -30,7 +30,7 @@ from venus_os_fronius_proxy.sunspec_models import (
     build_initial_registers,
     apply_common_translation,
 )
-from venus_os_fronius_proxy.proxy import (
+from pv_inverter_proxy.proxy import (
     run_modbus_server,
     StalenessAwareSlaveContext,
     POLL_INTERVAL,
@@ -39,9 +39,9 @@ from venus_os_fronius_proxy.proxy import (
     COMMON_CACHE_ADDR,
     INVERTER_CACHE_ADDR,
 )
-from venus_os_fronius_proxy.context import AppContext
-from venus_os_fronius_proxy.control import ControlState, OverrideLog
-from venus_os_fronius_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.context import AppContext
+from pv_inverter_proxy.control import ControlState, OverrideLog
+from pv_inverter_proxy.register_cache import RegisterCache
 
 
 # ---------- Sample Data ----------
@@ -95,7 +95,7 @@ def _make_mock_plugin(poll_success: bool = True) -> InverterPlugin:
 
     plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
 
-    from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
+    from pv_inverter_proxy.plugins.solaredge import SolarEdgePlugin
     real_plugin = SolarEdgePlugin()
     plugin.get_model_120_registers = MagicMock(
         return_value=real_plugin.get_model_120_registers()

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Deploy venus-os-fronius-proxy to LXC container (192.168.3.191)
+# Deploy pv-inverter-proxy to LXC container (192.168.3.191)
 # Usage: ./deploy.sh [--first-time]
 set -euo pipefail
 
 LXC_HOST="root@192.168.3.191"
-REMOTE_DIR="/opt/venus-os-fronius-proxy"
-SERVICE="venus-os-fronius-proxy"
+REMOTE_DIR="/opt/pv-inverter-proxy"
+SERVICE="pv-inverter-proxy"
 
-echo "=== Deploying venus-os-fronius-proxy to $LXC_HOST ==="
+echo "=== Deploying pv-inverter-proxy to $LXC_HOST ==="
 
 # First-time setup (creates user, dirs, venv, service)
 if [[ "${1:-}" == "--first-time" ]]; then
@@ -20,18 +20,18 @@ set -euo pipefail
 id fronius-proxy &>/dev/null || useradd -r -s /usr/sbin/nologin fronius-proxy
 
 # Create directories
-mkdir -p /opt/venus-os-fronius-proxy
-mkdir -p /etc/venus-os-fronius-proxy
+mkdir -p /opt/pv-inverter-proxy
+mkdir -p /etc/pv-inverter-proxy
 
 # Install Python + venv
 apt-get update -qq && apt-get install -y -qq python3 python3-venv python3-pip git
 
 # Create venv
-python3 -m venv /opt/venus-os-fronius-proxy/.venv
+python3 -m venv /opt/pv-inverter-proxy/.venv
 
 # Set ownership
-chown -R fronius-proxy:fronius-proxy /opt/venus-os-fronius-proxy
-chown -R fronius-proxy:fronius-proxy /etc/venus-os-fronius-proxy
+chown -R fronius-proxy:fronius-proxy /opt/pv-inverter-proxy
+chown -R fronius-proxy:fronius-proxy /etc/pv-inverter-proxy
 
 echo ">>> First-time setup done."
 SETUP
@@ -55,11 +55,11 @@ rsync -avz --delete \
 echo ">>> Installing package..."
 ssh "$LXC_HOST" bash -s <<'INSTALL'
 set -euo pipefail
-cd /opt/venus-os-fronius-proxy
+cd /opt/pv-inverter-proxy
 .venv/bin/pip install -e . --quiet
 
 # Update systemd service
-cp config/venus-os-fronius-proxy.service /etc/systemd/system/
+cp config/pv-inverter-proxy.service /etc/systemd/system/
 systemctl daemon-reload
 INSTALL
 

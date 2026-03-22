@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from venus_os_fronius_proxy.connection import (
+from pv_inverter_proxy.connection import (
     ConnectionManager,
     ConnectionState,
     build_night_mode_inverter_registers,
 )
-from venus_os_fronius_proxy.control import ControlState
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
-from venus_os_fronius_proxy.proxy import INVERTER_CACHE_ADDR
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.control import ControlState
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from pv_inverter_proxy.proxy import INVERTER_CACHE_ADDR
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import (
     build_initial_registers,
     DATABLOCK_START,
     encode_string,

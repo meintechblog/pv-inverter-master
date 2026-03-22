@@ -16,7 +16,7 @@ import asyncio
 
 import dataclasses
 
-from venus_os_fronius_proxy.config import (
+from pv_inverter_proxy.config import (
     Config,
     InverterEntry,
     ScannerConfig,
@@ -25,11 +25,11 @@ from venus_os_fronius_proxy.config import (
     validate_inverter_config,
     validate_venus_config,
 )
-from venus_os_fronius_proxy.control import validate_wmaxlimpct
-from venus_os_fronius_proxy.scanner import scan_subnet, ScanConfig
-from venus_os_fronius_proxy.mdns_discovery import discover_mqtt_brokers
-from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
-from venus_os_fronius_proxy.venus_reader import venus_mqtt_loop
+from pv_inverter_proxy.control import validate_wmaxlimpct
+from pv_inverter_proxy.scanner import scan_subnet, ScanConfig
+from pv_inverter_proxy.mdns_discovery import discover_mqtt_brokers
+from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
+from pv_inverter_proxy.venus_reader import venus_mqtt_loop
 
 import structlog
 
@@ -185,7 +185,7 @@ async def index_handler(request: web.Request) -> web.Response:
     """Serve the frontend HTML page."""
     try:
         import importlib.resources as pkg_resources
-        ref = pkg_resources.files("venus_os_fronius_proxy") / "static" / "index.html"
+        ref = pkg_resources.files("pv_inverter_proxy") / "static" / "index.html"
         html = ref.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
     except (FileNotFoundError, TypeError, ModuleNotFoundError):
@@ -581,7 +581,7 @@ async def static_handler(request: web.Request) -> web.Response:
     if filename not in CONTENT_TYPES:
         raise web.HTTPNotFound()
     try:
-        ref = pkg_resources.files("venus_os_fronius_proxy") / "static" / filename
+        ref = pkg_resources.files("pv_inverter_proxy") / "static" / filename
         content = ref.read_text(encoding="utf-8")
         return web.Response(text=content, content_type=CONTENT_TYPES[filename])
     except (FileNotFoundError, TypeError, ModuleNotFoundError):
@@ -830,10 +830,17 @@ async def broadcast_device_list(app: web.Application) -> None:
         "name": config.virtual_inverter.name,
         "type": "virtual",
     })
+    mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
+    devices.append({
+        "id": "mqtt_pub",
+        "name": "MQTT Publishing",
+        "type": "mqtt_pub",
+        "enabled": config.mqtt_publish.enabled,
+        "connection_state": mqtt_pub_conn,
+    })
 
     payload = json.dumps({"type": "device_list", "data": {
         "devices": devices,
-        "mqtt_pub_connected": app_ctx.mqtt_pub_connected,
     }})
     for ws in set(clients):
         try:
@@ -1451,6 +1458,14 @@ async def devices_list_handler(request: web.Request) -> web.Response:
         "name": config.virtual_inverter.name,
         "type": "virtual",
         "connection_state": virtual_conn,
+    })
+    mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
+    devices.append({
+        "id": "mqtt_pub",
+        "name": "MQTT Publishing",
+        "type": "mqtt_pub",
+        "enabled": config.mqtt_publish.enabled,
+        "connection_state": mqtt_pub_conn,
     })
 
     return web.json_response({"devices": devices})

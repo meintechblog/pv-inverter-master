@@ -9,7 +9,7 @@ import time
 import pytest
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.register_cache import RegisterCache
 
 
 def make_cache(timeout: float = 30.0) -> RegisterCache:

@@ -55,7 +55,7 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
 
                 # Publish HA discovery configs once on connect (per D-13)
                 if inverters:
-                    from venus_os_fronius_proxy.mqtt_payloads import (
+                    from pv_inverter_proxy.mqtt_payloads import (
                         ha_discovery_configs,
                         ha_discovery_topic,
                         virtual_ha_discovery_configs,
@@ -66,7 +66,7 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                         configs = ha_discovery_configs(inv.id, config.topic_prefix, inv)
                         for idx, disc_cfg in enumerate(configs):
                             # Use ha_discovery_topic to generate topic from field key
-                            from venus_os_fronius_proxy.mqtt_payloads import SENSOR_DEFS
+                            from pv_inverter_proxy.mqtt_payloads import SENSOR_DEFS
                             field_key = SENSOR_DEFS[idx][1]
                             topic = ha_discovery_topic(inv.id, field_key)
                             await client.publish(
@@ -119,7 +119,7 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                     msg_type = msg.get("type")
 
                     if msg_type == "device":
-                        from venus_os_fronius_proxy.mqtt_payloads import device_payload
+                        from pv_inverter_proxy.mqtt_payloads import device_payload
                         payload = device_payload(msg["snapshot"])
                         payload_json = json.dumps(payload, separators=(",", ":"))
                         device_id = msg["device_id"]
@@ -133,7 +133,7 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                         await client.publish(topic, payload=payload_json, qos=0, retain=True)
 
                     elif msg_type == "virtual":
-                        from venus_os_fronius_proxy.mqtt_payloads import virtual_payload
+                        from pv_inverter_proxy.mqtt_payloads import virtual_payload
                         payload = virtual_payload(msg["virtual_data"])
                         payload_json = json.dumps(payload, separators=(",", ":"))
 

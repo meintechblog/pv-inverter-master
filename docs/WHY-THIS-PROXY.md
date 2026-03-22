@@ -95,7 +95,7 @@ The proxy is the **safer, more feature-rich option** for the SE30K:
 4. **Additional features** — Web dashboard, register viewer, night mode, reconnection
 5. **Power control via standard SunSpec** — Model 123 translated to EDPC, cleaner integration
 
-If you want to try direct connection anyway, the SetApp settings above should work — but stop the proxy first (`systemctl stop venus-os-fronius-proxy`) since the SE30K only allows one TCP client.
+If you want to try direct connection anyway, the SetApp settings above should work — but stop the proxy first (`systemctl stop pv-inverter-proxy`) since the SE30K only allows one TCP client.
 
 ## References
 

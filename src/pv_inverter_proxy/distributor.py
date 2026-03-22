@@ -15,8 +15,8 @@ from itertools import groupby
 
 import structlog
 
-from venus_os_fronius_proxy.config import Config, InverterEntry
-from venus_os_fronius_proxy.connection import ConnectionState
+from pv_inverter_proxy.config import Config, InverterEntry
+from pv_inverter_proxy.connection import ConnectionState
 
 
 @dataclass

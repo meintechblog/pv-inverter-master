@@ -1,7 +1,7 @@
 """Plugin registry and factory for inverter type dispatch."""
 from __future__ import annotations
 
-from venus_os_fronius_proxy.config import GatewayConfig, InverterEntry
+from pv_inverter_proxy.config import GatewayConfig, InverterEntry
 
 
 def plugin_factory(
@@ -22,10 +22,10 @@ def plugin_factory(
         ValueError: For unknown inverter types.
     """
     if entry.type == "solaredge":
-        from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
+        from pv_inverter_proxy.plugins.solaredge import SolarEdgePlugin
         return SolarEdgePlugin(host=entry.host, port=entry.port, unit_id=entry.unit_id)
     elif entry.type == "opendtu":
-        from venus_os_fronius_proxy.plugins.opendtu import OpenDTUPlugin
+        from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
         if gateway_config is None:
             gateway_config = GatewayConfig(host=entry.gateway_host)
         return OpenDTUPlugin(

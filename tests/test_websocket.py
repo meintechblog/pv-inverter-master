@@ -11,14 +11,14 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.config import Config
-from venus_os_fronius_proxy.connection import ConnectionManager
-from venus_os_fronius_proxy.context import AppContext, DeviceState
-from venus_os_fronius_proxy.dashboard import DashboardCollector, _PB_OFFSET
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
-from venus_os_fronius_proxy.timeseries import TimeSeriesBuffer
-from venus_os_fronius_proxy.webapp import broadcast_to_clients, ws_handler
+from pv_inverter_proxy.config import Config
+from pv_inverter_proxy.connection import ConnectionManager
+from pv_inverter_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.dashboard import DashboardCollector, _PB_OFFSET
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
+from pv_inverter_proxy.timeseries import TimeSeriesBuffer
+from pv_inverter_proxy.webapp import broadcast_to_clients, ws_handler
 
 
 def _make_cache_with_values(overrides: dict[int, int | list[int]] | None = None) -> RegisterCache:

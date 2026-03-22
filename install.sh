@@ -17,10 +17,10 @@
 set -euo pipefail
 
 REPO="https://github.com/meintechblog/pv-inverter-proxy.git"
-INSTALL_DIR="/opt/venus-os-fronius-proxy"
-CONFIG_DIR="/etc/venus-os-fronius-proxy"
+INSTALL_DIR="/opt/pv-inverter-proxy"
+CONFIG_DIR="/etc/pv-inverter-proxy"
 SERVICE_USER="fronius-proxy"
-SERVICE_NAME="venus-os-fronius-proxy"
+SERVICE_NAME="pv-inverter-proxy"
 
 # Colors
 RED='\033[0;31m'
@@ -151,7 +151,7 @@ ok "Permissions set"
 
 # --- Step 7: Systemd service ---
 info "Installing systemd service..."
-cp "$INSTALL_DIR/config/venus-os-fronius-proxy.service" /etc/systemd/system/
+cp "$INSTALL_DIR/config/pv-inverter-proxy.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
 ok "Service installed and enabled"

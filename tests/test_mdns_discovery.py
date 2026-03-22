@@ -15,7 +15,7 @@ if "zeroconf" not in sys.modules:
     sys.modules["zeroconf"] = _mock_zc
     sys.modules["zeroconf.asyncio"] = MagicMock()
 
-from venus_os_fronius_proxy.mdns_discovery import discover_mqtt_brokers, SERVICE_TYPE
+from pv_inverter_proxy.mdns_discovery import discover_mqtt_brokers, SERVICE_TYPE
 
 
 @pytest.mark.asyncio
@@ -24,10 +24,10 @@ async def test_discover_empty_scan():
     mock_aiozc = AsyncMock()
     mock_aiozc.zeroconf = MagicMock()
 
-    with patch("venus_os_fronius_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
-        with patch("venus_os_fronius_proxy.mdns_discovery.AsyncServiceBrowser") as mock_browser_cls:
+    with patch("pv_inverter_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
+        with patch("pv_inverter_proxy.mdns_discovery.AsyncServiceBrowser") as mock_browser_cls:
             mock_browser_cls.return_value = AsyncMock()
-            with patch("venus_os_fronius_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock):
+            with patch("pv_inverter_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock):
                 result = await discover_mqtt_brokers(timeout=0.1)
 
     assert result == []
@@ -42,7 +42,7 @@ async def test_discover_finds_broker():
 
     def fake_browser(zc, stype, handlers):
         # Simulate a service being added via the on_state_change callback
-        from venus_os_fronius_proxy.mdns_discovery import SERVICE_TYPE as st
+        from pv_inverter_proxy.mdns_discovery import SERVICE_TYPE as st
         from zeroconf import ServiceStateChange
         for handler in handlers:
             handler(zc, stype, f"Mosquitto.{st}", ServiceStateChange.Added)
@@ -53,10 +53,10 @@ async def test_discover_finds_broker():
     mock_info.port = 1883
     mock_info.async_request = AsyncMock()
 
-    with patch("venus_os_fronius_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
-        with patch("venus_os_fronius_proxy.mdns_discovery.AsyncServiceBrowser", side_effect=fake_browser):
-            with patch("venus_os_fronius_proxy.mdns_discovery.AsyncServiceInfo", return_value=mock_info):
-                with patch("venus_os_fronius_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock):
+    with patch("pv_inverter_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
+        with patch("pv_inverter_proxy.mdns_discovery.AsyncServiceBrowser", side_effect=fake_browser):
+            with patch("pv_inverter_proxy.mdns_discovery.AsyncServiceInfo", return_value=mock_info):
+                with patch("pv_inverter_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock):
                     result = await discover_mqtt_brokers(timeout=0.1)
 
     assert len(result) == 1
@@ -72,8 +72,8 @@ async def test_discover_calls_close_on_error():
     mock_aiozc = AsyncMock()
     mock_aiozc.zeroconf = MagicMock()
 
-    with patch("venus_os_fronius_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
-        with patch("venus_os_fronius_proxy.mdns_discovery.AsyncServiceBrowser", side_effect=RuntimeError("boom")):
+    with patch("pv_inverter_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
+        with patch("pv_inverter_proxy.mdns_discovery.AsyncServiceBrowser", side_effect=RuntimeError("boom")):
             with pytest.raises(RuntimeError, match="boom"):
                 await discover_mqtt_brokers(timeout=0.1)
 
@@ -86,9 +86,9 @@ async def test_discover_respects_timeout():
     mock_aiozc = AsyncMock()
     mock_aiozc.zeroconf = MagicMock()
 
-    with patch("venus_os_fronius_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
-        with patch("venus_os_fronius_proxy.mdns_discovery.AsyncServiceBrowser", return_value=AsyncMock()):
-            with patch("venus_os_fronius_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with patch("pv_inverter_proxy.mdns_discovery.AsyncZeroconf", return_value=mock_aiozc):
+        with patch("pv_inverter_proxy.mdns_discovery.AsyncServiceBrowser", return_value=AsyncMock()):
+            with patch("pv_inverter_proxy.mdns_discovery.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                 await discover_mqtt_brokers(timeout=2.5)
 
     mock_sleep.assert_awaited_once_with(2.5)

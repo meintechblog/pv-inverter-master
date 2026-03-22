@@ -8,15 +8,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # Pre-mock dashboard module to avoid timeseries.py slots= incompatibility on Python < 3.10
-if "venus_os_fronius_proxy.dashboard" not in sys.modules:
+if "pv_inverter_proxy.dashboard" not in sys.modules:
     _mock_dashboard = MagicMock()
     _mock_dashboard.DashboardCollector = MagicMock
-    sys.modules["venus_os_fronius_proxy.dashboard"] = _mock_dashboard
+    sys.modules["pv_inverter_proxy.dashboard"] = _mock_dashboard
 
-from venus_os_fronius_proxy.config import Config, InverterEntry, GatewayConfig
-from venus_os_fronius_proxy.connection import ConnectionManager, ConnectionState
-from venus_os_fronius_proxy.context import AppContext, DeviceState
-from venus_os_fronius_proxy.plugin import PollResult
+from pv_inverter_proxy.config import Config, InverterEntry, GatewayConfig
+from pv_inverter_proxy.connection import ConnectionManager, ConnectionState
+from pv_inverter_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.plugin import PollResult
 
 
 def _make_config(*entries: InverterEntry) -> Config:
@@ -47,6 +47,10 @@ def _make_mock_plugin(poll_result=None):
     plugin.connect = AsyncMock()
     plugin.close = AsyncMock()
     plugin.poll = AsyncMock(return_value=poll_result or _ok_result())
+    # get_model_120_registers is a sync method, must be MagicMock (not AsyncMock)
+    plugin.get_model_120_registers = MagicMock(return_value=None)
+    # get_static_common_overrides is also sync
+    plugin.get_static_common_overrides = MagicMock(return_value={})
     return plugin
 
 
@@ -72,13 +76,13 @@ def entry_disabled():
 
 def _patch_factories(mock_plugin):
     """Return context manager patching plugin_factory."""
-    return patch("venus_os_fronius_proxy.plugins.plugin_factory", return_value=mock_plugin)
+    return patch("pv_inverter_proxy.plugins.plugin_factory", return_value=mock_plugin)
 
 
 @pytest.mark.asyncio
 async def test_start_device(app_ctx, entry_a):
     """start_device creates plugin, DeviceState, and starts poll task."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()
@@ -102,7 +106,7 @@ async def test_start_device(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_start_multiple_devices(app_ctx, entry_a, entry_b):
     """start_all starts N devices, each with independent poll task."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a, entry_b)
     on_success = AsyncMock()
@@ -121,7 +125,7 @@ async def test_start_multiple_devices(app_ctx, entry_a, entry_b):
 @pytest.mark.asyncio
 async def test_stop_device(app_ctx, entry_a):
     """stop_device cancels poll task, calls plugin.close(), removes DeviceState."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()
@@ -141,7 +145,7 @@ async def test_stop_device(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_enable_disable(app_ctx, entry_a):
     """disable_device stops poll + cleans up; enable_device starts fresh poll."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()
@@ -167,7 +171,7 @@ async def test_enable_disable(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_disabled_device_skipped(app_ctx, entry_a, entry_disabled):
     """start_all skips entries where entry.enabled=False."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a, entry_disabled)
     on_success = AsyncMock()
@@ -187,7 +191,7 @@ async def test_disabled_device_skipped(app_ctx, entry_a, entry_disabled):
 @pytest.mark.asyncio
 async def test_no_task_leak(app_ctx, entry_a):
     """After 5x start/stop cycles, asyncio task count stays stable."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()
@@ -210,7 +214,7 @@ async def test_no_task_leak(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_per_device_state(app_ctx, entry_a, entry_b):
     """Each device gets its own ConnectionManager, poll_counter, DashboardCollector."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a, entry_b)
     on_success = AsyncMock()
@@ -234,7 +238,7 @@ async def test_per_device_state(app_ctx, entry_a, entry_b):
 @pytest.mark.asyncio
 async def test_on_poll_success_callback(app_ctx, entry_a):
     """Successful poll calls on_poll_success callback with device_id."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()
@@ -253,7 +257,7 @@ async def test_on_poll_success_callback(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_poll_loop_handles_cancel(app_ctx, entry_a):
     """CancelledError propagates out of poll loop (not caught by except Exception)."""
-    from venus_os_fronius_proxy.device_registry import _device_poll_loop
+    from pv_inverter_proxy.device_registry import _device_poll_loop
 
     on_success = AsyncMock()
 
@@ -284,7 +288,7 @@ async def test_poll_loop_handles_cancel(app_ctx, entry_a):
 @pytest.mark.asyncio
 async def test_backoff_on_failure(app_ctx, entry_a):
     """After poll failure, sleep_duration follows ConnectionManager backoff."""
-    from venus_os_fronius_proxy.device_registry import DeviceRegistry
+    from pv_inverter_proxy.device_registry import DeviceRegistry
 
     config = _make_config(entry_a)
     on_success = AsyncMock()

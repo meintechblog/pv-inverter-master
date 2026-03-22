@@ -92,11 +92,13 @@ function renderSidebar(devices) {
     var inverters = [];
     var venusDevice = null;
     var virtualDevice = null;
+    var mqttPubDevice = null;
 
     for (var i = 0; i < _devices.length; i++) {
         var d = _devices[i];
         if (d.type === 'venus') venusDevice = d;
         else if (d.type === 'virtual') virtualDevice = d;
+        else if (d.type === 'mqtt_pub') mqttPubDevice = d;
         else inverters.push(d);
     }
 
@@ -113,6 +115,11 @@ function renderSidebar(devices) {
     // VIRTUAL PV group (always visible)
     if (virtualDevice) {
         container.appendChild(createSidebarGroup('VIRTUAL PV', [virtualDevice]));
+    }
+
+    // MQTT PUBLISH group
+    if (mqttPubDevice) {
+        container.appendChild(createSidebarGroup('MQTT PUBLISH', [mqttPubDevice]));
     }
 
     // Update active highlight
@@ -220,7 +227,10 @@ function showDevicePage(deviceId, tab) {
 
     highlightActiveSidebar();
 
-    if (deviceId === 'venus' || (device && device.type === 'venus')) {
+    if (deviceId === 'mqtt_pub' || (device && device.type === 'mqtt_pub')) {
+        _activeDeviceType = 'mqtt_pub';
+        renderMqttPubPage(content);
+    } else if (deviceId === 'venus' || (device && device.type === 'venus')) {
         _activeDeviceType = 'venus';
         renderVenusPage(content);
     } else if (deviceId === 'virtual' || (device && device.type === 'virtual')) {
@@ -305,8 +315,14 @@ function connectWebSocket() {
             if (msg.type === 'device_snapshot') handleDeviceSnapshot(msg);
             if (msg.type === 'virtual_snapshot') handleVirtualSnapshot(msg.data);
             if (msg.type === 'device_list') {
-                if (msg.data.mqtt_pub_connected !== undefined) _mqttPubConnected = msg.data.mqtt_pub_connected;
                 _lastDeviceList = msg.data.devices || [];
+                // Extract mqtt_pub connection state from device list
+                for (var di = 0; di < _lastDeviceList.length; di++) {
+                    if (_lastDeviceList[di].type === 'mqtt_pub') {
+                        _mqttPubConnected = _lastDeviceList[di].connection_state === 'connected';
+                        break;
+                    }
+                }
                 renderSidebar(msg.data.devices);
                 updateMqttPubStatusDot();
                 renderMqttTopicPreview();
@@ -873,8 +889,14 @@ function renderVenusPage(container) {
 
 function updateMqttPubStatusDot() {
     var dot = document.querySelector('.ve-mqtt-pub-status-dot');
-    if (!dot) return;
-    dot.style.background = _mqttPubConnected ? 'var(--ve-green)' : 'var(--ve-red)';
+    if (dot) dot.style.background = _mqttPubConnected ? 'var(--ve-green)' : 'var(--ve-red)';
+    // Page-level dot (on MQTT Pub page)
+    var pageDot = document.querySelector('.ve-mqtt-pub-page-dot');
+    if (pageDot) {
+        pageDot.className = 've-dot ' + (_mqttPubConnected ? 've-dot--ok' : 've-dot--err') + ' ve-mqtt-pub-page-dot';
+    }
+    var pageText = document.querySelector('.ve-mqtt-pub-page-text');
+    if (pageText) pageText.textContent = _mqttPubConnected ? 'Connected' : 'Disconnected';
 }
 
 function renderMqttTopicPreview() {
@@ -887,7 +909,7 @@ function renderMqttTopicPreview() {
     // Device topics
     for (var i = 0; i < _lastDeviceList.length; i++) {
         var dev = _lastDeviceList[i];
-        if (dev.type === 'venus' || dev.type === 'virtual') continue;
+        if (dev.type === 'venus' || dev.type === 'virtual' || dev.type === 'mqtt_pub') continue;
         html += '<div class="ve-mqtt-pub-topic-item">' +
             '<span class="ve-mqtt-pub-topic-label">' + (dev.name || dev.id) + '</span>' +
             '<code class="ve-mqtt-pub-topic-path">' + prefix + '/device/' + dev.id + '/state</code>' +
@@ -1053,7 +1075,37 @@ function buildVenusPage(container, config, venusDevice) {
         });
     });
 
-    // Section 5: MQTT Publishing Config panel
+}
+
+// ===== MQTT Publishing Page =====
+
+function renderMqttPubPage(container) {
+    container.innerHTML =
+        '<div class="ve-spinner-wrap"><div class="ve-spinner"></div><span class="ve-spinner-label">Loading MQTT config...</span></div>';
+
+    fetch('/api/config')
+        .then(function(r) { return r.json(); })
+        .then(function(config) {
+            container.innerHTML = '';
+            buildMqttPubPage(container, config);
+        })
+        .catch(function(err) {
+            container.innerHTML = '<div class="ve-hint-card"><div class="ve-hint-header">Failed to load MQTT config</div><p class="ve-hint-subtext">' + esc(err.message) + '</p></div>';
+        });
+}
+
+function buildMqttPubPage(container, config) {
+    // Connection status card
+    var statusCard = document.createElement('div');
+    statusCard.className = 've-card';
+    var mqttConn = _mqttPubConnected ? 'Connected' : 'Disconnected';
+    var mqttDotClass = _mqttPubConnected ? 've-dot--ok' : 've-dot--err';
+    statusCard.innerHTML =
+        '<h2 class="ve-card-title">Broker Connection</h2>' +
+        '<div class="ve-status-row"><span class="ve-dot ' + mqttDotClass + ' ve-mqtt-pub-page-dot"></span><span class="ve-mqtt-pub-page-text">' + mqttConn + '</span></div>';
+    container.appendChild(statusCard);
+
+    // Config panel
     var mqttPubPanel = document.createElement('div');
     mqttPubPanel.className = 've-panel ve-mqtt-pub-panel';
 

@@ -4,7 +4,7 @@
     {
       "name": "proxy",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "python", "-m", "venus_os_fronius_proxy", "--config", "config/config.local.yaml"],
+      "runtimeArgs": ["run", "python", "-m", "pv_inverter_proxy", "--config", "config/config.local.yaml"],
       "port": 8080
     }
   ]

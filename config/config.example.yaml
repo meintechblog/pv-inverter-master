@@ -1,5 +1,5 @@
 # Venus OS Fronius Proxy Configuration
-# Copy to /etc/venus-os-fronius-proxy/config.yaml and adjust values.
+# Copy to /etc/pv-inverter-proxy/config.yaml and adjust values.
 
 # Inverter connections (list of SunSpec-compatible inverters)
 inverters:

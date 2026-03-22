@@ -4,7 +4,7 @@ from __future__ import annotations
 
 def test_app_context_defaults():
     """AppContext() creates with sensible defaults."""
-    from venus_os_fronius_proxy.context import AppContext
+    from pv_inverter_proxy.context import AppContext
 
     ctx = AppContext()
     assert ctx.cache is None
@@ -22,7 +22,7 @@ def test_app_context_defaults():
 
 def test_device_state_creation():
     """DeviceState() creates empty state with correct defaults."""
-    from venus_os_fronius_proxy.context import DeviceState
+    from pv_inverter_proxy.context import DeviceState
 
     ds = DeviceState()
     assert ds.collector is None
@@ -34,7 +34,7 @@ def test_device_state_creation():
 
 def test_app_context_device_registry():
     """device_registry field stores the DeviceRegistry reference."""
-    from venus_os_fronius_proxy.context import AppContext
+    from pv_inverter_proxy.context import AppContext
 
     ctx = AppContext()
     registry_mock = object()

@@ -5,7 +5,7 @@ import importlib.resources as r
 
 def _read_static(filename: str) -> str:
     """Read a static file from the package."""
-    ref = r.files("venus_os_fronius_proxy") / "static" / filename
+    ref = r.files("pv_inverter_proxy") / "static" / filename
     return ref.read_text(encoding="utf-8")
 
 

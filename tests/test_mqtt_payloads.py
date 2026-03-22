@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from venus_os_fronius_proxy.mqtt_payloads import (
+from pv_inverter_proxy.mqtt_payloads import (
     device_payload,
     ha_discovery_configs,
     ha_discovery_topic,

@@ -15,10 +15,10 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import aiohttp
 import pytest
 
-from venus_os_fronius_proxy.plugins.opendtu import OpenDTUPlugin
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
-from venus_os_fronius_proxy.config import GatewayConfig
-from venus_os_fronius_proxy.sunspec_models import _int16_as_uint16
+from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from pv_inverter_proxy.config import GatewayConfig
+from pv_inverter_proxy.sunspec_models import _int16_as_uint16
 
 
 # --- Sample OpenDTU API response ---
@@ -427,7 +427,7 @@ class TestDeadTimeGuard:
         assert session.post.call_count == 1
 
         # Simulate time passing beyond dead time
-        with patch("venus_os_fronius_proxy.plugins.opendtu.time") as mock_time:
+        with patch("pv_inverter_proxy.plugins.opendtu.time") as mock_time:
             # Set monotonic to return a value 31s after the first call
             mock_time.monotonic.return_value = time.monotonic() + 31.0
             result = await plugin.write_power_limit(True, 60.0)
@@ -455,7 +455,7 @@ class TestSessionLifecycle:
         """connect() creates an aiohttp.ClientSession."""
         plugin = _make_plugin()
 
-        with patch("venus_os_fronius_proxy.plugins.opendtu.aiohttp.ClientSession") as mock_cls:
+        with patch("pv_inverter_proxy.plugins.opendtu.aiohttp.ClientSession") as mock_cls:
             await plugin.connect()
             mock_cls.assert_called_once()
             assert plugin._session is not None

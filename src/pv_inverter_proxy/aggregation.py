@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import structlog
 
-from venus_os_fronius_proxy.config import Config
-from venus_os_fronius_proxy.context import AppContext
-from venus_os_fronius_proxy.proxy import COMMON_CACHE_ADDR, INVERTER_CACHE_ADDR
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.config import Config
+from pv_inverter_proxy.context import AppContext
+from pv_inverter_proxy.proxy import COMMON_CACHE_ADDR, INVERTER_CACHE_ADDR
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import (
     COMMON_ADDR,
     COMMON_DID,
     COMMON_LENGTH,

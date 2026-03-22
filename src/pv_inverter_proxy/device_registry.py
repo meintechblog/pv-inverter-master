@@ -13,9 +13,9 @@ from typing import Awaitable, Callable
 
 import structlog
 
-from venus_os_fronius_proxy.config import Config, InverterEntry, get_gateway_for_inverter
-from venus_os_fronius_proxy.connection import ConnectionManager
-from venus_os_fronius_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.config import Config, InverterEntry, get_gateway_for_inverter
+from pv_inverter_proxy.connection import ConnectionManager
+from pv_inverter_proxy.context import AppContext, DeviceState
 
 logger = structlog.get_logger()
 
@@ -80,12 +80,12 @@ class DeviceRegistry:
         )
 
         # Create plugin (lazy import to avoid circular/version issues)
-        from venus_os_fronius_proxy.plugins import plugin_factory
+        from pv_inverter_proxy.plugins import plugin_factory
         plugin = plugin_factory(entry, gateway_config)
 
         # Create per-device state
         conn_mgr = ConnectionManager(poll_interval=poll_interval)
-        from venus_os_fronius_proxy.dashboard import DashboardCollector
+        from pv_inverter_proxy.dashboard import DashboardCollector
         collector = DashboardCollector()
         poll_counter = {"success": 0, "total": 0}
 
@@ -244,6 +244,14 @@ async def _device_poll_loop(
                     "inverter_registers": result.inverter_registers,
                 }
 
+                # Get nameplate registers from plugin for rated power
+                nameplate_regs = None
+                if hasattr(plugin, "get_model_120_registers"):
+                    try:
+                        nameplate_regs = plugin.get_model_120_registers()
+                    except Exception:
+                        pass
+
                 # Update DashboardCollector with decoded snapshot
                 if device_state.collector is not None:
                     device_state.collector.collect_from_raw(
@@ -253,6 +261,7 @@ async def _device_poll_loop(
                         poll_counter=poll_counter,
                         control_state=getattr(app_ctx, "control_state", None),
                         app_ctx=app_ctx,
+                        nameplate_registers=nameplate_regs,
                     )
 
                 await on_success(device_id)

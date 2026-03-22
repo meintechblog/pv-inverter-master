@@ -1,4 +1,4 @@
-"""Entry point for venus-os-fronius-proxy service.
+"""Entry point for pv-inverter-proxy service.
 
 Loads YAML config, configures structured JSON logging, handles SIGTERM
 for graceful shutdown. Uses DeviceRegistry for N poll loops and
@@ -16,15 +16,15 @@ import time
 import structlog
 from aiohttp import web
 
-from venus_os_fronius_proxy.aggregation import AggregationLayer
-from venus_os_fronius_proxy.config import load_config, DEFAULT_CONFIG_PATH
-from venus_os_fronius_proxy.context import AppContext
-from venus_os_fronius_proxy.device_registry import DeviceRegistry
-from venus_os_fronius_proxy.distributor import PowerLimitDistributor
-from venus_os_fronius_proxy.logging_config import configure_logging
-from venus_os_fronius_proxy.proxy import run_modbus_server
-from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
-from venus_os_fronius_proxy.webapp import create_webapp
+from pv_inverter_proxy.aggregation import AggregationLayer
+from pv_inverter_proxy.config import load_config, DEFAULT_CONFIG_PATH
+from pv_inverter_proxy.context import AppContext
+from pv_inverter_proxy.device_registry import DeviceRegistry
+from pv_inverter_proxy.distributor import PowerLimitDistributor
+from pv_inverter_proxy.logging_config import configure_logging
+from pv_inverter_proxy.proxy import run_modbus_server
+from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
+from pv_inverter_proxy.webapp import create_webapp
 
 
 HEARTBEAT_INTERVAL = 300  # 5 minutes
@@ -35,7 +35,7 @@ def main():
     parser.add_argument(
         "--config", "-c",
         default=None,
-        help="Path to config YAML (default: /etc/venus-os-fronius-proxy/config.yaml)",
+        help="Path to config YAML (default: /etc/pv-inverter-proxy/config.yaml)",
     )
     args = parser.parse_args()
 
@@ -158,7 +158,7 @@ def main():
         log.info("webapp_started", port=config.webapp.port)
 
         # Wire broadcast callback into aggregation layer (Phase 24)
-        from venus_os_fronius_proxy.webapp import broadcast_device_snapshot, broadcast_virtual_snapshot
+        from pv_inverter_proxy.webapp import broadcast_device_snapshot, broadcast_virtual_snapshot
 
         async def _on_aggregation_broadcast(device_id: str) -> None:
             app = app_ctx.webapp
@@ -185,7 +185,7 @@ def main():
 
         # Start Venus OS MQTT reader only if host is configured
         if config.venus.host:
-            from venus_os_fronius_proxy.venus_reader import venus_mqtt_loop
+            from pv_inverter_proxy.venus_reader import venus_mqtt_loop
             venus_task = asyncio.create_task(
                 venus_mqtt_loop(app_ctx, config.venus.host, config.venus.port, config.venus.portal_id)
             )

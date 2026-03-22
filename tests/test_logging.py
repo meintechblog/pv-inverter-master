@@ -8,7 +8,7 @@ import sys
 
 def test_json_output():
     """configure_logging produces JSON output with timestamp, level, event."""
-    from venus_os_fronius_proxy.logging_config import configure_logging
+    from pv_inverter_proxy.logging_config import configure_logging
     import structlog
 
     # Reset structlog state for test isolation
@@ -32,7 +32,7 @@ def test_json_output():
 
 def test_component_binding():
     """Logger with component binding includes 'component' in JSON output."""
-    from venus_os_fronius_proxy.logging_config import configure_logging
+    from pv_inverter_proxy.logging_config import configure_logging
     import structlog
 
     structlog.reset_defaults()

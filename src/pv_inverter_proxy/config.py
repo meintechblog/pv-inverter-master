@@ -1,6 +1,6 @@
 """YAML configuration loading with dataclass schema and sensible defaults.
 
-Loads configuration from a YAML file (default: /etc/venus-os-fronius-proxy/config.yaml).
+Loads configuration from a YAML file (default: /etc/pv-inverter-proxy/config.yaml).
 Missing file or missing keys silently use defaults. Unknown keys are ignored.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import yaml
 log = structlog.get_logger()
 
 
-DEFAULT_CONFIG_PATH = "/etc/venus-os-fronius-proxy/config.yaml"
+DEFAULT_CONFIG_PATH = "/etc/pv-inverter-proxy/config.yaml"
 
 
 def _generate_id() -> str:

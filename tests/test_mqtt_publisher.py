@@ -58,7 +58,7 @@ def mock_will():
 
 async def test_connect_sets_connected(mock_client, mock_will):
     """mqtt_publish_loop sets ctx.mqtt_pub_connected=True after successful connect."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -75,7 +75,7 @@ async def test_connect_sets_connected(mock_client, mock_will):
 
 async def test_publishes_online_on_connect(mock_client, mock_will):
     """mqtt_publish_loop publishes 'online' to {prefix}/status with QoS 1 + retain."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="test")
@@ -99,7 +99,7 @@ async def test_publishes_online_on_connect(mock_client, mock_will):
 
 async def test_will_message_configured(mock_client, mock_will):
     """mqtt_publish_loop sets Will message to 'offline' on {prefix}/status."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="mypv")
@@ -121,7 +121,7 @@ async def test_will_message_configured(mock_client, mock_will):
 
 async def test_consumes_queue_messages(mock_client, mock_will):
     """mqtt_publish_loop consumes messages from queue and publishes to broker."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -153,7 +153,7 @@ async def test_consumes_queue_messages(mock_client, mock_will):
 
 async def test_reconnect_with_backoff(mock_client, mock_will):
     """mqtt_publish_loop reconnects with increasing backoff on MqttError."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -181,7 +181,7 @@ async def test_reconnect_with_backoff(mock_client, mock_will):
 
 async def test_disconnect_sets_connected_false(mock_client, mock_will):
     """mqtt_publish_loop sets ctx.mqtt_pub_connected=False on disconnect."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -227,7 +227,7 @@ async def test_disconnect_sets_connected_false(mock_client, mock_will):
 
 async def test_clean_shutdown_on_cancel(mock_client, mock_will):
     """mqtt_publish_loop stops cleanly on CancelledError."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -244,7 +244,7 @@ async def test_clean_shutdown_on_cancel(mock_client, mock_will):
 
 async def test_shutdown_event_stops_loop(mock_client, mock_will):
     """mqtt_publish_loop exits when shutdown_event is set."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config()
@@ -323,7 +323,7 @@ async def _run_publish_loop_with_queue_messages(mock_client, ctx, config,
                                                  messages, inverters=None,
                                                  virtual_name=""):
     """Helper: run mqtt_publish_loop, enqueue messages after connect, then shutdown."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     enqueued = False
 
@@ -367,7 +367,7 @@ async def _run_publish_loop_with_queue_messages(mock_client, ctx, config,
 
 async def test_publishes_ha_discovery_on_connect(mock_client, mock_will):
     """On connect, HA discovery configs are published with retain=True, QoS 1."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")
@@ -399,7 +399,7 @@ async def test_publishes_ha_discovery_on_connect(mock_client, mock_will):
 
 async def test_publishes_device_availability_on_connect(mock_client, mock_will):
     """On connect, device availability 'online' published to {prefix}/device/{id}/availability."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")
@@ -429,7 +429,7 @@ async def test_publishes_device_availability_on_connect(mock_client, mock_will):
 
 async def test_device_message_published_retained(mock_client, mock_will):
     """Device state messages are published with retain=True."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")
@@ -448,7 +448,7 @@ async def test_device_message_published_retained(mock_client, mock_will):
 
 async def test_change_detection_skips_identical(mock_client, mock_will):
     """Identical device payloads are not re-published (change detection)."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")
@@ -469,7 +469,7 @@ async def test_change_detection_skips_identical(mock_client, mock_will):
 
 async def test_change_detection_publishes_on_change(mock_client, mock_will):
     """Different device payloads are both published."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")
@@ -489,7 +489,7 @@ async def test_change_detection_publishes_on_change(mock_client, mock_will):
 
 async def test_virtual_message_published(mock_client, mock_will):
     """Virtual messages are published to {prefix}/virtual/state with retain=True."""
-    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+    from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pvproxy")

@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from venus_os_fronius_proxy.control import (
+from pv_inverter_proxy.control import (
     ControlState,
     OverrideLog,
     edpc_refresh_loop,
@@ -253,7 +253,7 @@ class TestEdpcRefreshLoop:
         cs.webapp_revert_at = time.monotonic() + 9999  # far future
 
         plugin = AsyncMock()
-        from venus_os_fronius_proxy.plugin import WriteResult
+        from pv_inverter_proxy.plugin import WriteResult
         plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
         log = OverrideLog()
 
@@ -278,7 +278,7 @@ class TestEdpcRefreshLoop:
         cs.webapp_revert_at = time.monotonic() - 1  # already passed
 
         plugin = AsyncMock()
-        from venus_os_fronius_proxy.plugin import WriteResult
+        from pv_inverter_proxy.plugin import WriteResult
         plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
         log = OverrideLog()
 
@@ -382,8 +382,9 @@ class TestControlStateLock:
     def test_check_lock_expiry_expired(self):
         """check_lock_expiry() returns True and unlocks when expired."""
         cs = ControlState()
-        cs.lock(0.0)  # Expires immediately
-        # monotonic should now be >= lock_expires_at
+        cs.lock(60.0)
+        # Force expiry into the past
+        cs.lock_expires_at = time.monotonic() - 1.0
         assert cs.check_lock_expiry() is True
         assert cs.is_locked is False
         assert cs.lock_expires_at is None
@@ -412,10 +413,11 @@ class TestEdpcLockExpiry:
     async def test_edpc_auto_unlock_expired(self):
         """edpc_refresh_loop auto-unlocks expired lock and broadcasts."""
         cs = ControlState()
-        cs.lock(0.0)  # Expires immediately
+        cs.lock(60.0)
+        cs.lock_expires_at = time.monotonic() - 1.0  # Force into the past
 
         plugin = AsyncMock()
-        from venus_os_fronius_proxy.plugin import WriteResult
+        from pv_inverter_proxy.plugin import WriteResult
         plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
         log = OverrideLog()
         broadcast = AsyncMock()

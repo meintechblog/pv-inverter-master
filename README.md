@@ -20,8 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main
 This installs everything: Python venv, systemd service, default config. Edit the config afterwards:
 
 ```bash
-nano /etc/venus-os-fronius-proxy/config.yaml
-systemctl restart venus-os-fronius-proxy
+nano /etc/pv-inverter-proxy/config.yaml
+systemctl restart pv-inverter-proxy
 ```
 
 ### Update
@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main
 
 ## Configuration
 
-`/etc/venus-os-fronius-proxy/config.yaml`:
+`/etc/pv-inverter-proxy/config.yaml`:
 
 ```yaml
 inverter:
@@ -124,16 +124,16 @@ Access at `http://<proxy-ip>` (port 80).
 
 ```bash
 # Service status
-systemctl status venus-os-fronius-proxy
+systemctl status pv-inverter-proxy
 
 # Live logs
-journalctl -u venus-os-fronius-proxy -f
+journalctl -u pv-inverter-proxy -f
 
 # Restart
-systemctl restart venus-os-fronius-proxy
+systemctl restart pv-inverter-proxy
 
 # Stop
-systemctl stop venus-os-fronius-proxy
+systemctl stop pv-inverter-proxy
 ```
 
 ## Tech Stack
@@ -146,7 +146,7 @@ systemctl stop venus-os-fronius-proxy
 
 ```bash
 git clone https://github.com/meintechblog/pv-inverter-proxy.git
-cd venus-os-fronius-proxy
+cd pv-inverter-proxy
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest

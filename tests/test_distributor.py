@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from venus_os_fronius_proxy.config import Config, InverterEntry
-from venus_os_fronius_proxy.connection import ConnectionState
-from venus_os_fronius_proxy.distributor import DeviceLimitState, PowerLimitDistributor
+from pv_inverter_proxy.config import Config, InverterEntry
+from pv_inverter_proxy.connection import ConnectionState
+from pv_inverter_proxy.distributor import DeviceLimitState, PowerLimitDistributor
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ def _make_conn_mgr(state: ConnectionState = ConnectionState.CONNECTED) -> MagicM
 
 def _make_device_state(plugin=None, conn_mgr=None):
     """Create a minimal DeviceState-like object."""
-    from venus_os_fronius_proxy.context import DeviceState
+    from pv_inverter_proxy.context import DeviceState
     ds = DeviceState()
     ds.plugin = plugin or _make_plugin()
     ds.conn_mgr = conn_mgr or _make_conn_mgr()
@@ -87,7 +87,7 @@ def _build_distributor(
     config = Config(inverters=inverter_entries)
 
     # Build a mock registry with _managed dict
-    from venus_os_fronius_proxy.context import AppContext
+    from pv_inverter_proxy.context import AppContext
     app_ctx = AppContext()
 
     for dev_id, rated, to, te, dt in entries:

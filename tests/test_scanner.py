@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from venus_os_fronius_proxy.sunspec_models import encode_string
-from venus_os_fronius_proxy.scanner import (
+from pv_inverter_proxy.sunspec_models import encode_string
+from pv_inverter_proxy.scanner import (
     ScanConfig,
     DiscoveredDevice,
     decode_string,
@@ -130,7 +130,7 @@ class TestDetectSubnet:
             })
         return json.dumps(result)
 
-    @patch("venus_os_fronius_proxy.scanner.subprocess.run")
+    @patch("pv_inverter_proxy.scanner.subprocess.run")
     def test_detect_subnet_single_interface(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout=self._ip_json([("eth0", "192.168.3.191", 24)]),
@@ -139,7 +139,7 @@ class TestDetectSubnet:
         result = detect_subnet()
         assert result == IPv4Network("192.168.3.0/24")
 
-    @patch("venus_os_fronius_proxy.scanner.subprocess.run")
+    @patch("pv_inverter_proxy.scanner.subprocess.run")
     def test_detect_subnet_skips_loopback(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout=self._ip_json([
@@ -151,7 +151,7 @@ class TestDetectSubnet:
         result = detect_subnet()
         assert result == IPv4Network("192.168.3.0/24")
 
-    @patch("venus_os_fronius_proxy.scanner.subprocess.run")
+    @patch("pv_inverter_proxy.scanner.subprocess.run")
     def test_detect_subnet_skips_link_local(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout=self._ip_json([
@@ -163,7 +163,7 @@ class TestDetectSubnet:
         result = detect_subnet()
         assert result == IPv4Network("192.168.3.0/24")
 
-    @patch("venus_os_fronius_proxy.scanner.subprocess.run")
+    @patch("pv_inverter_proxy.scanner.subprocess.run")
     def test_detect_subnet_no_interface(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout=self._ip_json([("lo", "127.0.0.1", 8)]),
@@ -181,21 +181,21 @@ class TestProbePort:
         mock_writer = MagicMock()
         mock_writer.close = MagicMock()
         mock_writer.wait_closed = AsyncMock()
-        with patch("venus_os_fronius_proxy.scanner.asyncio.open_connection",
+        with patch("pv_inverter_proxy.scanner.asyncio.open_connection",
                     new_callable=AsyncMock, return_value=(MagicMock(), mock_writer)):
             result = await _probe_port("192.168.3.18", 502, 0.5)
         assert result is True
 
     @pytest.mark.asyncio
     async def test_probe_port_closed(self):
-        with patch("venus_os_fronius_proxy.scanner.asyncio.open_connection",
+        with patch("pv_inverter_proxy.scanner.asyncio.open_connection",
                     new_callable=AsyncMock, side_effect=OSError("refused")):
             result = await _probe_port("192.168.3.18", 502, 0.5)
         assert result is False
 
     @pytest.mark.asyncio
     async def test_probe_port_timeout(self):
-        with patch("venus_os_fronius_proxy.scanner.asyncio.open_connection",
+        with patch("pv_inverter_proxy.scanner.asyncio.open_connection",
                     new_callable=AsyncMock, side_effect=asyncio.TimeoutError):
             result = await _probe_port("192.168.3.18", 502, 0.5)
         assert result is False
@@ -216,7 +216,7 @@ class TestVerifySunSpec:
         mock_client.read_holding_registers = AsyncMock(
             side_effect=[header_resp, common_resp]
         )
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=mock_client):
             result = await _verify_sunspec("192.168.3.18", 1502, 1, 2.0)
         assert result is not None
@@ -233,7 +233,7 @@ class TestVerifySunSpec:
         mock_client.close = MagicMock()
         header_resp = _make_mock_response([0x0000, 0x0000])
         mock_client.read_holding_registers = AsyncMock(return_value=header_resp)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=mock_client):
             result = await _verify_sunspec("192.168.3.18", 1502, 1, 2.0)
         assert result is None
@@ -245,7 +245,7 @@ class TestVerifySunSpec:
         mock_client.close = MagicMock()
         error_resp = _make_mock_response([], is_error=True)
         mock_client.read_holding_registers = AsyncMock(return_value=error_resp)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=mock_client):
             result = await _verify_sunspec("192.168.3.18", 1502, 1, 2.0)
         assert result is None
@@ -255,7 +255,7 @@ class TestVerifySunSpec:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=Exception("connection refused"))
         mock_client.close = MagicMock()
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=mock_client):
             result = await _verify_sunspec("192.168.3.18", 1502, 1, 2.0)
         assert result is None
@@ -269,8 +269,8 @@ class TestScanSubnet:
         cfg = ScanConfig(skip_ips={"192.168.3.18"})
         subnet = IPv4Network("192.168.3.0/30")  # Only .1, .2 (network .0, broadcast .3)
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port",
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port",
                    new_callable=AsyncMock, return_value=False) as mock_probe:
             result = await scan_subnet(cfg)
 
@@ -298,9 +298,9 @@ class TestScanSubnet:
                 return device
             return None
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
-             patch("venus_os_fronius_proxy.scanner._verify_sunspec", side_effect=mock_verify):
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("pv_inverter_proxy.scanner._verify_sunspec", side_effect=mock_verify):
             result = await scan_subnet(cfg)
 
         assert len(result) == 1
@@ -311,8 +311,8 @@ class TestScanSubnet:
         cfg = ScanConfig()
         subnet = IPv4Network("10.0.0.0/30")
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port",
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port",
                    new_callable=AsyncMock, return_value=False):
             result = await scan_subnet(cfg)
 
@@ -340,7 +340,7 @@ class TestCommonBlockParse:
     async def test_parse_manufacturer_solaredge(self):
         regs = _build_common_block(manufacturer="SolarEdge")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -350,7 +350,7 @@ class TestCommonBlockParse:
     async def test_parse_model(self):
         regs = _build_common_block(model="SE30K")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -360,7 +360,7 @@ class TestCommonBlockParse:
     async def test_parse_serial(self):
         regs = _build_common_block(serial="7E1234AB")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -370,7 +370,7 @@ class TestCommonBlockParse:
     async def test_parse_firmware(self):
         regs = _build_common_block(firmware="4.18.32")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -380,7 +380,7 @@ class TestCommonBlockParse:
     async def test_parse_non_solaredge_manufacturer(self):
         regs = _build_common_block(manufacturer="Fronius")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -391,7 +391,7 @@ class TestCommonBlockParse:
     async def test_parse_manufacturer_case_insensitive(self):
         regs = _build_common_block(manufacturer="SOLAREDGE")
         client = self._make_client(regs)
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is not None
@@ -408,7 +408,7 @@ class TestCommonBlockParse:
         client.read_holding_registers = AsyncMock(
             side_effect=[header_resp, error_resp]
         )
-        with patch("venus_os_fronius_proxy.scanner.AsyncModbusTcpClient",
+        with patch("pv_inverter_proxy.scanner.AsyncModbusTcpClient",
                     return_value=client):
             device = await _verify_sunspec("10.0.0.1", 502, 1, 2.0)
         assert device is None
@@ -427,9 +427,9 @@ class TestUnitIdScan:
         async def mock_probe(ip, port, timeout):
             return ip == "10.0.0.1"
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
-             patch("venus_os_fronius_proxy.scanner._verify_sunspec",
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("pv_inverter_proxy.scanner._verify_sunspec",
                    new_callable=AsyncMock, return_value=None) as mock_verify:
             await scan_subnet(cfg)
 
@@ -445,9 +445,9 @@ class TestUnitIdScan:
         async def mock_probe(ip, port, timeout):
             return ip == "10.0.0.1"
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
-             patch("venus_os_fronius_proxy.scanner._verify_sunspec",
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("pv_inverter_proxy.scanner._verify_sunspec",
                    new_callable=AsyncMock, return_value=None) as mock_verify:
             await scan_subnet(cfg)
 
@@ -481,9 +481,9 @@ class TestUnitIdScan:
                 return device2
             return None
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
-             patch("venus_os_fronius_proxy.scanner._verify_sunspec", side_effect=mock_verify):
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("pv_inverter_proxy.scanner._verify_sunspec", side_effect=mock_verify):
             result = await scan_subnet(cfg)
 
         assert len(result) == 2
@@ -509,9 +509,9 @@ class TestUnitIdScan:
                 return device1
             return None  # unit_id=2 returns no SunSpec
 
-        with patch("venus_os_fronius_proxy.scanner.detect_subnet", return_value=subnet), \
-             patch("venus_os_fronius_proxy.scanner._probe_port", side_effect=mock_probe), \
-             patch("venus_os_fronius_proxy.scanner._verify_sunspec", side_effect=mock_verify):
+        with patch("pv_inverter_proxy.scanner.detect_subnet", return_value=subnet), \
+             patch("pv_inverter_proxy.scanner._probe_port", side_effect=mock_probe), \
+             patch("pv_inverter_proxy.scanner._verify_sunspec", side_effect=mock_verify):
             result = await scan_subnet(cfg)
 
         assert len(result) == 1
@@ -525,18 +525,18 @@ import weakref
 
 from aiohttp.test_utils import TestClient, TestServer
 
-from venus_os_fronius_proxy.config import Config
-from venus_os_fronius_proxy.connection import ConnectionManager
-from venus_os_fronius_proxy.control import ControlState, OverrideLog
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
+from pv_inverter_proxy.config import Config
+from pv_inverter_proxy.connection import ConnectionManager
+from pv_inverter_proxy.control import ControlState, OverrideLog
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
 from pymodbus.datastore import ModbusSequentialDataBlock
 
 
 @pytest.fixture
 async def scanner_client(tmp_path):
     """Create an aiohttp test client with scanner endpoint."""
-    from venus_os_fronius_proxy.webapp import create_webapp
+    from pv_inverter_proxy.webapp import create_webapp
 
     initial_values = build_initial_registers()
     datablock = ModbusSequentialDataBlock(DATABLOCK_START, initial_values)
@@ -579,7 +579,7 @@ class TestScannerAPI:
     @pytest.mark.asyncio
     async def test_discover_endpoint_returns_started(self, scanner_client):
         """POST /api/scanner/discover returns {status: started} immediately."""
-        with patch("venus_os_fronius_proxy.webapp.scan_subnet",
+        with patch("pv_inverter_proxy.webapp.scan_subnet",
                     new_callable=AsyncMock, return_value=[]):
             resp = await scanner_client.post("/api/scanner/discover", json={})
         assert resp.status == 200
@@ -598,7 +598,7 @@ class TestScannerAPI:
 
     @pytest.mark.asyncio
     async def test_discover_skips_configured_ip(self, scanner_client):
-        with patch("venus_os_fronius_proxy.webapp.scan_subnet",
+        with patch("pv_inverter_proxy.webapp.scan_subnet",
                     new_callable=AsyncMock, return_value=[]) as mock_scan:
             resp = await scanner_client.post("/api/scanner/discover", json={})
         assert resp.status == 200

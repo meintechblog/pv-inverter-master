@@ -16,7 +16,7 @@ import struct
 import time
 from collections import deque
 
-from venus_os_fronius_proxy.sunspec_models import CONTROLS_ADDR, CONTROLS_DID, CONTROLS_LENGTH
+from pv_inverter_proxy.sunspec_models import CONTROLS_ADDR, CONTROLS_DID, CONTROLS_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def wmaxlimpct_to_se_registers(raw_value: int, scale_factor: int = WMAXLIMPCT_SF
     return struct.unpack(">HH", packed)
 
 
-_LAST_LIMIT_FILE = "/etc/venus-os-fronius-proxy/last_limit.json"
+_LAST_LIMIT_FILE = "/etc/pv-inverter-proxy/last_limit.json"
 
 
 class ControlState:
@@ -147,7 +147,7 @@ class ControlState:
         except OSError:
             pass
 
-    _UI_STATE_FILE = "/etc/venus-os-fronius-proxy/ui_state.json"
+    _UI_STATE_FILE = "/etc/pv-inverter-proxy/ui_state.json"
 
     def _load_ui_state(self) -> None:
         """Load persistent UI state (clamp values, lock)."""

@@ -10,13 +10,13 @@ from aiohttp.test_utils import AioHTTPTestCase, TestClient, TestServer
 
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.config import Config, InverterEntry, VenusConfig, WebappConfig, get_active_inverter
-from venus_os_fronius_proxy.connection import ConnectionManager, ConnectionState
-from venus_os_fronius_proxy.context import AppContext, DeviceState
-from venus_os_fronius_proxy.control import ControlState, OverrideLog
-from venus_os_fronius_proxy.plugin import WriteResult
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
+from pv_inverter_proxy.config import Config, InverterEntry, VenusConfig, WebappConfig, get_active_inverter
+from pv_inverter_proxy.connection import ConnectionManager, ConnectionState
+from pv_inverter_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.control import ControlState, OverrideLog
+from pv_inverter_proxy.plugin import WriteResult
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import build_initial_registers, DATABLOCK_START
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ def mock_plugin():
 @pytest.fixture
 async def client(shared_ctx, mock_config, mock_plugin):
     """Create an aiohttp test client for the webapp."""
-    from venus_os_fronius_proxy.webapp import create_webapp
+    from pv_inverter_proxy.webapp import create_webapp
 
     config, config_path = mock_config
     runner = await create_webapp(shared_ctx, config, config_path, mock_plugin)
@@ -402,7 +402,7 @@ async def test_config_save_venus_hot_reload(client, shared_ctx):
     old_task.done.return_value = False
     shared_ctx.venus_task = old_task
 
-    with patch("venus_os_fronius_proxy.webapp.venus_mqtt_loop", new_callable=MagicMock) as mock_loop:
+    with patch("pv_inverter_proxy.webapp.venus_mqtt_loop", new_callable=MagicMock) as mock_loop:
         # Make venus_mqtt_loop return a coroutine
         mock_coro = AsyncMock()
         mock_loop.return_value = mock_coro()
@@ -487,7 +487,7 @@ class TestVenusAutoDetect:
 def test_no_hardcoded_ips_webapp():
     """webapp.py contains no hardcoded Venus OS IPs or portal IDs."""
     import inspect
-    import venus_os_fronius_proxy.webapp as wa
+    import pv_inverter_proxy.webapp as wa
 
     source = inspect.getsource(wa)
     assert "192.168.3.146" not in source, "Hardcoded VENUS_HOST IP in webapp.py"
@@ -654,7 +654,7 @@ async def test_config_save_old_format(client, mock_plugin):
 
 async def test_scanner_discover_returns_started(client):
     """POST /api/scanner/discover returns {status: started} with status 200."""
-    with patch("venus_os_fronius_proxy.webapp.scan_subnet",
+    with patch("pv_inverter_proxy.webapp.scan_subnet",
                 new_callable=AsyncMock, return_value=[]):
         resp = await client.post("/api/scanner/discover", json={})
     assert resp.status == 200
@@ -729,7 +729,7 @@ async def test_device_snapshot_not_found(client):
 
 
 async def test_device_snapshot_no_data(client, shared_ctx):
-    """GET /api/devices/{id}/snapshot returns 503 when collector has no data."""
+    """GET /api/devices/{id}/snapshot returns 200 with error field when collector has no data."""
     config: Config = client.app["config"]
     inv_id = config.inverters[0].id
     # Ensure device_state exists but collector has no snapshot
@@ -739,7 +739,10 @@ async def test_device_snapshot_no_data(client, shared_ctx):
         shared_ctx.devices[inv_id] = ds
     ds.collector = None
     resp = await client.get(f"/api/devices/{inv_id}/snapshot")
-    assert resp.status == 503
+    assert resp.status == 200
+    data = await resp.json()
+    assert "error" in data
+    assert data["device_id"] == inv_id
 
 
 async def test_device_snapshot_success(client, shared_ctx):
@@ -818,7 +821,7 @@ async def test_devices_crud_aliases(client):
 
 async def test_distributor_get_device_limits():
     """PowerLimitDistributor.get_device_limits() returns dict of device_id -> current_limit_pct."""
-    from venus_os_fronius_proxy.distributor import PowerLimitDistributor, DeviceLimitState
+    from pv_inverter_proxy.distributor import PowerLimitDistributor, DeviceLimitState
 
     config = Config()
     registry = MagicMock()

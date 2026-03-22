@@ -19,8 +19,8 @@ from pymodbus.datastore import (
 )
 from pymodbus.server import ModbusTcpServer
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from pv_inverter_proxy.sunspec_models import (
     PROXY_UNIT_ID,
     DATABLOCK_START,
     CONTROLS_DID,
@@ -29,18 +29,18 @@ from venus_os_fronius_proxy.sunspec_models import (
     build_initial_registers,
     apply_common_translation,
 )
-from venus_os_fronius_proxy.proxy import (
+from pv_inverter_proxy.proxy import (
     StalenessAwareSlaveContext,
     _start_server,
     COMMON_CACHE_ADDR,
     INVERTER_CACHE_ADDR,
 )
-from venus_os_fronius_proxy.control import (
+from pv_inverter_proxy.control import (
     ControlState,
     SE_ENABLE_REG,
     SE_POWER_LIMIT_REG,
 )
-from venus_os_fronius_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.register_cache import RegisterCache
 
 
 # ---------- Port management ----------
@@ -96,7 +96,7 @@ def _make_write_tracking_plugin() -> InverterPlugin:
     ))
     plugin.write_power_limit = AsyncMock(return_value=WriteResult(success=True))
 
-    from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
+    from pv_inverter_proxy.plugins.solaredge import SolarEdgePlugin
     real_plugin = SolarEdgePlugin()
     plugin.get_model_120_registers = MagicMock(
         return_value=real_plugin.get_model_120_registers()
@@ -173,7 +173,7 @@ class TestWriteWMaxLimPct:
 
     @pytest.mark.asyncio
     async def test_write_wmaxlimpct_50pct_forwards_to_plugin(self):
-        """Write WMaxLimPct=50 to 40154, enable first, verify plugin receives Float32 50.0."""
+        """Write WMaxLimPct=50 to 40154, enable first, verify ControlState updated."""
         port = _next_port()
         plugin = _make_write_tracking_plugin()
         cache, control, server_task, client = await _start_write_server_and_connect(plugin, port)
@@ -190,32 +190,30 @@ class TestWriteWMaxLimPct:
             )
             assert not result.isError(), f"WMaxLimPct write failed: {result}"
 
-            # Verify plugin.write_power_limit was called with enable=True, limit_pct=50.0
-            calls = plugin.write_power_limit.call_args_list
-            assert len(calls) >= 2  # At least: enable + limit write
-            last_call = calls[-1]
-            assert last_call.args[0] is True   # enable
-            assert last_call.args[1] == 50.0   # limit_pct
+            # Verify ControlState was updated (new arch: local state, not plugin.write_power_limit)
+            assert control.is_enabled is True
+            assert control.wmaxlimpct_raw == 50
+            assert control.wmaxlimpct_float == 50.0
 
         finally:
             await _cleanup(server_task, client)
 
     @pytest.mark.asyncio
     async def test_write_wmaxlimpct_stored_without_enable(self):
-        """Write WMaxLimPct=50 without enabling -- stored locally, implicitly enables."""
+        """Write WMaxLimPct=50 without enabling -- stored locally in ControlState."""
         port = _next_port()
         plugin = _make_write_tracking_plugin()
         cache, control, server_task, client = await _start_write_server_and_connect(plugin, port)
         try:
             # Write WMaxLimPct without enabling first
-            # Note: in the new code, writing WMaxLimPct implicitly enables
             result = await client.write_register(
                 40154, 50, device_id=PROXY_UNIT_ID,
             )
             assert not result.isError(), f"WMaxLimPct write failed: {result}"
 
-            # Plugin should have been called (implicit enable)
-            plugin.write_power_limit.assert_called()
+            # ControlState should have the value stored
+            assert control.wmaxlimpct_raw == 50
+            assert control.wmaxlimpct_float == 50.0
 
         finally:
             await _cleanup(server_task, client)

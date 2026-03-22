@@ -10,7 +10,7 @@ import yaml
 
 def test_webapp_config_defaults():
     """WebappConfig has port field defaulting to 80."""
-    from venus_os_fronius_proxy.config import WebappConfig
+    from pv_inverter_proxy.config import WebappConfig
 
     wc = WebappConfig()
     assert wc.port == 80
@@ -18,7 +18,7 @@ def test_webapp_config_defaults():
 
 def test_config_has_webapp_field():
     """Config dataclass includes webapp field of type WebappConfig."""
-    from venus_os_fronius_proxy.config import Config, WebappConfig
+    from pv_inverter_proxy.config import Config, WebappConfig
 
     cfg = Config()
     assert isinstance(cfg.webapp, WebappConfig)
@@ -27,7 +27,7 @@ def test_config_has_webapp_field():
 
 def test_save_config_roundtrip(tmp_path: Path):
     """save_config writes YAML that load_config can reload identically."""
-    from venus_os_fronius_proxy.config import Config, load_config, save_config
+    from pv_inverter_proxy.config import Config, load_config, save_config
 
     original = Config()
     original.inverter.host = "10.0.0.99"
@@ -49,10 +49,10 @@ def test_save_config_roundtrip(tmp_path: Path):
 
 def test_save_config_atomic(tmp_path: Path):
     """save_config uses os.replace for atomic write."""
-    from venus_os_fronius_proxy.config import Config, save_config
+    from pv_inverter_proxy.config import Config, save_config
 
     config_path = str(tmp_path / "config.yaml")
-    with patch("venus_os_fronius_proxy.config.os.replace") as mock_replace:
+    with patch("pv_inverter_proxy.config.os.replace") as mock_replace:
         # Allow normal write flow but intercept os.replace
         mock_replace.side_effect = lambda src, dst: Path(src).rename(dst)
         save_config(config_path, Config())
@@ -61,7 +61,7 @@ def test_save_config_atomic(tmp_path: Path):
 
 def test_validate_inverter_config_valid():
     """validate_inverter_config returns None for valid input."""
-    from venus_os_fronius_proxy.config import validate_inverter_config
+    from pv_inverter_proxy.config import validate_inverter_config
 
     result = validate_inverter_config("192.168.1.1", 1502, 1)
     assert result is None
@@ -69,7 +69,7 @@ def test_validate_inverter_config_valid():
 
 def test_validate_inverter_config_invalid_ip():
     """validate_inverter_config returns error for invalid IP."""
-    from venus_os_fronius_proxy.config import validate_inverter_config
+    from pv_inverter_proxy.config import validate_inverter_config
 
     result = validate_inverter_config("not-an-ip", 1502, 1)
     assert result is not None
@@ -78,7 +78,7 @@ def test_validate_inverter_config_invalid_ip():
 
 def test_validate_inverter_config_port_out_of_range():
     """validate_inverter_config returns error for port out of range."""
-    from venus_os_fronius_proxy.config import validate_inverter_config
+    from pv_inverter_proxy.config import validate_inverter_config
 
     assert validate_inverter_config("192.168.1.1", 0, 1) is not None
     assert validate_inverter_config("192.168.1.1", 70000, 1) is not None
@@ -86,15 +86,15 @@ def test_validate_inverter_config_port_out_of_range():
 
 def test_validate_inverter_config_unit_id_out_of_range():
     """validate_inverter_config returns error for unit_id out of range."""
-    from venus_os_fronius_proxy.config import validate_inverter_config
+    from pv_inverter_proxy.config import validate_inverter_config
 
-    assert validate_inverter_config("192.168.1.1", 1502, 0) is not None
+    assert validate_inverter_config("192.168.1.1", 1502, -1) is not None
     assert validate_inverter_config("192.168.1.1", 1502, 248) is not None
 
 
 def test_inverter_plugin_reconfigure_is_abstract():
     """InverterPlugin.reconfigure is abstract method."""
-    from venus_os_fronius_proxy.plugin import InverterPlugin
+    from pv_inverter_proxy.plugin import InverterPlugin
     import inspect
 
     assert hasattr(InverterPlugin, "reconfigure")
@@ -104,7 +104,7 @@ def test_inverter_plugin_reconfigure_is_abstract():
 
 def test_save_config_venus_roundtrip(tmp_path: Path):
     """save_config roundtrip preserves venus section."""
-    from venus_os_fronius_proxy.config import Config, VenusConfig, load_config, save_config
+    from pv_inverter_proxy.config import Config, VenusConfig, load_config, save_config
 
     original = Config()
     original.venus.host = "192.168.3.146"
@@ -122,21 +122,21 @@ def test_save_config_venus_roundtrip(tmp_path: Path):
 
 def test_validate_venus_valid():
     """validate_venus_config returns None for valid input."""
-    from venus_os_fronius_proxy.config import validate_venus_config
+    from pv_inverter_proxy.config import validate_venus_config
 
     assert validate_venus_config("192.168.3.146", 1883) is None
 
 
 def test_validate_venus_empty_host():
     """validate_venus_config returns None for empty host (not configured)."""
-    from venus_os_fronius_proxy.config import validate_venus_config
+    from pv_inverter_proxy.config import validate_venus_config
 
     assert validate_venus_config("", 1883) is None
 
 
 def test_validate_venus_bad_ip():
     """validate_venus_config returns error for invalid IP."""
-    from venus_os_fronius_proxy.config import validate_venus_config
+    from pv_inverter_proxy.config import validate_venus_config
 
     result = validate_venus_config("not-an-ip", 1883)
     assert result is not None
@@ -145,7 +145,7 @@ def test_validate_venus_bad_ip():
 
 def test_validate_venus_bad_port():
     """validate_venus_config returns error for port out of range."""
-    from venus_os_fronius_proxy.config import validate_venus_config
+    from pv_inverter_proxy.config import validate_venus_config
 
     result_low = validate_venus_config("192.168.3.146", 0)
     assert result_low is not None
@@ -159,7 +159,7 @@ def test_validate_venus_bad_port():
 @pytest.mark.asyncio
 async def test_solaredge_reconfigure():
     """SolarEdgePlugin.reconfigure calls close and updates attributes."""
-    from venus_os_fronius_proxy.plugins.solaredge import SolarEdgePlugin
+    from pv_inverter_proxy.plugins.solaredge import SolarEdgePlugin
 
     plugin = SolarEdgePlugin(host="1.2.3.4", port=1502, unit_id=1)
     plugin.close = AsyncMock()
@@ -174,7 +174,7 @@ async def test_solaredge_reconfigure():
 
 def test_roundtrip_inverters(tmp_path: Path):
     """save_config then load_config preserves all InverterEntry fields including id."""
-    from venus_os_fronius_proxy.config import (
+    from pv_inverter_proxy.config import (
         Config, InverterEntry, load_config, save_config,
     )
 

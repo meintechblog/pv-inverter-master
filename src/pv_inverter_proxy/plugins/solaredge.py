@@ -10,8 +10,8 @@ import struct
 
 from pymodbus.client import AsyncModbusTcpClient
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult, WriteResult
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult, WriteResult
+from pv_inverter_proxy.sunspec_models import (
     encode_string,
     _int16_as_uint16,
     COMMON_DID,

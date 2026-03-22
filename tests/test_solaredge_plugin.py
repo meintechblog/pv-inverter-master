@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from venus_os_fronius_proxy.plugin import InverterPlugin, PollResult
-from venus_os_fronius_proxy.plugins.solaredge import (
+from pv_inverter_proxy.plugin import InverterPlugin, PollResult
+from pv_inverter_proxy.plugins.solaredge import (
     SolarEdgePlugin,
     DEFAULT_HOST,
     DEFAULT_PORT,
@@ -17,7 +17,7 @@ from venus_os_fronius_proxy.plugins.solaredge import (
     INVERTER_READ_ADDR,
     INVERTER_READ_COUNT,
 )
-from venus_os_fronius_proxy.sunspec_models import PROXY_UNIT_ID
+from pv_inverter_proxy.sunspec_models import PROXY_UNIT_ID
 
 
 def _make_mock_response(registers, is_error=False):
@@ -94,10 +94,10 @@ class TestPoll:
         calls = mock_client.read_holding_registers.call_args_list
         assert calls[0].args == (COMMON_READ_ADDR,)
         assert calls[0].kwargs["count"] == COMMON_READ_COUNT
-        assert calls[0].kwargs["slave"] == 1
+        assert calls[0].kwargs["device_id"] == 1
         assert calls[1].args == (INVERTER_READ_ADDR,)
         assert calls[1].kwargs["count"] == INVERTER_READ_COUNT
-        assert calls[1].kwargs["slave"] == 1
+        assert calls[1].kwargs["device_id"] == 1
 
     @pytest.mark.asyncio
     async def test_poll_handles_read_error(self):
@@ -243,7 +243,7 @@ class TestConnect:
         """connect() creates AsyncModbusTcpClient and connects."""
         plugin = SolarEdgePlugin()
         with patch(
-            "venus_os_fronius_proxy.plugins.solaredge.AsyncModbusTcpClient"
+            "pv_inverter_proxy.plugins.solaredge.AsyncModbusTcpClient"
         ) as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value = mock_instance

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from venus_os_fronius_proxy.timeseries import Sample, TimeSeriesBuffer
+from pv_inverter_proxy.timeseries import Sample, TimeSeriesBuffer
 
 
 def test_sample_dataclass():
@@ -28,8 +28,8 @@ def test_append_and_get_all():
 def test_eviction_beyond_maxlen():
     """append N+1 items to buffer with maxlen=N evicts oldest."""
     buf = TimeSeriesBuffer(max_seconds=5)
-    # maxlen = 5 + 60 = 65
-    maxlen = 65
+    # maxlen = 5 + 10 = 15
+    maxlen = 15
     for i in range(maxlen + 1):
         buf.append(float(i), ts=float(i))
     assert len(buf) == maxlen

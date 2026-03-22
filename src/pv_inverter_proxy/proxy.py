@@ -24,19 +24,19 @@ from pymodbus.server import ModbusTcpServer
 
 import structlog
 
-from venus_os_fronius_proxy.control import (
+from pv_inverter_proxy.control import (
     ControlState,
     MODEL_123_START,
     WMAXLIMPCT_OFFSET,
     WMAXLIM_ENA_OFFSET,
     validate_wmaxlimpct,
 )
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.sunspec_models import (
     build_initial_registers,
     DATABLOCK_START,
     PROXY_UNIT_ID,
 )
-from venus_os_fronius_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.register_cache import RegisterCache
 
 logger = logging.getLogger(__name__)
 control_log = structlog.get_logger(component="control")

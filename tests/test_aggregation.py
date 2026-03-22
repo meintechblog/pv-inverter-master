@@ -8,15 +8,15 @@ from unittest.mock import MagicMock
 import pytest
 from pymodbus.datastore import ModbusSequentialDataBlock
 
-from venus_os_fronius_proxy.aggregation import (
+from pv_inverter_proxy.aggregation import (
     AggregationLayer,
     decode_model_103_to_physical,
     encode_aggregated_model_103,
 )
-from venus_os_fronius_proxy.config import Config, InverterEntry, VirtualInverterConfig
-from venus_os_fronius_proxy.context import AppContext, DeviceState
-from venus_os_fronius_proxy.register_cache import RegisterCache
-from venus_os_fronius_proxy.sunspec_models import (
+from pv_inverter_proxy.config import Config, InverterEntry, VirtualInverterConfig
+from pv_inverter_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.register_cache import RegisterCache
+from pv_inverter_proxy.sunspec_models import (
     DATABLOCK_START,
     _int16_as_uint16,
     build_initial_registers,
