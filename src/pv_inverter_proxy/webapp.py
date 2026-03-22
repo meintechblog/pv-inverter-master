@@ -830,10 +830,18 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
         "enabled": bool(config.venus.host),
         "connection_state": venus_conn,
     })
+    import time as _time
+    virtual_conn = "disconnected"
+    webapp = getattr(app_ctx, "webapp", None)
+    slave_ctx = webapp.get("slave_ctx") if webapp is not None else None
+    if slave_ctx and getattr(slave_ctx, "last_successful_read", 0) > 0:
+        age = _time.monotonic() - slave_ctx.last_successful_read
+        virtual_conn = "connected" if age < 30 else "disconnected"
     devices.append({
         "id": "virtual",
         "name": config.virtual_inverter.name,
         "type": "virtual",
+        "connection_state": virtual_conn,
     })
     mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
     devices.append({
