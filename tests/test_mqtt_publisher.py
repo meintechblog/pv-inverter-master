@@ -185,20 +185,39 @@ async def test_disconnect_sets_connected_false(mock_client, mock_will):
     ctx = _make_ctx()
     config = _make_config()
 
-    connect_count = 0
+    # On connect, publish "online" succeeds. Then the inner loop starts;
+    # we make queue.get raise MqttError to simulate a disconnect during operation.
+    call_count = 0
 
-    async def connect_then_fail(*args, **kwargs):
+    async def publish_then_disconnect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # "online" publish succeeds -- connected will be set to True
+            return
+        # Any subsequent publish raises MqttError
+        raise aiomqtt.MqttError("Disconnected")
+
+    mock_client._instance.publish.side_effect = publish_then_disconnect
+
+    # Put a message so the inner loop tries to publish (and hits disconnect)
+    await ctx.mqtt_pub_queue.put({"topic": "t", "payload": {}})
+
+    # After MqttError, the outer except sets connected=False and sleeps.
+    # On second connect attempt, shut down.
+    connect_count = 0
+    original_aenter = mock_client._cm.__aenter__
+
+    async def connect_or_shutdown(*args, **kwargs):
         nonlocal connect_count
         connect_count += 1
         if connect_count == 1:
-            return mock_client._instance
+            return await original_aenter(*args, **kwargs)
         ctx.shutdown_event.set()
-        raise aiomqtt.MqttError("Disconnected")
+        raise aiomqtt.MqttError("Stop")
 
-    mock_client._cm.__aenter__ = connect_then_fail
+    mock_client._cm.__aenter__ = connect_or_shutdown
 
-    # First connect succeeds, then exit sets connected=True then loop inner
-    # raises which sets False
     with patch("asyncio.sleep", new_callable=AsyncMock):
         await mqtt_publish_loop(ctx, config)
 

@@ -448,3 +448,45 @@ def test_get_gateway_for_inverter():
     # Non-matching host returns None
     no_match = InverterEntry(type="opendtu", gateway_host="10.0.0.1")
     assert get_gateway_for_inverter(cfg, no_match) is None
+
+
+# --- MQTT Publish config tests (Phase 25) ---
+
+
+def test_mqtt_publish_config_defaults(tmp_path: Path):
+    """MqttPublishConfig defaults loaded from empty YAML."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg = load_config(str(tmp_path / "nonexistent.yaml"))
+
+    assert cfg.mqtt_publish.enabled is False
+    assert cfg.mqtt_publish.host == "mqtt-master.local"
+    assert cfg.mqtt_publish.port == 1883
+    assert cfg.mqtt_publish.topic_prefix == "pvproxy"
+    assert cfg.mqtt_publish.interval_s == 5
+    assert cfg.mqtt_publish.client_id == "pv-proxy-pub"
+
+
+def test_mqtt_publish_config_override(tmp_path: Path):
+    """All mqtt_publish fields overridden from YAML."""
+    from venus_os_fronius_proxy.config import load_config
+
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        "mqtt_publish:\n"
+        "  enabled: true\n"
+        '  host: "10.0.0.5"\n'
+        "  port: 8883\n"
+        '  topic_prefix: "solar"\n'
+        "  interval_s: 10\n"
+        '  client_id: "my-pub"\n'
+    )
+
+    cfg = load_config(str(cfg_file))
+
+    assert cfg.mqtt_publish.enabled is True
+    assert cfg.mqtt_publish.host == "10.0.0.5"
+    assert cfg.mqtt_publish.port == 8883
+    assert cfg.mqtt_publish.topic_prefix == "solar"
+    assert cfg.mqtt_publish.interval_s == 10
+    assert cfg.mqtt_publish.client_id == "my-pub"
