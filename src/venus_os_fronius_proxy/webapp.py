@@ -269,6 +269,13 @@ async def config_get_handler(request: web.Request) -> web.Response:
             "port": config.venus.port,
             "portal_id": config.venus.portal_id,
         },
+        "mqtt_publish": {
+            "enabled": config.mqtt_publish.enabled,
+            "host": config.mqtt_publish.host,
+            "port": config.mqtt_publish.port,
+            "topic_prefix": config.mqtt_publish.topic_prefix,
+            "interval_s": config.mqtt_publish.interval_s,
+        },
     })
 
 

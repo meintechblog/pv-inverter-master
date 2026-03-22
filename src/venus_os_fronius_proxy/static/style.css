@@ -2289,6 +2289,44 @@ body {
     }
 }
 
+/* ===== MQTT Publishing Config ===== */
+.ve-mqtt-pub-discover-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.ve-mqtt-pub-discover-row .ve-input {
+    flex: 1;
+}
+.ve-mqtt-pub-discover-btn {
+    padding: 4px 14px;
+    background: var(--ve-blue);
+    color: var(--ve-text);
+    border: none;
+    border-radius: var(--ve-radius-sm);
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--ve-duration-fast) var(--ve-easing-default);
+}
+.ve-mqtt-pub-discover-btn:hover {
+    background: var(--ve-blue-light);
+}
+.ve-mqtt-pub-discover-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.ve-mqtt-pub-broker-select {
+    width: 100%;
+    padding: 8px;
+    background: var(--ve-bg);
+    color: var(--ve-text);
+    border: 1px solid var(--ve-border);
+    border-radius: var(--ve-radius-sm);
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
 /* ===== Accessibility: Reduced Motion ===== */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
