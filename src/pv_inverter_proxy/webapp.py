@@ -1717,6 +1717,65 @@ async def inverters_delete_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True})
 
 
+async def config_export_handler(request: web.Request) -> web.Response:
+    """Export current config as YAML file download."""
+    config_path = request.app["config_path"]
+    try:
+        with open(config_path) as f:
+            yaml_content = f.read()
+    except FileNotFoundError:
+        return web.json_response({"error": "Config file not found"}, status=404)
+
+    return web.Response(
+        body=yaml_content,
+        content_type="application/x-yaml",
+        headers={"Content-Disposition": "attachment; filename=pv-inverter-proxy.yaml"},
+    )
+
+
+async def config_import_handler(request: web.Request) -> web.Response:
+    """Import config from uploaded YAML file. Validates, saves, restarts."""
+    import yaml
+
+    try:
+        data = await request.read()
+        yaml_text = data.decode("utf-8")
+        parsed = yaml.safe_load(yaml_text)
+        if not isinstance(parsed, dict):
+            return web.json_response({"success": False, "error": "Invalid YAML structure"}, status=400)
+    except Exception as e:
+        return web.json_response({"success": False, "error": f"YAML parse error: {e}"}, status=400)
+
+    # Write to config file
+    config_path = request.app["config_path"]
+    try:
+        import tempfile, os
+        dir_name = os.path.dirname(config_path)
+        fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".yaml")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(yaml_text)
+            os.replace(tmp, config_path)
+        except Exception:
+            os.unlink(tmp)
+            raise
+    except Exception as e:
+        return web.json_response({"success": False, "error": f"Write failed: {e}"}, status=500)
+
+    # Reload config
+    try:
+        from pv_inverter_proxy.config import load_config
+        new_config = load_config(config_path)
+        request.app["config"] = new_config
+        app_ctx = request.app["app_ctx"]
+        app_ctx.config = new_config
+        log.info("user_action", action="config_imported")
+    except Exception as e:
+        return web.json_response({"success": False, "error": f"Reload failed: {e}"}, status=500)
+
+    return web.json_response({"success": True, "message": "Config imported. Restart recommended."})
+
+
 async def create_webapp(
     app_ctx: object,
     config: Config,
@@ -1768,6 +1827,8 @@ async def create_webapp(
     app.router.add_post("/api/devices", inverters_add_handler)
     app.router.add_put("/api/devices/{id}", inverters_update_handler)
     app.router.add_delete("/api/devices/{id}", inverters_delete_handler)
+    app.router.add_get("/api/config/export", config_export_handler)
+    app.router.add_post("/api/config/import", config_import_handler)
     app.router.add_get("/static/{filename}", static_handler)
 
     runner = web.AppRunner(app)

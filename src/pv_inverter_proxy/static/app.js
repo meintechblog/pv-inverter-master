@@ -2397,4 +2397,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Start WebSocket
     connectWebSocket();
+
+    // Config Export
+    document.getElementById('btn-config-export').addEventListener('click', function() {
+        window.location.href = '/api/config/export';
+    });
+
+    // Config Import
+    var importBtn = document.getElementById('btn-config-import');
+    var fileInput = document.getElementById('config-file-input');
+    importBtn.addEventListener('click', function() { fileInput.click(); });
+    fileInput.addEventListener('change', function() {
+        var file = fileInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            fetch('/api/config/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-yaml' },
+                body: e.target.result
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.success) {
+                    showToast('Config imported — restart recommended', 'success');
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    showToast('Import failed: ' + d.error, 'error');
+                }
+            }).catch(function(err) { showToast('Import error: ' + err.message, 'error'); });
+        };
+        reader.readAsText(file);
+        fileInput.value = '';  // Reset for re-import of same file
+    });
 });

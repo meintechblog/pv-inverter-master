@@ -2018,6 +2018,34 @@ body {
     margin-left: auto;
 }
 
+.ve-sidebar-footer {
+    margin-top: auto;
+    display: flex;
+    gap: 4px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--ve-border);
+}
+.ve-sidebar-footer-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: none;
+    border: 1px solid var(--ve-border);
+    border-radius: var(--ve-radius-sm);
+    color: var(--ve-text-dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: color var(--ve-duration-fast) var(--ve-easing-default),
+                border-color var(--ve-duration-fast) var(--ve-easing-default);
+}
+.ve-sidebar-footer-btn:hover {
+    color: var(--ve-blue);
+    border-color: var(--ve-blue);
+}
+
 .ve-sidebar-header-right {
     display: flex;
     align-items: center;
