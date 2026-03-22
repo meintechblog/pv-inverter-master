@@ -836,7 +836,7 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
     venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
     devices.append({
         "id": "venus",
-        "name": "Venus OS",
+        "name": config.venus.name or "Venus OS",
         "type": "venus",
         "enabled": bool(config.venus.host),
         "connection_state": venus_conn,
@@ -857,7 +857,7 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
     mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
     devices.append({
         "id": "mqtt_pub",
-        "name": "MQTT Publishing",
+        "name": config.mqtt_publish.name or "MQTT Publishing",
         "type": "mqtt_pub",
         "enabled": config.mqtt_publish.enabled,
         "connection_state": mqtt_pub_conn,
@@ -1477,7 +1477,7 @@ async def devices_list_handler(request: web.Request) -> web.Response:
     venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
     devices.append({
         "id": "venus",
-        "name": "Venus OS",
+        "name": config.venus.name or "Venus OS",
         "type": "venus",
         "enabled": bool(config.venus.host),
         "connection_state": venus_conn,
@@ -1499,7 +1499,7 @@ async def devices_list_handler(request: web.Request) -> web.Response:
     mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
     devices.append({
         "id": "mqtt_pub",
-        "name": "MQTT Publishing",
+        "name": config.mqtt_publish.name or "MQTT Publishing",
         "type": "mqtt_pub",
         "enabled": config.mqtt_publish.enabled,
         "connection_state": mqtt_pub_conn,

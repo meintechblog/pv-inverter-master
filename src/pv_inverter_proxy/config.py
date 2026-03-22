@@ -85,6 +85,7 @@ class VenusConfig:
     host: str = ""           # Empty = not configured (proxy runs without MQTT)
     port: int = 1883         # MQTT standard port
     portal_id: str = ""      # Empty = auto-discover via N/+/system/0/Serial
+    name: str = ""           # Display name for sidebar (default: "Venus OS")
 
 
 @dataclass
@@ -101,6 +102,7 @@ class MqttPublishConfig:
     topic_prefix: str = "pv-inverter-proxy"
     interval_s: int = 5
     client_id: str = "pv-proxy-pub"
+    name: str = ""           # Display name for sidebar (default: "MQTT Publishing")
 
 
 @dataclass
