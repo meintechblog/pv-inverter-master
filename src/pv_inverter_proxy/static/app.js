@@ -108,14 +108,13 @@ function renderSidebar(devices) {
         container.appendChild(createSidebarGroup('INVERTERS', inverters, true));
     }
 
-    // VENUS OS group
+    // VENUS OS group (includes Virtual PV as sub-entry)
     if (venusDevice) {
-        container.appendChild(createSidebarGroup('VENUS OS', [venusDevice]));
-    }
-
-    // VIRTUAL PV group (always visible)
-    if (virtualDevice) {
-        container.appendChild(createSidebarGroup('VIRTUAL PV', [virtualDevice]));
+        var venusGroup = [venusDevice];
+        if (virtualDevice) venusGroup.push(virtualDevice);
+        container.appendChild(createSidebarGroup('VENUS OS', venusGroup));
+    } else if (virtualDevice) {
+        container.appendChild(createSidebarGroup('VENUS OS', [virtualDevice]));
     }
 
     // MQTT PUBLISH group
