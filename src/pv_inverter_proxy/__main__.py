@@ -194,6 +194,22 @@ def main():
             log.info("venus_mqtt_skipped", reason="no venus.host in config")
             app_ctx.venus_mqtt_connected = False
 
+        # Periodic device list broadcast (keeps sidebar + MQTT stats live)
+        from pv_inverter_proxy.webapp import broadcast_device_list
+
+        async def _device_list_refresh(ctx: AppContext):
+            while not ctx.shutdown_event.is_set():
+                try:
+                    await asyncio.wait_for(ctx.shutdown_event.wait(), timeout=5.0)
+                    break
+                except asyncio.TimeoutError:
+                    pass
+                app = ctx.webapp
+                if app is not None:
+                    await broadcast_device_list(app)
+
+        device_list_task = asyncio.create_task(_device_list_refresh(app_ctx))
+
         # Start health heartbeat task
         heartbeat_task = asyncio.create_task(_health_heartbeat(app_ctx))
 
@@ -202,12 +218,13 @@ def main():
 
         log.info("graceful_shutdown_starting")
 
-        # Cancel heartbeat
-        heartbeat_task.cancel()
-        try:
-            await heartbeat_task
-        except asyncio.CancelledError:
-            pass
+        # Cancel periodic tasks
+        for task in (heartbeat_task, device_list_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
         # Stop MQTT publisher
         if app_ctx.mqtt_pub_task is not None:
