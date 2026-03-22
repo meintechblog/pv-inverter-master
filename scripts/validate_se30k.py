@@ -9,7 +9,7 @@ Connects to the SE30K at 192.168.3.18:1502 and validates:
 4. Model chain walk to discover all available models
 5. Summary of PASS/FAIL results
 
-Part of PROTO-02 validation for the Venus OS Fronius Proxy project.
+Part of PROTO-02 validation for the PV Inverter Proxy project.
 """
 
 from pymodbus.client import ModbusTcpClient

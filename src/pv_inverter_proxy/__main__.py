@@ -31,7 +31,7 @@ HEARTBEAT_INTERVAL = 300  # 5 minutes
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Venus OS Fronius Proxy")
+    parser = argparse.ArgumentParser(description="PV Inverter Proxy")
     parser.add_argument(
         "--config", "-c",
         default=None,

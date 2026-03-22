@@ -17,7 +17,7 @@ if [[ "${1:-}" == "--first-time" ]]; then
 set -euo pipefail
 
 # Create service user (no login)
-id fronius-proxy &>/dev/null || useradd -r -s /usr/sbin/nologin fronius-proxy
+id pv-proxy &>/dev/null || useradd -r -s /usr/sbin/nologin pv-proxy
 
 # Create directories
 mkdir -p /opt/pv-inverter-proxy
@@ -30,8 +30,8 @@ apt-get update -qq && apt-get install -y -qq python3 python3-venv python3-pip gi
 python3 -m venv /opt/pv-inverter-proxy/.venv
 
 # Set ownership
-chown -R fronius-proxy:fronius-proxy /opt/pv-inverter-proxy
-chown -R fronius-proxy:fronius-proxy /etc/pv-inverter-proxy
+chown -R pv-proxy:pv-proxy /opt/pv-inverter-proxy
+chown -R pv-proxy:pv-proxy /etc/pv-inverter-proxy
 
 echo ">>> First-time setup done."
 SETUP

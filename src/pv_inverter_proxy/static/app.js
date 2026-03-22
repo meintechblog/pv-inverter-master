@@ -1,4 +1,4 @@
-/* Venus OS Fronius Proxy - Frontend Application
+/* PV Inverter Proxy - Frontend Application
    Device-centric navigation, WebSocket live dashboard, per-device pages */
 
 var POLL_INTERVAL = 10000;

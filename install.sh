@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash
 #
 # What it does:
-#   1. Creates fronius-proxy service user
+#   1. Creates pv-proxy service user
 #   2. Installs Python 3 + venv + git
 #   3. Clones the repo (or pulls if exists)
 #   4. Creates venv and installs package
@@ -19,7 +19,7 @@ set -euo pipefail
 REPO="https://github.com/meintechblog/pv-inverter-proxy.git"
 INSTALL_DIR="/opt/pv-inverter-proxy"
 CONFIG_DIR="/etc/pv-inverter-proxy"
-SERVICE_USER="fronius-proxy"
+SERVICE_USER="pv-proxy"
 SERVICE_NAME="pv-inverter-proxy"
 
 # Colors
