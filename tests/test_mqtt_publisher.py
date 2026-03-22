@@ -18,7 +18,7 @@ def _make_config(**overrides):
         port=1883,
         topic_prefix="pv-inverter-proxy",
         client_id="test-pub",
-        interval_s=1,
+        interval_s=0.01,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -330,41 +330,24 @@ async def _run_publish_loop_with_queue_messages(mock_client, ctx, config,
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     enqueued = False
-
     original_publish = mock_client._instance.publish
 
     async def track_and_enqueue(*args, **kwargs):
         nonlocal enqueued
-        # Let the actual mock record the call
         await original_publish(*args, **kwargs)
         if not enqueued:
             enqueued = True
-            # Enqueue all messages
             for msg in messages:
                 await ctx.mqtt_pub_queue.put(msg)
-            # Give event loop a chance to process, then enqueue a sentinel
-            # that triggers shutdown after processing all real messages
-            await asyncio.sleep(0)
-
-    # We need a more subtle approach: intercept queue.get to count messages
-    real_get = ctx.mqtt_pub_queue.get
-
-    messages_processed = 0
-
-    async def counting_get():
-        nonlocal messages_processed
-        result = await real_get()
-        messages_processed += 1
-        if messages_processed >= len(messages):
-            # Processed all messages, schedule shutdown
-            ctx.shutdown_event.set()
-        return result
+            # Schedule shutdown after interval to let throttled publish happen
+            async def _delayed_shutdown():
+                await asyncio.sleep(config.interval_s * 2 + 0.05)
+                ctx.shutdown_event.set()
+            asyncio.create_task(_delayed_shutdown())
 
     mock_client._instance.publish = AsyncMock(side_effect=track_and_enqueue)
-
-    with patch.object(ctx.mqtt_pub_queue, 'get', side_effect=counting_get):
-        await mqtt_publish_loop(ctx, config, inverters=inverters,
-                                virtual_name=virtual_name)
+    await mqtt_publish_loop(ctx, config, inverters=inverters,
+                            virtual_name=virtual_name)
 
     return mock_client._instance.publish.call_args_list
 
@@ -451,28 +434,49 @@ async def test_device_message_published_retained(mock_client, mock_will):
 
 
 async def test_change_detection_skips_identical(mock_client, mock_will):
-    """Identical device payloads are not re-published (change detection)."""
+    """Identical device payloads are not re-published (change detection).
+
+    With throttling, two identical messages in the same window are coalesced
+    (only last per key is kept). On the next window, change detection skips it.
+    So we send the same message across two windows and verify only 1 publish.
+    """
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
     config = _make_config(topic_prefix="pv-inverter-proxy")
     snapshot = _make_device_snapshot(power=5000)
 
-    # Two identical messages
-    msgs = [
-        {"type": "device", "device_id": "inv1", "snapshot": snapshot},
-        {"type": "device", "device_id": "inv1", "snapshot": snapshot},
-    ]
-    calls = await _run_publish_loop_with_queue_messages(
-        mock_client, ctx, config, msgs)
+    msg = {"type": "device", "device_id": "inv1", "snapshot": snapshot}
 
-    # Only one device state publish (second is skipped due to identical payload)
+    publish_count = 0
+    original_publish = mock_client._instance.publish
+
+    async def track(*args, **kwargs):
+        nonlocal publish_count
+        await original_publish(*args, **kwargs)
+        publish_count += 1
+        if publish_count == 1:
+            # After "online", enqueue first message
+            await ctx.mqtt_pub_queue.put(msg)
+        elif publish_count == 2:
+            # After first device publish, enqueue identical message for next window
+            await ctx.mqtt_pub_queue.put(msg)
+            # Shutdown after enough time for next window
+            async def _stop():
+                await asyncio.sleep(config.interval_s * 2 + 0.05)
+                ctx.shutdown_event.set()
+            asyncio.create_task(_stop())
+
+    mock_client._instance.publish = AsyncMock(side_effect=track)
+    await mqtt_publish_loop(ctx, config)
+    calls = mock_client._instance.publish.call_args_list
+
     state_calls = [c for c in calls if "device/inv1/state" in str(c.args[0])]
-    assert len(state_calls) == 1
+    assert len(state_calls) == 1  # Second identical payload skipped
 
 
 async def test_change_detection_publishes_on_change(mock_client, mock_will):
-    """Different device payloads are both published."""
+    """Different device payloads are both published across separate windows."""
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
@@ -480,12 +484,27 @@ async def test_change_detection_publishes_on_change(mock_client, mock_will):
     snap1 = _make_device_snapshot(power=5000)
     snap2 = _make_device_snapshot(power=6000)
 
-    msgs = [
-        {"type": "device", "device_id": "inv1", "snapshot": snap1},
-        {"type": "device", "device_id": "inv1", "snapshot": snap2},
-    ]
-    calls = await _run_publish_loop_with_queue_messages(
-        mock_client, ctx, config, msgs)
+    publish_count = 0
+    original_publish = mock_client._instance.publish
+
+    async def track(*args, **kwargs):
+        nonlocal publish_count
+        await original_publish(*args, **kwargs)
+        publish_count += 1
+        if publish_count == 1:
+            # After "online", enqueue first snapshot
+            await ctx.mqtt_pub_queue.put(
+                {"type": "device", "device_id": "inv1", "snapshot": snap1})
+        elif publish_count == 2:
+            # After first device publish, enqueue different snapshot
+            await ctx.mqtt_pub_queue.put(
+                {"type": "device", "device_id": "inv1", "snapshot": snap2})
+        elif publish_count == 3:
+            ctx.shutdown_event.set()
+
+    mock_client._instance.publish = AsyncMock(side_effect=track)
+    await mqtt_publish_loop(ctx, config)
+    calls = mock_client._instance.publish.call_args_list
 
     state_calls = [c for c in calls if "device/inv1/state" in str(c.args[0])]
     assert len(state_calls) == 2

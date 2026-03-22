@@ -1167,7 +1167,14 @@ function buildMqttPubPage(container, config) {
         '</div>' +
         '<div class="ve-form-group"><label>Port</label><input type="number" class="ve-input ve-mqtt-pub-port" value="' + origMqttPub.port + '" placeholder="1883" min="1" max="65535"></div>' +
         '<div class="ve-form-group"><label>Topic Prefix</label><input type="text" class="ve-input ve-mqtt-pub-prefix" value="' + origMqttPub.topic_prefix + '" placeholder="pv-inverter-proxy"></div>' +
-        '<div class="ve-form-group"><label>Publish Interval (s)</label><input type="number" class="ve-input ve-mqtt-pub-interval" value="' + origMqttPub.interval_s + '" placeholder="5" min="1" max="3600"></div>';
+        '<div class="ve-form-group"><label>Publish Interval</label><select class="ve-input ve-mqtt-pub-interval">' +
+        '<option value="1"' + (origMqttPub.interval_s === '1' ? ' selected' : '') + '>1s (debug)</option>' +
+        '<option value="2"' + (origMqttPub.interval_s === '2' ? ' selected' : '') + '>2s</option>' +
+        '<option value="5"' + (origMqttPub.interval_s === '5' ? ' selected' : '') + '>5s (default)</option>' +
+        '<option value="10"' + (origMqttPub.interval_s === '10' ? ' selected' : '') + '>10s</option>' +
+        '<option value="30"' + (origMqttPub.interval_s === '30' ? ' selected' : '') + '>30s</option>' +
+        '<option value="60"' + (origMqttPub.interval_s === '60' ? ' selected' : '') + '>60s</option>' +
+        '</select></div>';
     container.appendChild(mqttPubPanel);
 
     // MQTT Publishing: enable toggle (instant-save)

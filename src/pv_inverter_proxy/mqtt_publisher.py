@@ -108,56 +108,86 @@ async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> Non
                              devices=len([i for i in inverters if i.enabled]),
                              virtual=bool(virtual_name))
 
-                # Consume from queue and publish with change detection
-                last_payloads: dict[str, str] = {}
+                # Consume from queue, throttle to interval_s, publish latest per key
+                last_published: dict[str, str] = {}  # last JSON sent per topic key
+                pending: dict[str, dict] = {}        # latest msg per topic key
+                next_publish = time.monotonic()
+
+                def _store(m):
+                    mt = m.get("type")
+                    if mt == "device":
+                        pending[f"device:{m['device_id']}"] = m
+                    elif mt == "virtual":
+                        pending["virtual"] = m
+                    else:
+                        # Legacy format: topic + payload (no throttling)
+                        pending[f"legacy:{id(m)}"] = m
 
                 while not ctx.shutdown_event.is_set():
+                    # Wait for queue message or publish window, whichever first
+                    now = time.monotonic()
+                    wait = max(0.01, next_publish - now)
                     try:
-                        msg = await asyncio.wait_for(queue.get(), timeout=config.interval_s)
+                        msg = await asyncio.wait_for(queue.get(), timeout=wait)
+                        _store(msg)
                     except asyncio.TimeoutError:
+                        pass
+
+                    # Drain any buffered messages
+                    while not queue.empty():
+                        try:
+                            _store(queue.get_nowait())
+                        except asyncio.QueueEmpty:
+                            break
+
+                    if time.monotonic() < next_publish or not pending:
                         continue
 
-                    msg_type = msg.get("type")
+                    # Publish all pending messages
+                    for key, pmsg in pending.items():
+                        msg_type = pmsg.get("type")
 
-                    if msg_type == "device":
-                        from pv_inverter_proxy.mqtt_payloads import device_payload
-                        payload = device_payload(msg["snapshot"], device_name=msg.get("device_name", ""))
-                        payload_json = json.dumps(payload, separators=(",", ":"))
-                        device_id = msg["device_id"]
+                        if msg_type == "device":
+                            from pv_inverter_proxy.mqtt_payloads import device_payload
+                            payload = device_payload(pmsg["snapshot"], device_name=pmsg.get("device_name", ""))
+                            payload_json = json.dumps(payload, separators=(",", ":"))
+                            device_id = pmsg["device_id"]
 
-                        # Change detection (D-05 / PUB-04)
-                        if last_payloads.get(device_id) == payload_json:
-                            ctx.mqtt_pub_skipped += 1
-                            continue  # Skip identical payload
+                            if last_published.get(key) == payload_json:
+                                ctx.mqtt_pub_skipped += 1
+                                continue
 
-                        last_payloads[device_id] = payload_json
-                        topic = f"{config.topic_prefix}/device/{device_id}/state"
-                        await client.publish(topic, payload=payload_json, qos=0, retain=True)
-                        ctx.mqtt_pub_messages += 1
-                        ctx.mqtt_pub_bytes += len(payload_json)
-                        ctx.mqtt_pub_last_ts = time.time()
+                            last_published[key] = payload_json
+                            topic = f"{config.topic_prefix}/device/{device_id}/state"
+                            await client.publish(topic, payload=payload_json, qos=0, retain=True)
+                            ctx.mqtt_pub_messages += 1
+                            ctx.mqtt_pub_bytes += len(payload_json)
+                            ctx.mqtt_pub_last_ts = time.time()
 
-                    elif msg_type == "virtual":
-                        from pv_inverter_proxy.mqtt_payloads import virtual_payload
-                        payload = virtual_payload(msg["virtual_data"])
-                        payload_json = json.dumps(payload, separators=(",", ":"))
+                        elif msg_type == "virtual":
+                            from pv_inverter_proxy.mqtt_payloads import virtual_payload
+                            payload = virtual_payload(pmsg["virtual_data"])
+                            payload_json = json.dumps(payload, separators=(",", ":"))
 
-                        if last_payloads.get("__virtual__") == payload_json:
-                            ctx.mqtt_pub_skipped += 1
-                            continue
+                            if last_published.get(key) == payload_json:
+                                ctx.mqtt_pub_skipped += 1
+                                continue
 
-                        last_payloads["__virtual__"] = payload_json
-                        topic = f"{config.topic_prefix}/virtual/state"
-                        await client.publish(topic, payload=payload_json, qos=0, retain=True)
-                        ctx.mqtt_pub_messages += 1
-                        ctx.mqtt_pub_bytes += len(payload_json)
-                        ctx.mqtt_pub_last_ts = time.time()
+                            last_published[key] = payload_json
+                            topic = f"{config.topic_prefix}/virtual/state"
+                            await client.publish(topic, payload=payload_json, qos=0, retain=True)
+                            ctx.mqtt_pub_messages += 1
+                            ctx.mqtt_pub_bytes += len(payload_json)
+                            ctx.mqtt_pub_last_ts = time.time()
 
-                    else:
-                        # Legacy format: topic + payload (backward compatibility)
-                        topic = msg.get("topic", "")
-                        payload = msg.get("payload", {})
-                        await client.publish(topic, payload=json.dumps(payload), qos=0)
+                        else:
+                            # Legacy format: topic + payload
+                            topic = pmsg.get("topic", "")
+                            lpayload = pmsg.get("payload", {})
+                            await client.publish(topic, payload=json.dumps(lpayload), qos=0)
+
+                    pending.clear()
+                    next_publish = time.monotonic() + config.interval_s
 
         except aiomqtt.MqttError as e:
             ctx.mqtt_pub_connected = False
