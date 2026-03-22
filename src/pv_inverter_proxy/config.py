@@ -98,7 +98,7 @@ class MqttPublishConfig:
     enabled: bool = False
     host: str = "mqtt-master.local"
     port: int = 1883
-    topic_prefix: str = "pvproxy"
+    topic_prefix: str = "pv-inverter-proxy"
     interval_s: int = 5
     client_id: str = "pv-proxy-pub"
 

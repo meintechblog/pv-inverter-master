@@ -129,7 +129,7 @@ def ha_discovery_configs(
 
     Args:
         device_id: 12-char hex device identifier.
-        topic_prefix: MQTT topic prefix (e.g. "pvproxy").
+        topic_prefix: MQTT topic prefix (e.g. "pv-inverter-proxy").
         inverter_entry: InverterEntry dataclass (or duck-typed object with
             name, manufacturer, model, serial, firmware_version).
         snapshot: Optional current snapshot (unused currently, reserved for

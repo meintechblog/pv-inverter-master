@@ -39,7 +39,7 @@ mqtt_publish:
   enabled: false             # Set true to activate MQTT publishing
   host: "mqtt-master.local"  # Broker hostname or IP
   port: 1883                 # Broker port
-  topic_prefix: "pvproxy"    # MQTT topic prefix
+  topic_prefix: "pv-inverter-proxy"    # MQTT topic prefix
   interval_s: 5              # Publish interval in seconds
   client_id: "pv-proxy-pub"  # MQTT client identifier
 

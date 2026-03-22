@@ -903,8 +903,8 @@ function renderMqttTopicPreview() {
     var list = document.querySelector('.ve-mqtt-pub-topic-list');
     if (!list) return;
     var prefixInput = document.querySelector('.ve-mqtt-pub-prefix');
-    var prefix = prefixInput ? prefixInput.value.trim() : 'pvproxy';
-    if (!prefix) prefix = 'pvproxy';
+    var prefix = prefixInput ? prefixInput.value.trim() : 'pv-inverter-proxy';
+    if (!prefix) prefix = 'pv-inverter-proxy';
     var html = '';
     // Device topics
     for (var i = 0; i < _lastDeviceList.length; i++) {
@@ -1113,7 +1113,7 @@ function buildMqttPubPage(container, config) {
     var origMqttPub = {
         host: mqttPub.host || '',
         port: String(mqttPub.port || 1883),
-        topic_prefix: mqttPub.topic_prefix || 'pvproxy',
+        topic_prefix: mqttPub.topic_prefix || 'pv-inverter-proxy',
         interval_s: String(mqttPub.interval_s || 5)
     };
 
@@ -1134,7 +1134,7 @@ function buildMqttPubPage(container, config) {
         '  <select class="ve-mqtt-pub-broker-select" style="display:none"></select>' +
         '</div>' +
         '<div class="ve-form-group"><label>Port</label><input type="number" class="ve-input ve-mqtt-pub-port" value="' + origMqttPub.port + '" placeholder="1883" min="1" max="65535"></div>' +
-        '<div class="ve-form-group"><label>Topic Prefix</label><input type="text" class="ve-input ve-mqtt-pub-prefix" value="' + origMqttPub.topic_prefix + '" placeholder="pvproxy"></div>' +
+        '<div class="ve-form-group"><label>Topic Prefix</label><input type="text" class="ve-input ve-mqtt-pub-prefix" value="' + origMqttPub.topic_prefix + '" placeholder="pv-inverter-proxy"></div>' +
         '<div class="ve-form-group"><label>Publish Interval (s)</label><input type="number" class="ve-input ve-mqtt-pub-interval" value="' + origMqttPub.interval_s + '" placeholder="5" min="1" max="3600"></div>';
     container.appendChild(mqttPubPanel);
 

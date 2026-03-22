@@ -16,7 +16,7 @@ def _make_config(**overrides):
     defaults = dict(
         host="localhost",
         port=1883,
-        topic_prefix="pvproxy",
+        topic_prefix="pv-inverter-proxy",
         client_id="test-pub",
         interval_s=1,
     )
@@ -135,7 +135,7 @@ async def test_consumes_queue_messages(mock_client, mock_will):
         # First call is "online", after that we process queue
         if call_count == 1:
             # Enqueue a message for the loop to consume
-            await ctx.mqtt_pub_queue.put({"topic": "pvproxy/power", "payload": {"watts": 5000}})
+            await ctx.mqtt_pub_queue.put({"topic": "pv-inverter-proxy/power", "payload": {"watts": 5000}})
         elif call_count == 2:
             # After consuming the queue message, shut down
             ctx.shutdown_event.set()
@@ -148,7 +148,7 @@ async def test_consumes_queue_messages(mock_client, mock_will):
     assert len(calls) >= 2
     # Second call should be the queued message
     second = calls[1]
-    assert second.args[0] == "pvproxy/power"
+    assert second.args[0] == "pv-inverter-proxy/power"
 
 
 async def test_reconnect_with_backoff(mock_client, mock_will):
@@ -370,7 +370,7 @@ async def test_publishes_ha_discovery_on_connect(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
     inv = _make_inverter()
 
     call_count = 0
@@ -402,7 +402,7 @@ async def test_publishes_device_availability_on_connect(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
     inv = _make_inverter(id="dev001")
 
     call_count = 0
@@ -432,7 +432,7 @@ async def test_device_message_published_retained(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
     snapshot = _make_device_snapshot(power=5000)
 
     msgs = [{"type": "device", "device_id": "inv1", "snapshot": snapshot}]
@@ -451,7 +451,7 @@ async def test_change_detection_skips_identical(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
     snapshot = _make_device_snapshot(power=5000)
 
     # Two identical messages
@@ -472,7 +472,7 @@ async def test_change_detection_publishes_on_change(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
     snap1 = _make_device_snapshot(power=5000)
     snap2 = _make_device_snapshot(power=6000)
 
@@ -492,7 +492,7 @@ async def test_virtual_message_published(mock_client, mock_will):
     from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
 
     ctx = _make_ctx()
-    config = _make_config(topic_prefix="pvproxy")
+    config = _make_config(topic_prefix="pv-inverter-proxy")
 
     msgs = [{
         "type": "virtual",

@@ -462,7 +462,7 @@ def test_mqtt_publish_config_defaults(tmp_path: Path):
     assert cfg.mqtt_publish.enabled is False
     assert cfg.mqtt_publish.host == "mqtt-master.local"
     assert cfg.mqtt_publish.port == 1883
-    assert cfg.mqtt_publish.topic_prefix == "pvproxy"
+    assert cfg.mqtt_publish.topic_prefix == "pv-inverter-proxy"
     assert cfg.mqtt_publish.interval_s == 5
     assert cfg.mqtt_publish.client_id == "pv-proxy-pub"
 

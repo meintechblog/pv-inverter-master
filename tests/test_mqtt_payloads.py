@@ -148,7 +148,7 @@ class TestHaDiscoveryConfigs:
     def _get_configs(self):
         entry = _FakeInverterEntry()
         snap = _make_snapshot()
-        return ha_discovery_configs("abc123def456", "pvproxy", entry, snap)
+        return ha_discovery_configs("abc123def456", "pv-inverter-proxy", entry, snap)
 
     def test_count(self):
         configs = self._get_configs()
@@ -210,8 +210,8 @@ class TestHaDiscoveryConfigs:
             assert "availability" in cfg
             assert len(cfg["availability"]) == 2
             topics = [a["topic"] for a in cfg["availability"]]
-            assert "pvproxy/status" in topics
-            assert "pvproxy/device/abc123def456/availability" in topics
+            assert "pv-inverter-proxy/status" in topics
+            assert "pv-inverter-proxy/device/abc123def456/availability" in topics
             assert cfg["availability_mode"] == "all"
 
     def test_value_templates(self):
@@ -246,18 +246,18 @@ class TestHaDiscoveryTopic:
 
 class TestVirtualHaDiscoveryConfigs:
     def test_returns_configs(self):
-        configs = virtual_ha_discovery_configs("pvproxy", "My Virtual PV")
+        configs = virtual_ha_discovery_configs("pv-inverter-proxy", "My Virtual PV")
         assert len(configs) >= 2  # at least power + energy
         names = [c["name"] for c in configs]
         assert "Total Power" in names or "AC Power" in names
 
     def test_virtual_device_block(self):
-        configs = virtual_ha_discovery_configs("pvproxy", "My Virtual PV")
+        configs = virtual_ha_discovery_configs("pv-inverter-proxy", "My Virtual PV")
         dev = configs[0]["device"]
         assert "pv_proxy_virtual" in dev["identifiers"]
         assert dev["name"] == "My Virtual PV"
 
     def test_virtual_state_topic(self):
-        configs = virtual_ha_discovery_configs("pvproxy", "My Virtual PV")
+        configs = virtual_ha_discovery_configs("pv-inverter-proxy", "My Virtual PV")
         for cfg in configs:
-            assert cfg["state_topic"] == "pvproxy/virtual/state"
+            assert cfg["state_topic"] == "pv-inverter-proxy/virtual/state"
