@@ -831,7 +831,10 @@ async def broadcast_device_list(app: web.Application) -> None:
         "type": "virtual",
     })
 
-    payload = json.dumps({"type": "device_list", "data": {"devices": devices}})
+    payload = json.dumps({"type": "device_list", "data": {
+        "devices": devices,
+        "mqtt_pub_connected": app_ctx.mqtt_pub_connected,
+    }})
     for ws in set(clients):
         try:
             await ws.send_str(payload)

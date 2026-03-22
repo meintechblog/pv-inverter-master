@@ -21,6 +21,10 @@ var _activeDeviceType = null;
 var _lastVirtualSnapshot = null;
 var _regPollInterval = null;
 
+// ===== MQTT Publisher State =====
+var _mqttPubConnected = false;
+var _lastDeviceList = [];
+
 // ===== Discovery / Scan State =====
 var _scanRunning = false;
 var _autoScanDone = false;
@@ -300,7 +304,13 @@ function connectWebSocket() {
             if (msg.type === 'snapshot') handleSnapshot(msg.data);
             if (msg.type === 'device_snapshot') handleDeviceSnapshot(msg);
             if (msg.type === 'virtual_snapshot') handleVirtualSnapshot(msg.data);
-            if (msg.type === 'device_list') renderSidebar(msg.data.devices);
+            if (msg.type === 'device_list') {
+                if (msg.data.mqtt_pub_connected !== undefined) _mqttPubConnected = msg.data.mqtt_pub_connected;
+                _lastDeviceList = msg.data.devices || [];
+                renderSidebar(msg.data.devices);
+                updateMqttPubStatusDot();
+                renderMqttTopicPreview();
+            }
             if (msg.type === 'history') handleHistory(msg.data);
             if (msg.type === 'override_event') handleOverrideEvent(msg.data);
             if (msg.type === 'scan_progress') handleScanProgress(msg.data);
@@ -861,6 +871,41 @@ function renderVenusPage(container) {
     });
 }
 
+function updateMqttPubStatusDot() {
+    var dot = document.querySelector('.ve-mqtt-pub-status-dot');
+    if (!dot) return;
+    dot.style.background = _mqttPubConnected ? 'var(--ve-green)' : 'var(--ve-red)';
+}
+
+function renderMqttTopicPreview() {
+    var list = document.querySelector('.ve-mqtt-pub-topic-list');
+    if (!list) return;
+    var prefixInput = document.querySelector('.ve-mqtt-pub-prefix');
+    var prefix = prefixInput ? prefixInput.value.trim() : 'pvproxy';
+    if (!prefix) prefix = 'pvproxy';
+    var html = '';
+    // Device topics
+    for (var i = 0; i < _lastDeviceList.length; i++) {
+        var dev = _lastDeviceList[i];
+        if (dev.type === 'venus' || dev.type === 'virtual') continue;
+        html += '<div class="ve-mqtt-pub-topic-item">' +
+            '<span class="ve-mqtt-pub-topic-label">' + (dev.name || dev.id) + '</span>' +
+            '<code class="ve-mqtt-pub-topic-path">' + prefix + '/device/' + dev.id + '/state</code>' +
+            '</div>';
+    }
+    // Virtual PV
+    html += '<div class="ve-mqtt-pub-topic-item">' +
+        '<span class="ve-mqtt-pub-topic-label">Virtual PV</span>' +
+        '<code class="ve-mqtt-pub-topic-path">' + prefix + '/virtual/state</code>' +
+        '</div>';
+    // LWT / availability
+    html += '<div class="ve-mqtt-pub-topic-item">' +
+        '<span class="ve-mqtt-pub-topic-label">Availability (LWT)</span>' +
+        '<code class="ve-mqtt-pub-topic-path">' + prefix + '/status</code>' +
+        '</div>';
+    list.innerHTML = html;
+}
+
 function buildVenusPage(container, config, venusDevice) {
     var connState = venusDevice ? venusDevice.connection_state : 'disconnected';
     var connDotClass = connState === 'connected' ? 've-dot--ok' : 've-dot--err';
@@ -1022,7 +1067,7 @@ function buildVenusPage(container, config, venusDevice) {
 
     mqttPubPanel.innerHTML =
         '<div class="ve-panel-header">' +
-        '  <h2>MQTT Publishing</h2>' +
+        '  <h2><span class="ve-dot ve-mqtt-pub-status-dot"></span> MQTT Publishing</h2>' +
         '  <span class="ve-btn-pair ve-mqtt-pub-save-pair" style="display:none">' +
         '    <button type="button" class="ve-btn ve-btn--sm ve-btn--cancel ve-mqtt-pub-cancel">Cancel</button>' +
         '    <button type="button" class="ve-btn ve-btn--sm ve-btn--save ve-mqtt-pub-save">Save</button>' +
@@ -1197,6 +1242,30 @@ function buildVenusPage(container, config, venusDevice) {
             discoverBtn.disabled = false;
         });
     });
+
+    // Section 6: MQTT Topic Preview card
+    var topicCard = document.createElement('div');
+    topicCard.className = 've-card ve-mqtt-pub-topic-card';
+    topicCard.innerHTML =
+        '<h2 class="ve-card-title">MQTT Topics</h2>' +
+        '<div class="ve-mqtt-pub-topic-list"></div>';
+    container.appendChild(topicCard);
+
+    // Re-render topic preview when prefix input changes
+    mpPrefix.addEventListener('input', renderMqttTopicPreview);
+
+    // Initial renders: status dot + topic preview
+    // Seed _lastDeviceList from config.inverters if no WS data yet
+    if (_lastDeviceList.length === 0 && config.inverters) {
+        _lastDeviceList = config.inverters.map(function(inv) {
+            return { id: inv.id, name: inv.name || inv.id, type: inv.type || 'sunspec', enabled: inv.enabled };
+        });
+        // Add venus + virtual placeholders
+        _lastDeviceList.push({ id: 'venus', name: 'Venus OS', type: 'venus' });
+        _lastDeviceList.push({ id: 'virtual', name: config.virtual_inverter ? config.virtual_inverter.name : 'Virtual PV', type: 'virtual' });
+    }
+    updateMqttPubStatusDot();
+    renderMqttTopicPreview();
 }
 
 function wireESSToggles(essCard) {

@@ -2327,6 +2327,44 @@ body {
     margin-top: 8px;
 }
 
+/* ===== MQTT Topic Preview ===== */
+.ve-mqtt-pub-topic-card {
+    margin-top: 16px;
+}
+.ve-mqtt-pub-topic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ve-mqtt-pub-topic-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ve-mqtt-pub-topic-label {
+    font-size: 0.85rem;
+    color: var(--ve-text-dim);
+}
+.ve-mqtt-pub-topic-path {
+    font-family: var(--ve-mono);
+    font-size: 0.85rem;
+    color: var(--ve-text-secondary);
+    background: var(--ve-bg);
+    padding: 4px 8px;
+    border-radius: var(--ve-radius-sm);
+    word-break: break-all;
+}
+.ve-mqtt-pub-status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ve-text-dim);
+    margin-right: 8px;
+    vertical-align: middle;
+    transition: background var(--ve-duration-fast) var(--ve-easing-default);
+}
+
 /* ===== Accessibility: Reduced Motion ===== */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
