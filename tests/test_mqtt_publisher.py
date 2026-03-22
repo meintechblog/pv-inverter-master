@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -269,3 +270,247 @@ async def test_queue_full_drops_message():
         q.put_nowait({"topic": "t3", "payload": {}})
     except asyncio.QueueFull:
         pass  # Expected -- message dropped, no exception propagated
+
+
+# ── Phase 26 tests: HA discovery, change detection, retained state ────
+
+
+def _make_inverter(**overrides):
+    """Build a minimal InverterEntry-like object."""
+    defaults = dict(
+        id="abc123def456",
+        name="Test Inverter",
+        manufacturer="SolarEdge",
+        model="SE30K",
+        serial="SN123",
+        firmware_version="1.0.0",
+        enabled=True,
+        host="192.168.3.18",
+        port=1502,
+        type="solaredge",
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def _make_device_snapshot(power=5000):
+    """Build a minimal device snapshot dict."""
+    return {
+        "ts": 1700000000,
+        "inverter": {
+            "ac_power_w": power,
+            "dc_power_w": power + 100,
+            "ac_voltage_an_v": 230.0,
+            "ac_voltage_bn_v": 231.0,
+            "ac_voltage_cn_v": 229.0,
+            "ac_current_a": 21.7,
+            "ac_frequency_hz": 50.01,
+            "dc_voltage_v": 600.0,
+            "dc_current_a": 8.5,
+            "temperature_sink_c": 42.0,
+            "energy_total_wh": 100000,
+            "daily_energy_wh": 5000,
+            "status": "ON",
+            "status_code": 4,
+            "peak_power_w": 6000,
+            "operating_hours": 1234.5,
+            "efficiency_pct": 97.2,
+        },
+    }
+
+
+async def _run_publish_loop_with_queue_messages(mock_client, ctx, config,
+                                                 messages, inverters=None,
+                                                 virtual_name=""):
+    """Helper: run mqtt_publish_loop, enqueue messages after connect, then shutdown."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    enqueued = False
+
+    original_publish = mock_client._instance.publish
+
+    async def track_and_enqueue(*args, **kwargs):
+        nonlocal enqueued
+        # Let the actual mock record the call
+        await original_publish(*args, **kwargs)
+        if not enqueued:
+            enqueued = True
+            # Enqueue all messages
+            for msg in messages:
+                await ctx.mqtt_pub_queue.put(msg)
+            # Give event loop a chance to process, then enqueue a sentinel
+            # that triggers shutdown after processing all real messages
+            await asyncio.sleep(0)
+
+    # We need a more subtle approach: intercept queue.get to count messages
+    real_get = ctx.mqtt_pub_queue.get
+
+    messages_processed = 0
+
+    async def counting_get():
+        nonlocal messages_processed
+        result = await real_get()
+        messages_processed += 1
+        if messages_processed >= len(messages):
+            # Processed all messages, schedule shutdown
+            ctx.shutdown_event.set()
+        return result
+
+    mock_client._instance.publish = AsyncMock(side_effect=track_and_enqueue)
+
+    with patch.object(ctx.mqtt_pub_queue, 'get', side_effect=counting_get):
+        await mqtt_publish_loop(ctx, config, inverters=inverters,
+                                virtual_name=virtual_name)
+
+    return mock_client._instance.publish.call_args_list
+
+
+async def test_publishes_ha_discovery_on_connect(mock_client, mock_will):
+    """On connect, HA discovery configs are published with retain=True, QoS 1."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+    inv = _make_inverter()
+
+    call_count = 0
+
+    async def shutdown_after_discovery(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # The "online" publish is call 1, then 16 discovery + 1 availability
+        # + virtual discovery + virtual availability = many calls.
+        # Shutdown after enough calls to cover discovery phase.
+        if call_count > 25:
+            ctx.shutdown_event.set()
+
+    mock_client._instance.publish.side_effect = shutdown_after_discovery
+
+    await mqtt_publish_loop(ctx, config, inverters=[inv], virtual_name="Virtual PV")
+
+    calls = mock_client._instance.publish.call_args_list
+    # Find discovery calls (topic starts with "homeassistant/sensor/")
+    discovery_calls = [c for c in calls if str(c.args[0]).startswith("homeassistant/sensor/")]
+    assert len(discovery_calls) >= 16  # 16 for device sensors
+    # All discovery calls should be retained with QoS 1
+    for dc in discovery_calls:
+        assert dc.kwargs.get("retain") is True, f"Discovery not retained: {dc.args[0]}"
+        assert dc.kwargs.get("qos") == 1, f"Discovery not QoS 1: {dc.args[0]}"
+
+
+async def test_publishes_device_availability_on_connect(mock_client, mock_will):
+    """On connect, device availability 'online' published to {prefix}/device/{id}/availability."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+    inv = _make_inverter(id="dev001")
+
+    call_count = 0
+
+    async def shutdown_after_discovery(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count > 25:
+            ctx.shutdown_event.set()
+
+    mock_client._instance.publish.side_effect = shutdown_after_discovery
+
+    await mqtt_publish_loop(ctx, config, inverters=[inv], virtual_name="")
+
+    calls = mock_client._instance.publish.call_args_list
+    avail_calls = [c for c in calls if "device/dev001/availability" in str(c.args[0])]
+    assert len(avail_calls) >= 1
+    avail = avail_calls[0]
+    assert avail.kwargs.get("payload") == "online"
+    assert avail.kwargs.get("retain") is True
+
+
+async def test_device_message_published_retained(mock_client, mock_will):
+    """Device state messages are published with retain=True."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+    snapshot = _make_device_snapshot(power=5000)
+
+    msgs = [{"type": "device", "device_id": "inv1", "snapshot": snapshot}]
+    calls = await _run_publish_loop_with_queue_messages(
+        mock_client, ctx, config, msgs)
+
+    # Find the device state publish
+    state_calls = [c for c in calls if "device/inv1/state" in str(c.args[0])]
+    assert len(state_calls) == 1
+    sc = state_calls[0]
+    assert sc.kwargs.get("retain") is True
+
+
+async def test_change_detection_skips_identical(mock_client, mock_will):
+    """Identical device payloads are not re-published (change detection)."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+    snapshot = _make_device_snapshot(power=5000)
+
+    # Two identical messages
+    msgs = [
+        {"type": "device", "device_id": "inv1", "snapshot": snapshot},
+        {"type": "device", "device_id": "inv1", "snapshot": snapshot},
+    ]
+    calls = await _run_publish_loop_with_queue_messages(
+        mock_client, ctx, config, msgs)
+
+    # Only one device state publish (second is skipped due to identical payload)
+    state_calls = [c for c in calls if "device/inv1/state" in str(c.args[0])]
+    assert len(state_calls) == 1
+
+
+async def test_change_detection_publishes_on_change(mock_client, mock_will):
+    """Different device payloads are both published."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+    snap1 = _make_device_snapshot(power=5000)
+    snap2 = _make_device_snapshot(power=6000)
+
+    msgs = [
+        {"type": "device", "device_id": "inv1", "snapshot": snap1},
+        {"type": "device", "device_id": "inv1", "snapshot": snap2},
+    ]
+    calls = await _run_publish_loop_with_queue_messages(
+        mock_client, ctx, config, msgs)
+
+    state_calls = [c for c in calls if "device/inv1/state" in str(c.args[0])]
+    assert len(state_calls) == 2
+
+
+async def test_virtual_message_published(mock_client, mock_will):
+    """Virtual messages are published to {prefix}/virtual/state with retain=True."""
+    from venus_os_fronius_proxy.mqtt_publisher import mqtt_publish_loop
+
+    ctx = _make_ctx()
+    config = _make_config(topic_prefix="pvproxy")
+
+    msgs = [{
+        "type": "virtual",
+        "virtual_data": {
+            "total_power_w": 10000,
+            "virtual_name": "My Virtual PV",
+            "contributions": [
+                {"device_id": "inv1", "name": "Inv 1", "power_w": 5000},
+                {"device_id": "inv2", "name": "Inv 2", "power_w": 5000},
+            ],
+        },
+    }]
+    calls = await _run_publish_loop_with_queue_messages(
+        mock_client, ctx, config, msgs)
+
+    virtual_calls = [c for c in calls if "virtual/state" in str(c.args[0])]
+    assert len(virtual_calls) == 1
+    vc = virtual_calls[0]
+    assert vc.kwargs.get("retain") is True
+    # Verify payload contains total_power_w
+    payload_data = json.loads(vc.kwargs.get("payload"))
+    assert payload_data["total_power_w"] == 10000
