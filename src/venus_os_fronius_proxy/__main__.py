@@ -173,7 +173,11 @@ def main():
         if config.mqtt_publish.enabled:
             app_ctx.mqtt_pub_queue = asyncio.Queue(maxsize=100)
             app_ctx.mqtt_pub_task = asyncio.create_task(
-                mqtt_publish_loop(app_ctx, config.mqtt_publish)
+                mqtt_publish_loop(
+                    app_ctx, config.mqtt_publish,
+                    inverters=config.inverters,
+                    virtual_name=config.virtual_inverter.name,
+                )
             )
             log.info("mqtt_publisher_started", host=config.mqtt_publish.host, port=config.mqtt_publish.port)
         else:

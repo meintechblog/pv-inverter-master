@@ -374,14 +374,13 @@ async def test_publishes_ha_discovery_on_connect(mock_client, mock_will):
     inv = _make_inverter()
 
     call_count = 0
+    # 1 online + 16 discovery + 1 device avail + 2 virtual disc + 1 virtual avail = 21
+    expected_discovery_calls = 21
 
     async def shutdown_after_discovery(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        # The "online" publish is call 1, then 16 discovery + 1 availability
-        # + virtual discovery + virtual availability = many calls.
-        # Shutdown after enough calls to cover discovery phase.
-        if call_count > 25:
+        if call_count >= expected_discovery_calls:
             ctx.shutdown_event.set()
 
     mock_client._instance.publish.side_effect = shutdown_after_discovery
@@ -407,11 +406,13 @@ async def test_publishes_device_availability_on_connect(mock_client, mock_will):
     inv = _make_inverter(id="dev001")
 
     call_count = 0
+    # 1 online + 16 discovery + 1 device avail = 18 (no virtual)
+    expected_calls = 18
 
     async def shutdown_after_discovery(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        if call_count > 25:
+        if call_count >= expected_calls:
             ctx.shutdown_event.set()
 
     mock_client._instance.publish.side_effect = shutdown_after_discovery

@@ -1,4 +1,4 @@
-"""MQTT publisher with queue-based decoupling, LWT, and exponential backoff reconnect.
+"""MQTT publisher with queue-based decoupling, LWT, HA discovery, and change detection.
 
 Consumes messages from ctx.mqtt_pub_queue and publishes to the configured broker.
 Completely independent from venus_reader.py (per D-03).
@@ -14,12 +14,14 @@ import structlog
 log = structlog.get_logger(component="mqtt_publisher")
 
 
-async def mqtt_publish_loop(ctx, config) -> None:
+async def mqtt_publish_loop(ctx, config, inverters=None, virtual_name="") -> None:
     """Background task: consume from queue, publish to MQTT broker.
 
     Args:
         ctx: AppContext with mqtt_pub_queue, mqtt_pub_connected, shutdown_event
         config: MqttPublishConfig with host, port, topic_prefix, client_id, interval_s
+        inverters: Optional list of InverterEntry objects for HA discovery
+        virtual_name: Optional virtual inverter name for HA discovery
     """
     queue = ctx.mqtt_pub_queue
     backoff = 1.0
@@ -51,15 +53,102 @@ async def mqtt_publish_loop(ctx, config) -> None:
                 backoff = 1.0  # reset on successful connect
                 log.info("mqtt_pub_connected", host=config.host, port=config.port)
 
-                # Consume from queue and publish
+                # Publish HA discovery configs once on connect (per D-13)
+                if inverters:
+                    from venus_os_fronius_proxy.mqtt_payloads import (
+                        ha_discovery_configs,
+                        ha_discovery_topic,
+                        virtual_ha_discovery_configs,
+                    )
+                    for inv in inverters:
+                        if not inv.enabled:
+                            continue
+                        configs = ha_discovery_configs(inv.id, config.topic_prefix, inv)
+                        for idx, disc_cfg in enumerate(configs):
+                            # Use ha_discovery_topic to generate topic from field key
+                            from venus_os_fronius_proxy.mqtt_payloads import SENSOR_DEFS
+                            field_key = SENSOR_DEFS[idx][1]
+                            topic = ha_discovery_topic(inv.id, field_key)
+                            await client.publish(
+                                topic,
+                                payload=json.dumps(disc_cfg),
+                                qos=1,
+                                retain=True,
+                            )
+                        # Device availability
+                        await client.publish(
+                            f"{config.topic_prefix}/device/{inv.id}/availability",
+                            payload="online",
+                            qos=1,
+                            retain=True,
+                        )
+                    # Virtual device discovery
+                    if virtual_name:
+                        v_configs = virtual_ha_discovery_configs(
+                            config.topic_prefix, virtual_name
+                        )
+                        for disc_cfg in v_configs:
+                            field_key = disc_cfg.get("value_template", "").split(".")[-1].rstrip(" }}")
+                            topic = ha_discovery_topic("virtual", field_key)
+                            await client.publish(
+                                topic,
+                                payload=json.dumps(disc_cfg),
+                                qos=1,
+                                retain=True,
+                            )
+                        await client.publish(
+                            f"{config.topic_prefix}/virtual/availability",
+                            payload="online",
+                            qos=1,
+                            retain=True,
+                        )
+
+                    log.info("mqtt_ha_discovery_published",
+                             devices=len([i for i in inverters if i.enabled]),
+                             virtual=bool(virtual_name))
+
+                # Consume from queue and publish with change detection
+                last_payloads: dict[str, str] = {}
+
                 while not ctx.shutdown_event.is_set():
                     try:
                         msg = await asyncio.wait_for(queue.get(), timeout=config.interval_s)
-                        topic = msg["topic"]
-                        payload = msg["payload"]
-                        await client.publish(topic, payload=json.dumps(payload), qos=0)
                     except asyncio.TimeoutError:
-                        pass  # No messages -- loop continues, keepalive handled by aiomqtt
+                        continue
+
+                    msg_type = msg.get("type")
+
+                    if msg_type == "device":
+                        from venus_os_fronius_proxy.mqtt_payloads import device_payload
+                        payload = device_payload(msg["snapshot"])
+                        payload_json = json.dumps(payload, separators=(",", ":"))
+                        device_id = msg["device_id"]
+
+                        # Change detection (D-05 / PUB-04)
+                        if last_payloads.get(device_id) == payload_json:
+                            continue  # Skip identical payload
+
+                        last_payloads[device_id] = payload_json
+                        topic = f"{config.topic_prefix}/device/{device_id}/state"
+                        await client.publish(topic, payload=payload_json, qos=0, retain=True)
+
+                    elif msg_type == "virtual":
+                        from venus_os_fronius_proxy.mqtt_payloads import virtual_payload
+                        payload = virtual_payload(msg["virtual_data"])
+                        payload_json = json.dumps(payload, separators=(",", ":"))
+
+                        if last_payloads.get("__virtual__") == payload_json:
+                            continue
+
+                        last_payloads["__virtual__"] = payload_json
+                        topic = f"{config.topic_prefix}/virtual/state"
+                        await client.publish(topic, payload=payload_json, qos=0, retain=True)
+
+                    else:
+                        # Legacy format: topic + payload (backward compatibility)
+                        topic = msg.get("topic", "")
+                        payload = msg.get("payload", {})
+                        await client.publish(topic, payload=json.dumps(payload), qos=0)
 
         except aiomqtt.MqttError as e:
             ctx.mqtt_pub_connected = False
