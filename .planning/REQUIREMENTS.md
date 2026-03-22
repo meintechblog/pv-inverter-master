@@ -58,30 +58,30 @@ Requirements for MQTT Data Publishing milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PUB-01 | TBD | Pending |
-| PUB-02 | TBD | Pending |
-| PUB-03 | TBD | Pending |
-| PUB-04 | TBD | Pending |
-| PUB-05 | TBD | Pending |
-| PUB-06 | TBD | Pending |
-| HA-01 | TBD | Pending |
-| HA-02 | TBD | Pending |
-| HA-03 | TBD | Pending |
-| HA-04 | TBD | Pending |
-| CONN-01 | TBD | Pending |
-| CONN-02 | TBD | Pending |
-| CONN-03 | TBD | Pending |
-| CONN-04 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
+| PUB-01 | Phase 26 | Pending |
+| PUB-02 | Phase 26 | Pending |
+| PUB-03 | Phase 25 | Pending |
+| PUB-04 | Phase 26 | Pending |
+| PUB-05 | Phase 25 | Pending |
+| PUB-06 | Phase 26 | Pending |
+| HA-01 | Phase 26 | Pending |
+| HA-02 | Phase 26 | Pending |
+| HA-03 | Phase 26 | Pending |
+| HA-04 | Phase 26 | Pending |
+| CONN-01 | Phase 25 | Pending |
+| CONN-02 | Phase 25 | Pending |
+| CONN-03 | Phase 25 | Pending |
+| CONN-04 | Phase 25 | Pending |
+| UI-01 | Phase 27 | Pending |
+| UI-02 | Phase 27 | Pending |
+| UI-03 | Phase 27 | Pending |
+| UI-04 | Phase 27 | Pending |
 
 **Coverage:**
 - v5.0 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18
+- Mapped to phases: 18
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap creation*

@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: MQTT Data Publishing
 status: planning
-stopped_at: Defining requirements
-last_updated: "2026-03-22T09:00:00.000Z"
-last_activity: 2026-03-22 -- Milestone v5.0 started
+stopped_at: Roadmap created, ready to plan Phase 25
+last_updated: "2026-03-22"
+last_activity: 2026-03-22 -- Roadmap created for v5.0
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,10 +25,22 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-22 — Milestone v5.0 started
+**Phase:** 25 - Publisher Infrastructure & Broker Connectivity
+**Plan:** Not started
+**Status:** Roadmap created, ready to plan Phase 25
+
+```
+v5.0 Progress: [..........] 0%
+Phase 25:      [..........] 0%
+```
+
+**What is happening right now:**
+Roadmap created with 3 phases (25-27). Ready to plan Phase 25.
+
+**What comes next:**
+- Plan Phase 25 (publisher infrastructure, broker connectivity, mDNS discovery)
+- Then Phase 26 (telemetry publishing, HA discovery)
+- Then Phase 27 (webapp config UI)
 
 ## Performance Metrics
 
@@ -40,6 +52,11 @@ Last activity: 2026-03-22 — Milestone v5.0 started
 - v3.1: 4 phases, 7 plans
 - v4.0: 4 phases, 8 plans
 
+**Current milestone (v5.0):**
+- Phases: 3 (25-27)
+- Plans complete: 0
+- Phases complete: 0
+
 ## Accumulated Context
 
 ### Decisions
@@ -47,7 +64,17 @@ Last activity: 2026-03-22 — Milestone v5.0 started
 - [v4.0]: DeviceRegistry per-device asyncio poll loops with independent lifecycle
 - [v4.0]: AggregationLayer SunSpec register summation across heterogeneous sources
 - [v4.0]: Device-centric SPA with hash routing and per-device sub-tabs
-- Existing MQTT: paho-mqtt used for Venus OS MQTT reading (subscriber), not publishing
+- Existing MQTT: hand-rolled raw socket client in venus_reader.py for Venus OS subscriber
+- [v5.0]: Use aiomqtt (not raw sockets) for publisher -- QoS 1, LWT, reconnect needed
+- [v5.0]: Use zeroconf for mDNS broker discovery
+- [v5.0]: Queue-based decoupling between broadcast chain and publisher (asyncio.Queue, maxsize=100)
+- [v5.0]: Leave venus_reader.py untouched -- existing Venus OS MQTT subscriber is separate
+- [v5.0]: HA discovery payloads built into initial architecture, not bolted on later
+
+### Research Flags
+
+- Phase 26: Verify HA discovery schema against target HA version (default_entity_id vs object_id)
+- Phase 25: Verify mqtt-master.local advertises _mqtt._tcp.local. via Avahi before building scan
 
 ### Pending Todos
 
@@ -60,5 +87,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-22
-Stopped at: Defining requirements for v5.0
-Resume file: None
+Stopped at: Roadmap created for v5.0
+Resume point: Plan Phase 25

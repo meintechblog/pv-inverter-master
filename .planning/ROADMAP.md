@@ -7,7 +7,8 @@
 - v2.1 Dashboard Redesign & Polish -- Phases 9-12 (shipped 2026-03-18)
 - v3.0 Setup & Onboarding -- Phases 13-16 (shipped 2026-03-19)
 - v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (shipped 2026-03-20)
-- v4.0 Multi-Source Virtual Inverter -- Phases 21-24 (in progress)
+- v4.0 Multi-Source Virtual Inverter -- Phases 21-24 (shipped 2026-03-21)
+- v5.0 MQTT Data Publishing -- Phases 25-27 (in progress)
 
 ## Phases
 
@@ -71,87 +72,70 @@ Full details: `.planning/milestones/v3.1-ROADMAP.md`
 
 </details>
 
-### v4.0 Multi-Source Virtual Inverter (In Progress)
+<details>
+<summary>v4.0 Multi-Source Virtual Inverter (Phases 21-24) -- SHIPPED 2026-03-21</summary>
 
-**Milestone Goal:** Aggregate N physical inverters (SolarEdge + Hoymiles/OpenDTU) into one virtual Fronius device for Venus OS, with device-centric webapp and priority-based power limiting.
+- [x] Phase 21: Data Model & OpenDTU Plugin (2/2 plans) -- completed 2026-03-20
+- [x] Phase 22: Device Registry & Aggregation (2/2 plans) -- completed 2026-03-20
+- [x] Phase 23: Power Limit Distribution (2/2 plans) -- completed 2026-03-21
+- [x] Phase 24: Device-Centric API & Frontend (2/2 plans) -- completed 2026-03-21
 
-- [x] **Phase 21: Data Model & OpenDTU Plugin** - Typed config, AppContext refactor, and OpenDTU plugin for Hoymiles inverters (completed 2026-03-20)
-- [x] **Phase 22: Device Registry & Aggregation** - Multi-device poll management and virtual inverter aggregation for Venus OS (completed 2026-03-20)
-- [x] **Phase 23: Power Limit Distribution** - Priority-based power limiting across heterogeneous inverters (completed 2026-03-21)
-- [x] **Phase 24: Device-Centric API & Frontend** - Per-device REST endpoints, WebSocket updates, and device-centric UI (completed 2026-03-21)
+Full details: `.planning/milestones/v4.0-ROADMAP.md`
+
+</details>
+
+### v5.0 MQTT Data Publishing (In Progress)
+
+**Milestone Goal:** Publish inverter telemetry data to an external MQTT broker for integration with Home Assistant, Node-RED, Grafana, and other consumers. Zero-config Home Assistant integration via MQTT Auto-Discovery.
+
+- [ ] **Phase 25: Publisher Infrastructure & Broker Connectivity** - aiomqtt-based publisher with queue-decoupled architecture, config dataclass, LWT, reconnect, and mDNS broker discovery
+- [ ] **Phase 26: Telemetry Publishing & Home Assistant Discovery** - Per-device and virtual-PV topic hierarchy, JSON payloads, HA auto-discovery config payloads, wired into broadcast chain
+- [ ] **Phase 27: Webapp Config & Status UI** - MQTT Publishing config panel, mDNS discover button, connection status dot, topic preview
 
 ## Phase Details
 
-### Phase 21: Data Model & OpenDTU Plugin
-**Goal**: The system supports typed device configurations and can poll Hoymiles inverters via OpenDTU REST API
-**Depends on**: Phase 20 (v3.1 complete)
-**Requirements**: DATA-01, DATA-02, DATA-03, DTU-01, DTU-02, DTU-03, DTU-04, DTU-05
+### Phase 25: Publisher Infrastructure & Broker Connectivity
+**Goal**: The system can connect to a configurable MQTT broker, maintain a resilient connection, and discover brokers on the LAN
+**Depends on**: Phase 24 (v4.0 complete)
+**Requirements**: CONN-01, CONN-02, CONN-03, CONN-04, PUB-03, PUB-05
 **Success Criteria** (what must be TRUE):
-  1. Fresh config with typed inverter entries loads cleanly (no v3.1 migration, fresh config only)
-  2. An OpenDTU gateway at 192.168.3.98 is polled and each Hoymiles inverter behind it appears as a separate device with AC power, voltage, current, and daily yield data
-  3. A power limit can be sent to a specific Hoymiles inverter via the OpenDTU API and the system waits the appropriate dead-time before sending another
-  4. The AppContext provides typed per-device state instead of a flat shared dictionary
-**Plans**: 2 plans
+  1. The proxy connects to a configured MQTT broker (default mqtt-master.local:1883) and publishes an "online" availability message on connect
+  2. When the broker becomes unreachable, the publisher reconnects automatically with exponential backoff without affecting inverter polling or WebSocket updates
+  3. When the proxy shuts down or crashes, the broker receives an "offline" LWT message so subscribers know the proxy is unavailable
+  4. The user can change broker host, port, and publish interval in config.yaml and the publisher hot-reloads without restarting the service
+  5. An mDNS scan discovers MQTT brokers advertising _mqtt._tcp.local. on the LAN
+**Plans**: TBD
 
-Plans:
-- [x] 21-01-PLAN.md — Config data model refactor (typed InverterEntry, GatewayConfig, AppContext, no migration)
-- [ ] 21-02-PLAN.md — OpenDTU plugin (poll, SunSpec register synthesis, power limit, dead-time guard)
-
-### Phase 22: Device Registry & Aggregation
-**Goal**: Multiple inverters run independent poll loops and their combined output appears as one virtual Fronius inverter to Venus OS
-**Depends on**: Phase 21
-**Requirements**: REG-01, REG-02, REG-03, AGG-01, AGG-02, AGG-03, AGG-04
+### Phase 26: Telemetry Publishing & Home Assistant Discovery
+**Goal**: All inverter data flows to the MQTT broker with per-device topics and Home Assistant discovers all sensors automatically
+**Depends on**: Phase 25
+**Requirements**: PUB-01, PUB-02, PUB-04, PUB-06, HA-01, HA-02, HA-03, HA-04
 **Success Criteria** (what must be TRUE):
-  1. Each configured device has its own independent poll loop; adding, removing, enabling, or disabling a device at runtime does not require a restart
-  2. When a device is removed or disabled, its poll task, snapshot data, and collector are fully cleaned up with no asyncio task leaks
-  3. Venus OS sees a single aggregated Fronius inverter whose power equals the sum of all active inverters (SolarEdge + Hoymiles combined)
-  4. If one inverter goes offline, Venus OS still receives aggregated data from the remaining reachable inverters
-  5. The user can set a custom name for the virtual inverter that Venus OS displays
-**Plans**: 2 plans
+  1. Each inverter publishes a JSON telemetry payload (power, voltage, current, temperature, status, daily energy) to its own MQTT topic at the configured interval
+  2. The virtual PV plant publishes an aggregated payload (total power, per-inverter contributions) to a separate topic
+  3. Home Assistant auto-discovers all inverter sensors with correct device_class (power, energy, voltage, temperature) and state_class (measurement, total_increasing) without manual YAML configuration
+  4. Each inverter appears as a grouped device in Home Assistant with manufacturer, model, and SW version metadata
+  5. When telemetry data has not changed since the last publish, no redundant MQTT message is sent (change-based optimization)
+**Plans**: TBD
 
-Plans:
-- [ ] 22-01-PLAN.md — DeviceRegistry with per-device poll lifecycle management
-- [ ] 22-02-PLAN.md — AggregationLayer and proxy decoupling (physical-unit summation, SunSpec re-encoding)
-
-### Phase 23: Power Limit Distribution
-**Goal**: Venus OS power limit commands are distributed across inverters based on user-defined priority with correct handling of heterogeneous latencies
-**Depends on**: Phase 22
-**Requirements**: PWR-01, PWR-02, PWR-03, PWR-04
+### Phase 27: Webapp Config & Status UI
+**Goal**: Users can configure, monitor, and troubleshoot MQTT publishing entirely from the webapp
+**Depends on**: Phase 26
+**Requirements**: UI-01, UI-02, UI-03, UI-04
 **Success Criteria** (what must be TRUE):
-  1. The user can define which inverter gets throttled first when Venus OS sends a power limit command
-  2. Individual inverters can be excluded from power limiting (monitoring only) and still contribute to the aggregated power reading
-  3. Power limit distribution respects per-device latency: SolarEdge limits apply immediately while Hoymiles limits use a 25-30s dead-time guard to prevent oscillation
-  4. When Venus OS requests e.g. 50% limit, the highest-priority inverter is throttled first; lower-priority inverters are only throttled if the first cannot absorb the full reduction
-**Plans**: 2 plans
-
-Plans:
-- [ ] 23-01-PLAN.md — PowerLimitDistributor with TDD: waterfall algorithm, dead-time, monitoring-only exclusion
-- [ ] 23-02-PLAN.md — Wire distributor into proxy.py and __main__.py
-
-### Phase 24: Device-Centric API & Frontend
-**Goal**: Each device (inverter, Venus OS, virtual PV) has its own sidebar entry, dashboard view, and management interface
-**Depends on**: Phase 23
-**Requirements**: API-01, API-02, API-03, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06
-**Success Criteria** (what must be TRUE):
-  1. The sidebar dynamically lists all configured devices; clicking an inverter shows its individual dashboard with power, phases/channels, and status
-  2. Venus OS has its own sidebar entry showing ESS status, MQTT configuration, and Portal ID
-  3. A "Virtual PV" view shows the aggregated power of all active inverters with per-inverter contribution breakdown
-  4. The user can add new devices (inverter or Venus OS) via a "+" button in the sidebar, which triggers manual discovery (no auto-scan)
-  5. When a device is disabled or removed, all its data disappears from the UI immediately
-**Plans**: 2 plans
-
-Plans:
-- [ ] 24-01: Device-centric REST API (CRUD, per-device snapshots, multi-device WebSocket)
-- [ ] 24-02: Device-centric frontend (dynamic sidebar, per-device views, virtual PV dashboard, device management)
+  1. The config page shows an MQTT Publishing section with enable/disable toggle, broker host, port, topic prefix, and publish interval fields
+  2. A "Discover" button scans the LAN for MQTT brokers via mDNS and populates the broker field with the result
+  3. A connection status dot on the dashboard shows whether the MQTT publisher is currently connected to the broker (green/red)
+  4. A topic preview section shows the exact MQTT topics that will be published for each configured device
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 21 -> 22 -> 23 -> 24
+Phases execute in numeric order: 25 -> 26 -> 27
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 21. Data Model & OpenDTU Plugin | 2/2 | Complete    | 2026-03-20 | - |
-| 22. Device Registry & Aggregation | 2/2 | Complete    | 2026-03-20 | - |
-| 23. Power Limit Distribution | 2/2 | Complete    | 2026-03-21 | - |
-| 24. Device-Centric API & Frontend | 2/2 | Complete    | 2026-03-21 | - |
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 25. Publisher Infrastructure & Broker Connectivity | 0/0 | Not started | - |
+| 26. Telemetry Publishing & Home Assistant Discovery | 0/0 | Not started | - |
+| 27. Webapp Config & Status UI | 0/0 | Not started | - |
