@@ -1,5 +1,5 @@
 [Unit]
-Description=PV Inverter Proxy (Multi-Source Solar Aggregator for Venus OS)
+Description=PV-Inverter-Proxy (Multi-Source Solar Aggregator for Venus OS)
 After=network-online.target
 Wants=network-online.target
 

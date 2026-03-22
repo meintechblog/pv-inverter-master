@@ -1,4 +1,4 @@
-# PV Inverter Proxy Configuration
+# PV-Inverter-Proxy Configuration
 # Copy to /etc/pv-inverter-proxy/config.yaml and adjust values.
 
 # Inverter connections (list of SunSpec-compatible inverters)

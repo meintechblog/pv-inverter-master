@@ -300,7 +300,7 @@ def test_virtual_name():
 
 
 def test_virtual_name_default():
-    """When name is empty, Model defaults to 'Fronius PV Inverter Proxy'."""
+    """When name is empty, Model defaults to 'Fronius PV-Inverter-Proxy'."""
     regs1 = _make_inverter_regs()
     app_ctx, cache = _make_app_ctx_with_devices(dev1=regs1)
     config = _make_config(inverters=[InverterEntry(id="dev1", enabled=True)])
@@ -313,7 +313,7 @@ def test_virtual_name_default():
     for r in common_regs[18:34]:
         model_bytes += r.to_bytes(2, "big")
     model_name = model_bytes.rstrip(b"\x00").decode("ascii")
-    assert model_name == "Fronius PV Inverter Proxy"
+    assert model_name == "Fronius PV-Inverter-Proxy"
 
 
 def test_wrtg_sum():

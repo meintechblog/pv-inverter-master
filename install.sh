@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PV-Inverter Proxy — One-Line Installer
+# PV-Inverter-Proxy — One-Line Installer
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/meintechblog/pv-inverter-proxy/main/install.sh | bash
@@ -35,7 +35,7 @@ fail()  { echo -e "${RED} ✗ $1${NC}"; exit 1; }
 # --- Pre-flight ---
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}  PV-Inverter Proxy — Installer${NC}"
+echo -e "${BLUE}  PV-Inverter-Proxy — Installer${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -99,7 +99,7 @@ mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     info "Creating default config..."
     cat > "$CONFIG_DIR/config.yaml" << 'YAML'
-# PV-Inverter Proxy Configuration
+# PV-Inverter-Proxy Configuration
 # Docs: https://github.com/meintechblog/pv-inverter-proxy
 
 # SolarEdge inverter connection

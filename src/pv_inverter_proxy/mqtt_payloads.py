@@ -206,7 +206,7 @@ def virtual_ha_discovery_configs(
     device_block: dict[str, Any] = {
         "identifiers": [node_id],
         "name": virtual_name,
-        "manufacturer": "PV Inverter Proxy",
+        "manufacturer": "PV-Inverter-Proxy",
         "model": "Virtual Aggregator",
         "via_device": "pv_proxy",
     }
