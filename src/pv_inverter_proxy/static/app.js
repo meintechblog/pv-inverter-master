@@ -1675,6 +1675,8 @@ function renderVirtualPVPage(container) {
     container.innerHTML =
         '<div class="ve-spinner-wrap"><div class="ve-spinner"></div><span class="ve-spinner-label">Loading Virtual PV...</span></div>';
 
+    _activeDeviceContainer = container;
+
     fetch('/api/devices/virtual/snapshot')
         .then(function(res) { return res.json(); })
         .then(function(data) {
@@ -1780,16 +1782,15 @@ function buildVirtualPVPage(container, data) {
 function updateVirtualPVPage(data) {
     if (!_activeDeviceContainer) return;
 
-    var parent = _activeDeviceContainer.parentElement;
-    if (!parent) return;
+    var el = _activeDeviceContainer;
 
     var totalW = data.total_power_w || 0;
     var totalRated = data.total_rated_w || 0;
     var contributions = data.contributions || [];
 
     // Update gauge
-    var gaugeFill = parent.querySelector('.ve-virtual-gauge-fill');
-    var gaugeVal = parent.querySelector('.ve-virtual-gauge-value');
+    var gaugeFill = el.querySelector('.ve-virtual-gauge-fill');
+    var gaugeVal = el.querySelector('.ve-virtual-gauge-value');
     if (gaugeFill && totalRated > 0) {
         var pct = Math.min(totalW / totalRated, 1.0);
         gaugeFill.style.strokeDashoffset = GAUGE_ARC_LENGTH * (1 - pct);
@@ -1798,24 +1799,25 @@ function updateVirtualPVPage(data) {
     if (gaugeVal) gaugeVal.textContent = formatW(totalW);
 
     // Update bar segments
-    var segments = parent.querySelectorAll('.ve-contribution-segment');
+    var segments = el.querySelectorAll('.ve-contribution-segment');
     for (var i = 0; i < segments.length && i < contributions.length; i++) {
         var pct = totalW > 0 ? (contributions[i].power_w / totalW * 100) : 0;
         segments[i].style.width = pct.toFixed(1) + '%';
     }
 
     // Update legend powers
-    var legendItems = parent.querySelectorAll('.ve-contribution-legend-item');
+    var legendItems = el.querySelectorAll('.ve-contribution-legend-item');
     for (var j = 0; j < legendItems.length && j < contributions.length; j++) {
         var pwrEl = legendItems[j].querySelector('.ve-contribution-legend-power');
         if (pwrEl) pwrEl.textContent = formatW(contributions[j].power_w);
     }
 
     // Update throttle table
-    var tds = parent.querySelectorAll('.ve-throttle-table tbody tr');
+    var tds = el.querySelectorAll('.ve-throttle-table tbody tr');
     for (var k = 0; k < tds.length && k < contributions.length; k++) {
         var cells = tds[k].querySelectorAll('td');
         if (cells.length >= 4) {
+            cells[1].textContent = formatW(contributions[k].power_w);
             cells[2].textContent = contributions[k].throttle_enabled ? 'On' : 'Off';
             cells[3].textContent = contributions[k].current_limit_pct != null ? contributions[k].current_limit_pct.toFixed(1) + '%' : '--';
         }
