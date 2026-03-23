@@ -138,7 +138,7 @@ class SolarEdgePlugin(InverterPlugin):
         # 19-27 = zeros (storage ratings N/A, padding)
         return regs
 
-    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+    async def write_power_limit(self, enable: bool, limit_pct: float, *, force: bool = False) -> WriteResult:
         """Write power limit to the SE30K via EDPC registers.
 
         Protocol (from SolarEdge documentation):

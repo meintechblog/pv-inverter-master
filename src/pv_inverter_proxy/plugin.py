@@ -62,7 +62,7 @@ class InverterPlugin(ABC):
         """
 
     @abstractmethod
-    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+    async def write_power_limit(self, enable: bool, limit_pct: float, *, force: bool = False) -> WriteResult:
         """Write power limit to the inverter.
 
         Args:

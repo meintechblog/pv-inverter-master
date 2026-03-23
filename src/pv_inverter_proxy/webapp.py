@@ -1123,9 +1123,9 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
 
     if max_pct < 100 and plugin is not None:
         effective_pct = max(max_pct, 1)
-        await plugin.write_power_limit(True, effective_pct)
+        await plugin.write_power_limit(True, effective_pct, force=True)
     elif max_pct >= 100 and plugin is not None:
-        await plugin.write_power_limit(True, 100.0)
+        await plugin.write_power_limit(True, 100.0, force=True)
 
     return web.json_response({"success": True})
 

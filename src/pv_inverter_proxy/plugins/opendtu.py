@@ -271,7 +271,7 @@ class OpenDTUPlugin(InverterPlugin):
         regs[4] = 0                  # WRtg_SF
         return regs
 
-    async def write_power_limit(self, enable: bool, limit_pct: float) -> WriteResult:
+    async def write_power_limit(self, enable: bool, limit_pct: float, *, force: bool = False) -> WriteResult:
         """Write power limit to Hoymiles via OpenDTU POST /api/limit/config.
 
         Uses a dead-time guard to suppress re-sends within 30s of the last command.
@@ -279,9 +279,9 @@ class OpenDTUPlugin(InverterPlugin):
         if self._session is None:
             return WriteResult(success=False, error="Not connected")
 
-        # Dead-time guard
+        # Dead-time guard (skipped for explicit user requests via force=True)
         now = time.monotonic()
-        if self._limit_pending and (now - self._last_limit_ts) < DEAD_TIME_S:
+        if not force and self._limit_pending and (now - self._last_limit_ts) < DEAD_TIME_S:
             log.debug(
                 "dead_time_suppressed",
                 serial=self.serial,
