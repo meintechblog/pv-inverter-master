@@ -631,9 +631,10 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
 
         # Send virtual snapshot
         if sent_any:
-            total_power_w, contributions = _build_virtual_contributions(ws_app_ctx, config)
+            total_power_w, total_rated_w, contributions = _build_virtual_contributions(ws_app_ctx, config)
             await ws.send_json({"type": "virtual_snapshot", "data": {
                 "total_power_w": total_power_w,
+                "total_rated_w": total_rated_w,
                 "virtual_name": config.virtual_inverter.name,
                 "contributions": contributions,
             }})
@@ -752,10 +753,11 @@ async def broadcast_virtual_snapshot(app: web.Application) -> None:
     if app_ctx is None or config is None:
         return
 
-    total_power_w, contributions = _build_virtual_contributions(app_ctx, config)
+    total_power_w, total_rated_w, contributions = _build_virtual_contributions(app_ctx, config)
 
     payload = json.dumps({"type": "virtual_snapshot", "data": {
         "total_power_w": total_power_w,
+        "total_rated_w": total_rated_w,
         "virtual_name": config.virtual_inverter.name,
         "contributions": contributions,
     }})
@@ -782,13 +784,13 @@ async def broadcast_virtual_snapshot(app: web.Application) -> None:
 
 def _build_virtual_contributions(
     app_ctx: Any, config: Config,
-) -> tuple[float, list[dict]]:
+) -> tuple[float, float, list[dict]]:
     """Aggregate power and per-device contributions for the virtual inverter.
 
-    Returns (total_power_w, contributions) where contributions is a list of
-    dicts suitable for the virtual_snapshot payload.
+    Returns (total_power_w, total_rated_w, contributions).
     """
     total_power_w = 0
+    total_rated_w = 0
     contributions: list[dict] = []
     distributor = (
         getattr(app_ctx, "device_registry", None)
@@ -799,10 +801,15 @@ def _build_virtual_contributions(
     for inv in config.inverters:
         ds = app_ctx.devices.get(inv.id)
         power_w = 0
+        rated_w = inv.rated_power
         if ds and ds.collector and ds.collector.last_snapshot:
             snap_inv = ds.collector.last_snapshot.get("inverter", {})
             power_w = snap_inv.get("ac_power_w", 0)
+            # Use snapshot rated_power_w if config has 0
+            if not rated_w:
+                rated_w = ds.collector.last_snapshot.get("rated_power_w", 0)
         total_power_w += power_w
+        total_rated_w += rated_w
         display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
         contributions.append({
             "device_id": inv.id,
@@ -813,7 +820,7 @@ def _build_virtual_contributions(
             "current_limit_pct": device_limits.get(inv.id, 100.0),
         })
 
-    return total_power_w, contributions
+    return total_power_w, total_rated_w, contributions
 
 
 def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
@@ -1496,10 +1503,11 @@ async def virtual_snapshot_handler(request: web.Request) -> web.Response:
     config: Config = request.app["config"]
     app_ctx = request.app["app_ctx"]
 
-    total_power_w, contributions = _build_virtual_contributions(app_ctx, config)
+    total_power_w, total_rated_w, contributions = _build_virtual_contributions(app_ctx, config)
 
     return web.json_response({
         "total_power_w": total_power_w,
+        "total_rated_w": total_rated_w,
         "virtual_name": config.virtual_inverter.name,
         "contributions": contributions,
     })

@@ -1691,23 +1691,28 @@ var CONTRIBUTION_COLORS = ['var(--ve-blue)', 'var(--ve-orange)', 'var(--ve-green
 
 function buildVirtualPVPage(container, data) {
     var totalW = data.total_power_w || 0;
+    var totalRated = data.total_rated_w || 0;
     var contributions = data.contributions || [];
 
-    // Total power
-    var totalDiv = document.createElement('div');
-    totalDiv.className = 've-virtual-total';
-    totalDiv.innerHTML =
-        '<span class="ve-virtual-total-value">' + Math.round(totalW) + '</span>' +
-        '<span class="ve-virtual-total-unit">W</span>';
-    container.appendChild(totalDiv);
+    // Gauge card (same style as inverter pages)
+    var gaugeCard = document.createElement('div');
+    gaugeCard.className = 've-card ve-gauge-card';
+    var ratedW = totalRated > 0 ? totalRated : (totalW > 0 ? totalW * 1.2 : 30000);
+    var pct = Math.min(totalW / ratedW, 1.0);
+    var arcLength = GAUGE_ARC_LENGTH;
+    var offset = arcLength * (1 - pct);
+    var gc = gaugeColor(pct);
 
-    // Virtual name
-    if (data.virtual_name) {
-        var nameDiv = document.createElement('div');
-        nameDiv.style.cssText = 'text-align:center;color:var(--ve-text-dim);font-size:0.85rem;margin-bottom:16px';
-        nameDiv.textContent = data.virtual_name;
-        container.appendChild(nameDiv);
-    }
+    gaugeCard.innerHTML =
+        '<h2 class="ve-card-title">Total Power Output</h2>' +
+        '<svg viewBox="0 0 200 130" class="ve-gauge-svg">' +
+        '  <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--ve-border)" stroke-width="12" stroke-linecap="round"/>' +
+        '  <path class="ve-gauge-fill ve-virtual-gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="' + gc + '" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + arcLength + '" stroke-dashoffset="' + offset + '"/>' +
+        '  <text x="100" y="76" text-anchor="middle" fill="var(--ve-text)" font-size="32" font-weight="700" class="ve-virtual-gauge-value">' + formatW(totalW) + '</text>' +
+        '  <text x="100" y="94" text-anchor="middle" fill="var(--ve-text-dim)" font-size="11">' + formatW(ratedW) + ' max</text>' +
+        '  <text x="100" y="122" text-anchor="middle" fill="var(--ve-text-dim)" font-size="11">' + esc(data.virtual_name || 'Virtual PV') + '</text>' +
+        '</svg>';
+    container.appendChild(gaugeCard);
 
     // Contribution bar
     var barCard = document.createElement('div');
@@ -1779,11 +1784,18 @@ function updateVirtualPVPage(data) {
     if (!parent) return;
 
     var totalW = data.total_power_w || 0;
+    var totalRated = data.total_rated_w || 0;
     var contributions = data.contributions || [];
 
-    // Update total
-    var totalEl = parent.querySelector('.ve-virtual-total-value');
-    if (totalEl) totalEl.textContent = Math.round(totalW);
+    // Update gauge
+    var gaugeFill = parent.querySelector('.ve-virtual-gauge-fill');
+    var gaugeVal = parent.querySelector('.ve-virtual-gauge-value');
+    if (gaugeFill && totalRated > 0) {
+        var pct = Math.min(totalW / totalRated, 1.0);
+        gaugeFill.style.strokeDashoffset = GAUGE_ARC_LENGTH * (1 - pct);
+        gaugeFill.style.stroke = gaugeColor(pct);
+    }
+    if (gaugeVal) gaugeVal.textContent = formatW(totalW);
 
     // Update bar segments
     var segments = parent.querySelectorAll('.ve-contribution-segment');
