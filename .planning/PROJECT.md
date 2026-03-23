@@ -64,10 +64,13 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 
 ### Active
 
-- [ ] MQTT Data Publishing: Inverter-Daten in Echtzeit an externen MQTT Broker publishen
-- [ ] MQTT Broker Autodiscovery im LAN (mDNS/DNS-SD)
-- [ ] Konfigurierbare MQTT Topics und Publish-Intervalle
-- [ ] Bekannter Broker: mqtt-master.local als Default/Ziel
+- [ ] Shelly Plugin: Shelly Smart Devices als Inverter-Plugin mit Profil-System (Gen1/Gen2/Gen3)
+- [ ] Auto-Detection der Shelly-Generation beim Hinzufuegen
+- [ ] Shelly Polling: Leistung, Spannung, Strom, Energie, Temperatur via REST API
+- [ ] Shelly Switch-Steuerung: On/Off per Webapp (kein Power-Limiting)
+- [ ] Shelly Device-Dashboard: Gauge, AC-Werte, Connection-Card mit On/Off Toggle
+- [ ] Shelly Aggregation: Daten fliessen in virtuellen PV-Inverter ein
+- [ ] Shelly Add-Device Flow: Dritte Option neben SolarEdge/OpenDTU
 
 ### Out of Scope
 
@@ -77,7 +80,7 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 - Vollstaendiger Energy Flow Diagram — Proxy hat nur PV-Daten, kein Grid/Battery/Load
 - Docker/Container-Orchestrierung — Direktes Deployment auf LXC (Debian 13)
 - Venus OS Modbus-Polling (Battery/Grid) — Register-Adressen unsicher, separater Client noetig
-- Andere Inverter-Marken ausser SolarEdge/Hoymiles — Erweiterbar, aber nicht in v4.0
+- Shelly Cloud API — Nur lokale REST API, kein Cloud-Account noetig
 
 ## Context
 
@@ -164,16 +167,19 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket + REST client 
 - LXC Container: 192.168.3.191 (Debian 13, Proxmox)
 - Proxy: Port 502 (Modbus) + Port 80 (Webapp)
 
-## Current Milestone: v5.0 MQTT Data Publishing
+## Current Milestone: v6.0 Shelly Plugin
 
-**Goal:** Inverter-Daten per MQTT an externen Broker publishen fuer Integration mit Home Assistant, Node-RED, Grafana etc.
+**Goal:** Shelly Smart Devices als drittes Inverter-Plugin integrieren — misst Energiedaten des angeschlossenen Micro-PV-WR, ermoeglicht On/Off-Steuerung, unterstuetzt verschiedene Shelly-Generationen ueber austauschbare API-Profile.
 
 **Target features:**
-- MQTT Publisher: Alle gesammelten Inverter-Daten (Leistung, Ertrag, Status, DC-Werte) in Echtzeit publishen
-- MQTT Broker Autodiscovery im LAN (mDNS)
-- Konfigurierbarer Broker (Default: mqtt-master.local), Topics, Publish-Intervall
-- Pro-Device Topics mit strukturiertem JSON Payload
-- Webapp-Config fuer MQTT Publishing (Broker, Port, Intervall, Enable/Disable)
+- Shelly Plugin mit Profil-System (Gen1 vs Gen2/Gen3 API)
+- Auto-Detection der Shelly-Generation beim Hinzufuegen
+- Polling: Leistung, Spannung, Strom, Energie, Temperatur
+- Switch-Steuerung: On/Off per Webapp (kein %-Limiting)
+- Device-Dashboard: Gauge, AC-Werte, Connection-Card mit On/Off
+- Aggregation: Shelly-Daten fliessen in virtuellen PV-Inverter ein
+- Add-Device Flow: Shelly als dritte Option neben SolarEdge/OpenDTU
+- Nahtlose Integration: gleiches Look & Feel wie bestehende Plugins
 
 ## Evolution
 
@@ -193,4 +199,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after v5.0 milestone start*
+*Last updated: 2026-03-24 after v6.0 milestone start*
