@@ -6,16 +6,21 @@ WebSocket endpoint at /ws pushes live inverter snapshots to connected browsers.
 """
 from __future__ import annotations
 
+import asyncio
+import dataclasses
+import importlib.resources as pkg_resources
 import json
+import os
+import tempfile
 import time
 import weakref
+from datetime import datetime
 from typing import Any
 
+import aiohttp
+import structlog
+import yaml
 from aiohttp import web
-
-import asyncio
-
-import dataclasses
 
 from pv_inverter_proxy.config import (
     Config,
@@ -27,12 +32,11 @@ from pv_inverter_proxy.config import (
     validate_venus_config,
 )
 from pv_inverter_proxy.control import validate_wmaxlimpct
-from pv_inverter_proxy.scanner import scan_subnet, ScanConfig
 from pv_inverter_proxy.mdns_discovery import discover_mqtt_brokers
 from pv_inverter_proxy.mqtt_publisher import mqtt_publish_loop
+from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
+from pv_inverter_proxy.scanner import ScanConfig, scan_subnet
 from pv_inverter_proxy.venus_reader import venus_mqtt_loop
-
-import structlog
 
 log = structlog.get_logger()
 
@@ -185,7 +189,6 @@ def _decode_register_value(regs: list[int], field: dict) -> object:
 async def index_handler(request: web.Request) -> web.Response:
     """Serve the frontend HTML page."""
     try:
-        import importlib.resources as pkg_resources
         ref = pkg_resources.files("pv_inverter_proxy") / "static" / "index.html"
         html = ref.read_text(encoding="utf-8")
         return web.Response(text=html, content_type="text/html")
@@ -576,8 +579,6 @@ async def dashboard_handler(request: web.Request) -> web.Response:
 
 async def static_handler(request: web.Request) -> web.Response:
     """Serve static files (.css, .js) from the package via importlib.resources."""
-    import importlib.resources as pkg_resources
-
     filename = request.match_info["filename"]
     if filename not in CONTENT_TYPES:
         raise web.HTTPNotFound()
@@ -1649,7 +1650,6 @@ async def config_export_handler(request: web.Request) -> web.Response:
     except FileNotFoundError:
         return web.json_response({"error": "Config file not found"}, status=404)
 
-    from datetime import datetime
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{ts}_pv-inverter-proxy.yaml"
     return web.Response(
@@ -1661,8 +1661,6 @@ async def config_export_handler(request: web.Request) -> web.Response:
 
 async def config_import_handler(request: web.Request) -> web.Response:
     """Import config from uploaded YAML file. Validates, saves, restarts."""
-    import yaml
-
     try:
         data = await request.read()
         yaml_text = data.decode("utf-8")
@@ -1675,7 +1673,6 @@ async def config_import_handler(request: web.Request) -> web.Response:
     # Write to config file
     config_path = request.app["config_path"]
     try:
-        import tempfile, os
         dir_name = os.path.dirname(config_path)
         fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".yaml")
         try:
@@ -1710,7 +1707,6 @@ async def opendtu_status_handler(request: web.Request) -> web.Response:
     if not ds or not ds.plugin:
         return web.json_response({"error": "Device not found"}, status=404)
 
-    from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
     if not isinstance(ds.plugin, OpenDTUPlugin):
         return web.json_response({"error": "Not an OpenDTU device"}, status=400)
 
@@ -1729,7 +1725,6 @@ async def opendtu_power_handler(request: web.Request) -> web.Response:
     if not ds or not ds.plugin:
         return web.json_response({"success": False, "error": "Device not found"}, status=404)
 
-    from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
     if not isinstance(ds.plugin, OpenDTUPlugin):
         return web.json_response({"success": False, "error": "Not an OpenDTU device"}, status=400)
 
@@ -1753,7 +1748,6 @@ async def opendtu_test_auth_handler(request: web.Request) -> web.Response:
     Body: {"host": "192.168.1.100", "user": "admin", "password": "openDTU42"}
     Returns: {"success": true/false, "error": "...", "inverters": [...]}
     """
-    import aiohttp as _aiohttp
     try:
         body = await request.json()
     except Exception:
@@ -1767,9 +1761,9 @@ async def opendtu_test_auth_handler(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Host required"}, status=400)
 
     try:
-        auth = _aiohttp.BasicAuth(user, password)
-        async with _aiohttp.ClientSession(auth=auth) as session:
-            async with session.get(f"http://{host}/api/livedata/status", timeout=_aiohttp.ClientTimeout(total=5)) as resp:
+        auth = aiohttp.BasicAuth(user, password)
+        async with aiohttp.ClientSession(auth=auth) as session:
+            async with session.get(f"http://{host}/api/livedata/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status == 401:
                     return web.json_response({"success": False, "error": "Authentication failed — check username/password"})
                 data = await resp.json()

@@ -76,7 +76,7 @@ def entry_disabled():
 
 def _patch_factories(mock_plugin):
     """Return context manager patching plugin_factory."""
-    return patch("pv_inverter_proxy.plugins.plugin_factory", return_value=mock_plugin)
+    return patch("pv_inverter_proxy.device_registry.plugin_factory", return_value=mock_plugin)
 
 
 @pytest.mark.asyncio

@@ -5,12 +5,11 @@ Missing file or missing keys silently use defaults. Unknown keys are ignored.
 """
 from __future__ import annotations
 
-import dataclasses
 import ipaddress
 import os
 import tempfile
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 import structlog
 import yaml
@@ -258,7 +257,7 @@ def validate_venus_config(host: str, port: int) -> str | None:
 
 def save_config(config_path: str, config: Config) -> None:
     """Save config to YAML file atomically using temp file + os.replace."""
-    data = dataclasses.asdict(config)
+    data = asdict(config)
     config_dir = os.path.dirname(os.path.abspath(config_path))
     fd, tmp_path = tempfile.mkstemp(dir=config_dir, suffix=".yaml")
     try:

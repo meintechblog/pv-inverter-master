@@ -16,6 +16,8 @@ import structlog
 from pv_inverter_proxy.config import Config, InverterEntry, get_gateway_for_inverter
 from pv_inverter_proxy.connection import ConnectionManager
 from pv_inverter_proxy.context import AppContext, DeviceState
+from pv_inverter_proxy.dashboard import DashboardCollector
+from pv_inverter_proxy.plugins import plugin_factory
 
 logger = structlog.get_logger()
 
@@ -79,13 +81,10 @@ class DeviceRegistry:
             else self._config.proxy.poll_interval
         )
 
-        # Create plugin (lazy import to avoid circular/version issues)
-        from pv_inverter_proxy.plugins import plugin_factory
         plugin = plugin_factory(entry, gateway_config)
 
         # Create per-device state
         conn_mgr = ConnectionManager(poll_interval=poll_interval)
-        from pv_inverter_proxy.dashboard import DashboardCollector
         collector = DashboardCollector()
         poll_counter = {"success": 0, "total": 0}
 
