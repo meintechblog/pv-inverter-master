@@ -1,87 +1,54 @@
-# Requirements: Venus OS Fronius Proxy
+# Requirements: PV-Inverter-Proxy v6.0 — Shelly Plugin
 
-**Defined:** 2026-03-22
+**Defined:** 2026-03-24
 **Core Value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
 
-## v5.0 Requirements
+## Plugin Core
 
-Requirements for MQTT Data Publishing milestone. Each maps to roadmap phases.
+- [ ] **PLUG-01**: ShellyPlugin implementiert InverterPlugin ABC (poll, connect, close, write_power_limit, get_model_120_registers, reconfigure)
+- [ ] **PLUG-02**: Profil-System mit Gen1 (REST /status, /relay) und Gen2+ (RPC /rpc/Switch.GetStatus, /rpc/Switch.Set) API-Adaptern
+- [ ] **PLUG-03**: Auto-Detection der Shelly-Generation via GET /shelly (gen-Feld vorhanden = Gen2+, fehlt = Gen1)
+- [ ] **PLUG-04**: Polling liefert Leistung (W), Spannung (V), Strom (A), Frequenz (Hz), Energie (Wh), Temperatur (C)
+- [ ] **PLUG-05**: SunSpec Model 103 Register-Encoding aus Shelly JSON (wie OpenDTU)
+- [ ] **PLUG-06**: Energy-Counter Offset-Tracking (Shelly resettet bei Reboot, Tagesertrag darf nicht springen)
+- [ ] **PLUG-07**: Fehlende Felder graceful behandeln (Gen1 hat weniger Daten, manche Modelle ohne Temperatur)
 
-### MQTT Publishing
+## Device Control
 
-- [x] **PUB-01**: Proxy publisht Inverter-Daten (Leistung, Spannung, Strom, Temperatur, Status) pro Device an MQTT Broker
-- [x] **PUB-02**: Proxy publisht aggregierte Virtual-PV-Daten (Gesamtleistung, Contributions) an MQTT Broker
-- [x] **PUB-03**: Publish-Intervall ist konfigurierbar (Default: 5s)
-- [x] **PUB-04**: Publisher nutzt Change-based Optimization — kein Publish wenn Daten unveraendert
-- [x] **PUB-05**: Publisher nutzt LWT fuer Online/Offline-Availability-Tracking
-- [x] **PUB-06**: Device-Status-Messages sind retained fuer neue Subscriber
+- [ ] **CTRL-01**: On/Off Switch-Steuerung per Webapp (relay on/off statt Power-Limit Prozent)
+- [ ] **CTRL-02**: Switch-Status (on/off) in Connection Card anzeigen
+- [ ] **CTRL-03**: write_power_limit() als No-Op (Shelly kann kein %-Limiting), throttle_enabled default false
 
-### Home Assistant Integration
+## UI Integration
 
-- [x] **HA-01**: Publisher sendet MQTT Auto-Discovery Config Payloads fuer alle Sensoren
-- [x] **HA-02**: Sensoren haben korrekte device_class und state_class fuer HA Energy Dashboard
-- [x] **HA-03**: Inverter erscheinen als gruppierte Devices in HA (Manufacturer, Model, SW Version)
-- [x] **HA-04**: Availability-Entity pro Device reagiert auf LWT
+- [ ] **UI-01**: "Shelly Device" als dritte Option im Add-Device Dialog
+- [ ] **UI-02**: Auto-Detection und Generation-Anzeige beim Hinzufuegen (testet /shelly Endpoint)
+- [ ] **UI-03**: Device Dashboard mit Gauge, AC-Werte (kein DC-Section — Capability-Flag)
+- [ ] **UI-04**: Connection Card mit Shelly-spezifischen Infos (Generation, Switch-Status, On/Off Buttons)
+- [ ] **UI-05**: Config-Seite mit Shelly-Host und erkannter Generation (readonly)
 
-### Broker Connectivity
+## Aggregation
 
-- [x] **CONN-01**: MQTT Broker Host/Port ist konfigurierbar (Default: mqtt-master.local:1883)
-- [x] **CONN-02**: Publisher reconnected automatisch mit Exponential Backoff bei Verbindungsverlust
-- [x] **CONN-03**: mDNS Autodiscovery findet MQTT Broker im LAN
-- [x] **CONN-04**: Broker-Konfiguration ist hot-reloadable ohne Service-Restart
-
-### Webapp Config
-
-- [x] **UI-01**: Config-Seite zeigt MQTT Publishing Settings (Enable/Disable, Broker, Port, Intervall)
-- [x] **UI-02**: mDNS Discovery Button findet Broker im LAN und fuellt Formular
-- [x] **UI-03**: Connection-Status-Dot zeigt ob MQTT Publisher verbunden ist
-- [x] **UI-04**: Topic-Preview zeigt die generierten MQTT Topics
-
-## Future Requirements
-
-### Advanced MQTT
-
-- **ADV-01**: MQTT Username/Password Authentication
-- **ADV-02**: TLS-verschluesselte MQTT Verbindung
-- **ADV-03**: Custom Topic Templates (User-definierbare Topic-Struktur)
-
-## Out of Scope
-
-| Feature | Reason |
-|---------|--------|
-| MQTT Bridge/Relay | Proxy ist Publisher, kein Broker |
-| Bidirektionale MQTT Steuerung | Steuerung laeuft ueber Venus OS, nicht MQTT |
-| InfluxDB/Grafana direkt | MQTT ist der Transport, Consumers bauen Dritte |
-| Refactor venus_reader.py MQTT | Bestehender Venus OS MQTT Client bleibt wie er ist |
+- [ ] **AGG-01**: Shelly-Daten fliessen korrekt in den virtuellen PV-Inverter ein (AggregationLayer)
+- [ ] **AGG-02**: DC-Averaging im Aggregator ueberspringt Shelly (kein DC-Data)
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| PUB-01 | Phase 26 | Complete |
-| PUB-02 | Phase 26 | Complete |
-| PUB-03 | Phase 25 | Complete |
-| PUB-04 | Phase 26 | Complete |
-| PUB-05 | Phase 25 | Complete |
-| PUB-06 | Phase 26 | Complete |
-| HA-01 | Phase 26 | Complete |
-| HA-02 | Phase 26 | Complete |
-| HA-03 | Phase 26 | Complete |
-| HA-04 | Phase 26 | Complete |
-| CONN-01 | Phase 25 | Complete |
-| CONN-02 | Phase 25 | Complete |
-| CONN-03 | Phase 25 | Complete |
-| CONN-04 | Phase 25 | Complete |
-| UI-01 | Phase 27 | Pending |
-| UI-02 | Phase 27 | Pending |
-| UI-03 | Phase 27 | Complete |
-| UI-04 | Phase 27 | Complete |
+| Requirement | Phase |
+|-------------|-------|
+| PLUG-01..07 | TBD   |
+| CTRL-01..03 | TBD   |
+| UI-01..05   | TBD   |
+| AGG-01..02  | TBD   |
 
-**Coverage:**
-- v5.0 requirements: 18 total
-- Mapped to phases: 18
-- Unmapped: 0
+## Future Requirements
 
----
-*Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after roadmap creation*
+- Shelly mDNS Auto-Discovery im LAN
+- Shelly Auth-Support (Digest Auth fuer Gen2+)
+- Multi-Channel Support (Shelly 2.5, Shelly Pro 2PM)
+
+## Out of Scope
+
+- Shelly Cloud API — Nur lokale REST API, kein Cloud-Account
+- Shelly Scripting/Automation — Nur Polling + Switch, keine Shelly-interne Logik
+- Shelly Firmware Updates — Nicht ueber unsere Webapp
