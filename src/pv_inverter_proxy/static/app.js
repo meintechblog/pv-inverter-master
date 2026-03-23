@@ -597,11 +597,12 @@ function buildInverterDashboard(container, data, deviceType) {
         '<div class="ve-status-row"><span class="ve-dot ' + connDotClass + '"></span><span>Inverter: ' + (connState === 'night_mode' ? 'sleeping' : connState) + '</span></div>';
 
     if (deviceType === 'opendtu') {
+        var dtuCached = data.opendtu_status || null;
         connCard.innerHTML +=
             '<div class="ve-opendtu-status" style="margin-top:10px">' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Producing:</span><span class="ve-opendtu-producing">loading...</span></div>' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Reachable:</span><span class="ve-opendtu-reachable">loading...</span></div>' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Limit:</span><span class="ve-opendtu-limit">loading...</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Producing:</span><span class="ve-opendtu-producing">' + (dtuCached ? (dtuCached.producing ? 'Yes' : 'No') : '...') + '</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Reachable:</span><span class="ve-opendtu-reachable">' + (dtuCached ? (dtuCached.reachable ? 'Yes' : 'No') : '...') + '</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Limit:</span><span class="ve-opendtu-limit">' + (dtuCached ? dtuCached.limit_relative + '% (' + dtuCached.limit_absolute + ' W)' : '...') + '</span></div>' +
             '</div>' +
             '<div class="ve-opendtu-actions" style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
             '  <button class="ve-btn ve-btn--sm ve-opendtu-restart">Restart</button>' +
@@ -785,6 +786,17 @@ function updateActiveDeviceDashboard(data) {
     if (statusEl) statusEl.textContent = inv.status || '--';
     var tempEl = _activeDeviceContainer.querySelector('.ve-inv-temp');
     if (tempEl && inv.temperature_sink_c != null) tempEl.textContent = inv.temperature_sink_c.toFixed(1) + ' \u00B0C';
+
+    // Update OpenDTU status from cached snapshot data (instant, no extra fetch)
+    var dtuS = data.opendtu_status;
+    if (dtuS) {
+        var prodEl = _activeDeviceContainer.querySelector('.ve-opendtu-producing');
+        var reachEl = _activeDeviceContainer.querySelector('.ve-opendtu-reachable');
+        var limEl = _activeDeviceContainer.querySelector('.ve-opendtu-limit');
+        if (prodEl) prodEl.textContent = dtuS.producing ? 'Yes' : 'No';
+        if (reachEl) reachEl.textContent = dtuS.reachable ? 'Yes' : 'No';
+        if (limEl) limEl.textContent = dtuS.limit_relative + '% (' + dtuS.limit_absolute + ' W)';
+    }
 }
 
 // ===== Inverter Registers Renderer =====

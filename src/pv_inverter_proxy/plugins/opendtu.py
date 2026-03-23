@@ -51,6 +51,8 @@ class OpenDTUPlugin(InverterPlugin):
         self._max_power_w: int = 400  # Default, updated from /api/limit/status
         self._last_limit_ts: float = 0.0
         self._limit_pending: bool = False
+        # Cached OpenDTU status (updated every poll)
+        self.opendtu_status: dict = {}
 
     async def connect(self) -> None:
         """Create aiohttp.ClientSession with Basic Auth for the gateway."""
@@ -91,12 +93,20 @@ class OpenDTUPlugin(InverterPlugin):
             )
 
         # Update rated power from OpenDTU limit_absolute at 100%
-        limit_abs = inv.get("limit_absolute")
+        limit_abs = inv.get("limit_absolute", 0)
         limit_rel = inv.get("limit_relative", 100)
         if limit_abs and limit_rel and limit_rel > 0:
             rated = int(round(limit_abs / limit_rel * 100))
             if rated > 0:
                 self._max_power_w = rated
+
+        # Cache OpenDTU-specific status for instant access
+        self.opendtu_status = {
+            "producing": inv.get("producing", False),
+            "reachable": inv.get("reachable", False),
+            "limit_relative": limit_rel,
+            "limit_absolute": limit_abs,
+        }
 
         # Extract physical values
         ac = inv.get("AC", {}).get("0", {})
