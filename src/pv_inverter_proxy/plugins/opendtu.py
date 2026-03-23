@@ -90,6 +90,14 @@ class OpenDTUPlugin(InverterPlugin):
                 error=f"Inverter {self.serial} is unreachable",
             )
 
+        # Update rated power from OpenDTU limit_absolute at 100%
+        limit_abs = inv.get("limit_absolute")
+        limit_rel = inv.get("limit_relative", 100)
+        if limit_abs and limit_rel and limit_rel > 0:
+            rated = int(round(limit_abs / limit_rel * 100))
+            if rated > 0:
+                self._max_power_w = rated
+
         # Extract physical values
         ac = inv.get("AC", {}).get("0", {})
         ac_power_w = ac.get("Power", {}).get("v", 0.0)
@@ -151,10 +159,12 @@ class OpenDTUPlugin(InverterPlugin):
 
         return PollResult(common_regs, inverter_regs, success=True)
 
-    def _find_inverter(self, data: dict) -> dict | None:
+    def _find_inverter(self, data: dict | None) -> dict | None:
         """Find inverter by serial in the API response."""
+        if not isinstance(data, dict):
+            return None
         for inv in data.get("inverters", []):
-            if inv.get("serial") == self.serial:
+            if isinstance(inv, dict) and str(inv.get("serial", "")) == str(self.serial):
                 return inv
         return None
 
@@ -339,21 +349,25 @@ class OpenDTUPlugin(InverterPlugin):
 
         Returns dict with: producing, reachable, limit_relative, limit_absolute.
         """
-        if self._session is None:
+        if self._session is None or self._session.closed:
             return {"error": "Not connected"}
         try:
             url = f"http://{self._gw.host}/api/livedata/status"
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 data = await resp.json()
+            if not isinstance(data, dict):
+                return {"error": "Invalid response from OpenDTU"}
             for inv in data.get("inverters", []):
-                if inv.get("serial") == self.serial:
+                if not isinstance(inv, dict):
+                    continue
+                if str(inv.get("serial", "")) == str(self.serial):
                     return {
                         "producing": inv.get("producing", False),
                         "reachable": inv.get("reachable", False),
                         "limit_relative": inv.get("limit_relative", 100),
                         "limit_absolute": inv.get("limit_absolute", 0),
                     }
-            return {"error": "Inverter not found in OpenDTU"}
+            return {"error": f"Serial {self.serial} not found in OpenDTU"}
         except Exception as e:
             return {"error": str(e)}
 

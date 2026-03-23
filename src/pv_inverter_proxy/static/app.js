@@ -599,9 +599,9 @@ function buildInverterDashboard(container, data, deviceType) {
     if (deviceType === 'opendtu') {
         connCard.innerHTML +=
             '<div class="ve-opendtu-status" style="margin-top:10px">' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Producing:</span><span class="ve-opendtu-producing">--</span></div>' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Reachable:</span><span class="ve-opendtu-reachable">--</span></div>' +
-            '  <div class="ve-status-row"><span class="ve-text-dim">Limit:</span><span class="ve-opendtu-limit">--</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Producing:</span><span class="ve-opendtu-producing">loading...</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Reachable:</span><span class="ve-opendtu-reachable">loading...</span></div>' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Limit:</span><span class="ve-opendtu-limit">loading...</span></div>' +
             '</div>' +
             '<div class="ve-opendtu-actions" style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
             '  <button class="ve-btn ve-btn--sm ve-opendtu-restart">Restart</button>' +
@@ -609,22 +609,31 @@ function buildInverterDashboard(container, data, deviceType) {
             '  <button class="ve-btn ve-btn--sm ve-btn--cancel ve-opendtu-off">Power Off</button>' +
             '</div>';
 
-        // Fetch live OpenDTU status
+        // Fetch live OpenDTU status (periodic refresh every 10s)
         var _devId = data.device_id || _activeDeviceId;
+        var _dtuInterval = null;
         function _refreshDtuStatus() {
+            // Stop if card is no longer in DOM (page navigated away)
+            if (!connCard.parentNode) { if (_dtuInterval) clearInterval(_dtuInterval); return; }
             fetch('/api/devices/' + _devId + '/opendtu/status')
                 .then(function(r) { return r.json(); })
                 .then(function(s) {
-                    if (s.error) return;
                     var prodEl = connCard.querySelector('.ve-opendtu-producing');
                     var reachEl = connCard.querySelector('.ve-opendtu-reachable');
                     var limEl = connCard.querySelector('.ve-opendtu-limit');
+                    if (s.error) {
+                        if (prodEl) prodEl.textContent = '--';
+                        if (reachEl) reachEl.textContent = '--';
+                        if (limEl) limEl.textContent = s.error;
+                        return;
+                    }
                     if (prodEl) prodEl.textContent = s.producing ? 'Yes' : 'No';
                     if (reachEl) reachEl.textContent = s.reachable ? 'Yes' : 'No';
                     if (limEl) limEl.textContent = s.limit_relative + '% (' + s.limit_absolute + ' W)';
                 }).catch(function() {});
         }
         _refreshDtuStatus();
+        _dtuInterval = setInterval(_refreshDtuStatus, 10000);
 
         // Wire power buttons
         function _sendPower(action) {
