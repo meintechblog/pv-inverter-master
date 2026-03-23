@@ -27,7 +27,11 @@ def plugin_factory(
     elif entry.type == "opendtu":
         from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
         if gateway_config is None:
-            gateway_config = GatewayConfig(host=entry.gateway_host)
+            gateway_config = GatewayConfig(
+                host=entry.gateway_host,
+                user=entry.gateway_user or "admin",
+                password=entry.gateway_password or "openDTU42",
+            )
         return OpenDTUPlugin(
             gateway_config=gateway_config,
             serial=entry.serial,

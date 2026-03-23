@@ -515,6 +515,7 @@ function buildInverterDashboard(container, data, deviceType) {
             maxOpts += '<option value="' + s.w + '"' + (curMaxPct < 100 && curMaxPct > 1 && _closestStep(curMaxW) === String(s.w) ? ' selected' : '') + '>' + s.label + '</option>';
         }
         maxOpts += '<option value="min"' + (curMaxPct === 1 ? ' selected' : '') + '>' + label1pct + '</option>';
+        maxOpts += '<option value="0"' + (curMaxPct === 0 ? ' selected' : '') + '>0</option>';
 
         clampHtml =
             '<div class="ve-gauge-clamp">' +
@@ -844,6 +845,10 @@ function buildInverterConfigForm(container, device) {
         '<div class="ve-form-group"><label>Host</label><input type="text" class="ve-input ve-cfg-host" value="' + esc(device.host || '') + '" placeholder="192.168.1.100"></div>' +
         '<div class="ve-form-group"><label>Port</label><input type="number" class="ve-input ve-cfg-port" value="' + (device.port || 1502) + '" min="1" max="65535"></div>' +
         '<div class="ve-form-group"><label>Unit ID</label><input type="number" class="ve-input ve-cfg-unit" value="' + (device.unit_id || 1) + '" min="1" max="247"></div>' +
+        (device.type === 'opendtu' ?
+            '<div class="ve-form-group"><label>Gateway User</label><input type="text" class="ve-input ve-cfg-gw-user" value="' + esc(device.gateway_user || '') + '" placeholder="admin (default)"></div>' +
+            '<div class="ve-form-group"><label>Gateway Password</label><input type="password" class="ve-input ve-cfg-gw-pass" value="' + esc(device.gateway_password || '') + '" placeholder="openDTU42 (default)"></div>'
+        : '') +
         '<div class="ve-form-group"><label>Type</label><input type="text" class="ve-input" value="' + (device.type || '') + '" readonly style="opacity:0.6"></div>' +
         (identity ? '<div class="ve-form-group"><label>Identity</label><input type="text" class="ve-input" value="' + esc(identity) + '" readonly style="opacity:0.6"></div>' : '') +
         '<div class="ve-form-group"><label>Throttle Order</label><input type="number" class="ve-input ve-cfg-throttle-order" value="' + (device.throttle_order || 1) + '" min="1" max="99"></div>' +
@@ -865,13 +870,17 @@ function buildInverterConfigForm(container, device) {
         unit_id: String(device.unit_id || 1),
         throttle_order: String(device.throttle_order || 1),
         throttle_enabled: device.throttle_enabled !== false,
-        enabled: device.enabled !== false
+        enabled: device.enabled !== false,
+        gateway_user: device.gateway_user || '',
+        gateway_password: device.gateway_password || ''
     };
 
     var nameInput = panel.querySelector('.ve-cfg-name');
     var hostInput = panel.querySelector('.ve-cfg-host');
     var portInput = panel.querySelector('.ve-cfg-port');
     var unitInput = panel.querySelector('.ve-cfg-unit');
+    var gwUserInput = panel.querySelector('.ve-cfg-gw-user');
+    var gwPassInput = panel.querySelector('.ve-cfg-gw-pass');
     var toInput = panel.querySelector('.ve-cfg-throttle-order');
     var teToggle = panel.querySelector('.ve-cfg-throttle-enabled');
     var enabledToggle = panel.querySelector('.ve-cfg-enabled');
@@ -886,17 +895,25 @@ function buildInverterConfigForm(container, device) {
                     portInput.value !== originals.port ||
                     unitInput.value !== originals.unit_id ||
                     toInput.value !== originals.throttle_order ||
-                    teToggle.checked !== originals.throttle_enabled;
+                    teToggle.checked !== originals.throttle_enabled ||
+                    (gwUserInput && gwUserInput.value !== originals.gateway_user) ||
+                    (gwPassInput && gwPassInput.value !== originals.gateway_password);
         savePair.style.display = dirty ? '' : 'none';
         // Highlight dirty fields
-        [nameInput, hostInput, portInput, unitInput, toInput].forEach(function(el) {
-            var orig = el === nameInput ? originals.name : el === hostInput ? originals.host : el === portInput ? originals.port : el === unitInput ? originals.unit_id : originals.throttle_order;
+        var trackFields = [nameInput, hostInput, portInput, unitInput, toInput];
+        if (gwUserInput) trackFields.push(gwUserInput);
+        if (gwPassInput) trackFields.push(gwPassInput);
+        trackFields.forEach(function(el) {
+            var orig = el === nameInput ? originals.name : el === hostInput ? originals.host : el === portInput ? originals.port : el === unitInput ? originals.unit_id : el === toInput ? originals.throttle_order : el === gwUserInput ? originals.gateway_user : originals.gateway_password;
             if (el.value !== orig) el.classList.add('ve-input--dirty');
             else el.classList.remove('ve-input--dirty');
         });
     }
 
-    [nameInput, hostInput, portInput, unitInput, toInput].forEach(function(el) {
+    var inputFields = [nameInput, hostInput, portInput, unitInput, toInput];
+    if (gwUserInput) inputFields.push(gwUserInput);
+    if (gwPassInput) inputFields.push(gwPassInput);
+    inputFields.forEach(function(el) {
         el.addEventListener('input', checkDirty);
     });
     teToggle.addEventListener('change', checkDirty);
@@ -908,6 +925,8 @@ function buildInverterConfigForm(container, device) {
         unitInput.value = originals.unit_id;
         toInput.value = originals.throttle_order;
         teToggle.checked = originals.throttle_enabled;
+        if (gwUserInput) gwUserInput.value = originals.gateway_user;
+        if (gwPassInput) gwPassInput.value = originals.gateway_password;
         checkDirty();
     });
 
@@ -920,6 +939,8 @@ function buildInverterConfigForm(container, device) {
             throttle_order: parseInt(toInput.value),
             throttle_enabled: teToggle.checked
         };
+        if (gwUserInput) payload.gateway_user = gwUserInput.value.trim();
+        if (gwPassInput) payload.gateway_password = gwPassInput.value.trim();
 
         fetch('/api/devices/' + device.id, {
             method: 'PUT',
@@ -939,6 +960,8 @@ function buildInverterConfigForm(container, device) {
             originals.unit_id = String(payload.unit_id);
             originals.throttle_order = String(payload.throttle_order);
             originals.throttle_enabled = payload.throttle_enabled;
+            if (gwUserInput) originals.gateway_user = payload.gateway_user || '';
+            if (gwPassInput) originals.gateway_password = payload.gateway_password || '';
             checkDirty();
         })
         .catch(function(e) { showToast('Update failed: ' + e.message, 'error'); });
@@ -1721,7 +1744,10 @@ function showAddForm(formArea, actions, type, modal) {
     } else if (type === 'opendtu') {
         formArea.innerHTML =
             '<div class="ve-form-group"><label>Name (optional)</label><input type="text" class="ve-input ve-add-name" placeholder="e.g. HM-800"></div>' +
-            '<div class="ve-form-group"><label>Gateway Host</label><input type="text" class="ve-input ve-add-host" placeholder="192.168.1.100"></div>';
+            '<div class="ve-form-group"><label>Gateway Host</label><input type="text" class="ve-input ve-add-host" placeholder="192.168.1.100"></div>' +
+            '<div class="ve-form-group"><label>Username</label><input type="text" class="ve-input ve-add-gw-user" placeholder="admin (default)"></div>' +
+            '<div class="ve-form-group"><label>Password</label><input type="password" class="ve-input ve-add-gw-pass" placeholder="openDTU42 (default)"></div>' +
+            '<div class="ve-hint-card ve-add-auth-hint" style="display:none"></div>';
     }
 
     // Discover area
@@ -1758,22 +1784,64 @@ function showAddForm(formArea, actions, type, modal) {
         if (port) payload.port = parseInt(port.value) || 1502;
         if (unit) payload.unit_id = parseInt(unit.value) || 1;
 
-        fetch('/api/devices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            if (data.error) {
-                showToast('Add failed: ' + data.error, 'error');
-                return;
-            }
-            showToast('Device added', 'success');
-            modal.remove();
-            if (data.id) navigateTo(data.id, 'dashboard');
-        })
-        .catch(function(e) { showToast('Add failed: ' + e.message, 'error'); });
+        // OpenDTU: include gateway credentials
+        if (type === 'opendtu') {
+            var gwUser = formArea.querySelector('.ve-add-gw-user');
+            var gwPass = formArea.querySelector('.ve-add-gw-pass');
+            payload.gateway_host = host.value.trim();
+            if (gwUser && gwUser.value.trim()) payload.gateway_user = gwUser.value.trim();
+            if (gwPass && gwPass.value.trim()) payload.gateway_password = gwPass.value.trim();
+        }
+
+        function _doAdd() {
+            fetch('/api/devices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    showToast('Add failed: ' + data.error, 'error');
+                    return;
+                }
+                showToast('Device added', 'success');
+                modal.remove();
+                if (data.id) navigateTo(data.id, 'dashboard');
+            })
+            .catch(function(e) { showToast('Add failed: ' + e.message, 'error'); });
+        }
+
+        // OpenDTU: auto-test credentials before adding
+        if (type === 'opendtu') {
+            var authHint = formArea.querySelector('.ve-add-auth-hint');
+            addBtn.disabled = true;
+            addBtn.textContent = 'Testing...';
+            fetch('/api/opendtu/test-auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    host: payload.gateway_host || payload.host,
+                    user: payload.gateway_user || 'admin',
+                    password: payload.gateway_password || 'openDTU42'
+                })
+            }).then(function(r) { return r.json(); }).then(function(result) {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add';
+                if (result.success) {
+                    if (authHint) { authHint.style.display = 'block'; authHint.className = 've-hint-card ve-hint-card--success ve-add-auth-hint'; authHint.innerHTML = '<div class="ve-hint-header">Connected — ' + result.inverters.length + ' inverter(s) found</div>'; }
+                    _doAdd();
+                } else {
+                    if (authHint) { authHint.style.display = 'block'; authHint.className = 've-hint-card ve-add-auth-hint'; authHint.innerHTML = '<div class="ve-hint-header">' + esc(result.error) + '</div><p class="ve-hint-subtext">Please enter valid username and password.</p>'; }
+                }
+            }).catch(function(e) {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add';
+                if (authHint) { authHint.style.display = 'block'; authHint.className = 've-hint-card ve-add-auth-hint'; authHint.innerHTML = '<div class="ve-hint-header">Connection failed: ' + esc(e.message) + '</div>'; }
+            });
+        } else {
+            _doAdd();
+        }
     });
 
     // Discover button handler

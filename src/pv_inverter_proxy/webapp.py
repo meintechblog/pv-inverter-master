@@ -821,15 +821,22 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
             snap_inv = ds.collector.last_snapshot.get("inverter", {})
             power_w = snap_inv.get("ac_power_w", 0)
         display_name = inv.name or f"{inv.manufacturer} {inv.model}".strip() or "Inverter"
-        devices.append({
+        dev_entry: dict = {
             "id": inv.id,
             "name": display_name,
             "type": inv.type,
             "enabled": inv.enabled,
             "host": inv.host,
+            "port": inv.port,
+            "unit_id": inv.unit_id,
             "connection_state": conn_state,
             "power_w": power_w,
-        })
+        }
+        if inv.type == "opendtu":
+            dev_entry["gateway_host"] = inv.gateway_host
+            dev_entry["gateway_user"] = inv.gateway_user
+            dev_entry["gateway_password"] = inv.gateway_password
+        devices.append(dev_entry)
 
     venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
     devices.append({
@@ -1122,8 +1129,7 @@ async def power_clamp_handler(request: web.Request) -> web.Response:
         plugin = ds.plugin
 
     if max_pct < 100 and plugin is not None:
-        effective_pct = max(max_pct, 1)
-        await plugin.write_power_limit(True, effective_pct, force=True)
+        await plugin.write_power_limit(True, max_pct, force=True)
     elif max_pct >= 100 and plugin is not None:
         await plugin.write_power_limit(True, 100.0, force=True)
 
@@ -1517,6 +1523,7 @@ async def inverters_add_handler(request: web.Request) -> web.Response:
     if error:
         return web.json_response({"error": error}, status=400)
 
+    dev_type = body.get("type", "solaredge")
     entry = InverterEntry(
         host=host, port=port, unit_id=unit_id,
         enabled=body.get("enabled", True),
@@ -1525,6 +1532,10 @@ async def inverters_add_handler(request: web.Request) -> web.Response:
         serial=body.get("serial", ""),
         firmware_version=body.get("firmware_version", ""),
         name=body.get("name", ""),
+        type=dev_type,
+        gateway_host=body.get("gateway_host", host if dev_type == "opendtu" else ""),
+        gateway_user=body.get("gateway_user", ""),
+        gateway_password=body.get("gateway_password", ""),
     )
     config: Config = request.app["config"]
     config.inverters.append(entry)
@@ -1559,7 +1570,7 @@ async def inverters_update_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": f"Invalid request: {e}"}, status=400)
 
     was_enabled = entry.enabled
-    for field_name in ("host", "port", "unit_id", "enabled", "manufacturer", "model", "serial", "firmware_version", "rated_power", "name"):
+    for field_name in ("host", "port", "unit_id", "enabled", "manufacturer", "model", "serial", "firmware_version", "rated_power", "name", "gateway_host", "gateway_user", "gateway_password"):
         if field_name in body:
             setattr(entry, field_name, body[field_name])
 
@@ -1675,6 +1686,44 @@ async def config_import_handler(request: web.Request) -> web.Response:
     return web.json_response({"success": True, "message": "Config imported. Restart recommended."})
 
 
+async def opendtu_test_auth_handler(request: web.Request) -> web.Response:
+    """Test OpenDTU gateway connectivity and auth.
+
+    Body: {"host": "192.168.1.100", "user": "admin", "password": "openDTU42"}
+    Returns: {"success": true/false, "error": "...", "inverters": [...]}
+    """
+    import aiohttp as _aiohttp
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"success": False, "error": "Invalid JSON"}, status=400)
+
+    host = body.get("host", "")
+    user = body.get("user", "admin")
+    password = body.get("password", "openDTU42")
+
+    if not host:
+        return web.json_response({"success": False, "error": "Host required"}, status=400)
+
+    try:
+        auth = _aiohttp.BasicAuth(user, password)
+        async with _aiohttp.ClientSession(auth=auth) as session:
+            async with session.get(f"http://{host}/api/livedata/status", timeout=_aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 401:
+                    return web.json_response({"success": False, "error": "Authentication failed — check username/password"})
+                data = await resp.json()
+                inverters = []
+                for inv in data.get("inverters", []):
+                    inverters.append({
+                        "serial": inv.get("serial", ""),
+                        "name": inv.get("name", ""),
+                        "producing": inv.get("producing", False),
+                    })
+                return web.json_response({"success": True, "inverters": inverters})
+    except Exception as e:
+        return web.json_response({"success": False, "error": f"Connection failed: {e}"})
+
+
 async def create_webapp(
     app_ctx: object,
     config: Config,
@@ -1711,6 +1760,7 @@ async def create_webapp(
     app.router.add_put("/api/scanner/config", scanner_config_save_handler)
     app.router.add_post("/api/scanner/discover", scanner_discover_handler)
     app.router.add_post("/api/mqtt/discover", mqtt_discover_handler)
+    app.router.add_post("/api/opendtu/test-auth", opendtu_test_auth_handler)
     app.router.add_get("/api/inverters", inverters_list_handler)
     app.router.add_post("/api/inverters", inverters_add_handler)
     app.router.add_put("/api/inverters/{id}", inverters_update_handler)
