@@ -34,12 +34,25 @@
 
 ## Traceability
 
-| Requirement | Phase |
-|-------------|-------|
-| PLUG-01..07 | TBD   |
-| CTRL-01..03 | TBD   |
-| UI-01..05   | TBD   |
-| AGG-01..02  | TBD   |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PLUG-01 | Phase 28 | Pending |
+| PLUG-02 | Phase 28 | Pending |
+| PLUG-03 | Phase 28 | Pending |
+| PLUG-04 | Phase 28 | Pending |
+| PLUG-05 | Phase 28 | Pending |
+| PLUG-06 | Phase 28 | Pending |
+| PLUG-07 | Phase 28 | Pending |
+| CTRL-01 | Phase 29 | Pending |
+| CTRL-02 | Phase 29 | Pending |
+| CTRL-03 | Phase 29 | Pending |
+| UI-01 | Phase 30 | Pending |
+| UI-02 | Phase 30 | Pending |
+| UI-03 | Phase 31 | Pending |
+| UI-04 | Phase 31 | Pending |
+| UI-05 | Phase 30 | Pending |
+| AGG-01 | Phase 32 | Pending |
+| AGG-02 | Phase 32 | Pending |
 
 ## Future Requirements
 

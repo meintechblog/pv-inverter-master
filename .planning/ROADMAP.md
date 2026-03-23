@@ -8,7 +8,8 @@
 - v3.0 Setup & Onboarding -- Phases 13-16 (shipped 2026-03-19)
 - v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (shipped 2026-03-20)
 - v4.0 Multi-Source Virtual Inverter -- Phases 21-24 (shipped 2026-03-21)
-- v5.0 MQTT Data Publishing -- Phases 25-27 (in progress)
+- v5.0 MQTT Data Publishing -- Phases 25-27 (shipped 2026-03-22)
+- v6.0 Shelly Plugin -- Phases 28-32 (in progress)
 
 ## Phases
 
@@ -84,67 +85,90 @@ Full details: `.planning/milestones/v4.0-ROADMAP.md`
 
 </details>
 
-### v5.0 MQTT Data Publishing (In Progress)
+<details>
+<summary>v5.0 MQTT Data Publishing (Phases 25-27) -- SHIPPED 2026-03-22</summary>
 
-**Milestone Goal:** Publish inverter telemetry data to an external MQTT broker for integration with Home Assistant, Node-RED, Grafana, and other consumers. Zero-config Home Assistant integration via MQTT Auto-Discovery.
+- [x] Phase 25: Publisher Infrastructure & Broker Connectivity (2/2 plans) -- completed 2026-03-22
+- [x] Phase 26: Telemetry Publishing & Home Assistant Discovery (2/2 plans) -- completed 2026-03-22
+- [x] Phase 27: Webapp Config & Status UI (2/2 plans) -- completed 2026-03-22
 
-- [x] **Phase 25: Publisher Infrastructure & Broker Connectivity** - aiomqtt-based publisher with queue-decoupled architecture, config dataclass, LWT, reconnect, and mDNS broker discovery (completed 2026-03-22)
-- [x] **Phase 26: Telemetry Publishing & Home Assistant Discovery** - Per-device and virtual-PV topic hierarchy, JSON payloads, HA auto-discovery config payloads, wired into broadcast chain (completed 2026-03-22)
-- [x] **Phase 27: Webapp Config & Status UI** - MQTT Publishing config panel, mDNS discover button, connection status dot, topic preview (completed 2026-03-22)
+Full details: `.planning/milestones/v5.0-ROADMAP.md`
+
+</details>
+
+### v6.0 Shelly Plugin (In Progress)
+
+**Milestone Goal:** Shelly Smart Devices als drittes Inverter-Plugin integrieren -- misst Energiedaten des angeschlossenen Micro-PV-WR, ermoeglicht On/Off-Steuerung, unterstuetzt verschiedene Shelly-Generationen ueber austauschbare API-Profile.
+
+- [ ] **Phase 28: Plugin Core & Profiles** - ShellyPlugin with Gen1/Gen2 profiles, auto-detection, polling, SunSpec encoding, graceful degradation
+- [ ] **Phase 29: Switch Control & Config Wiring** - On/Off relay control, switch status display, power-limit no-op, plugin_factory integration
+- [ ] **Phase 30: Add-Device Flow** - Shelly as third option in add-device dialog, auto-detection UI, config page
+- [ ] **Phase 31: Device Dashboard & Connection Card** - Gauge, AC values, Shelly-specific connection card with on/off toggle
+- [ ] **Phase 32: Aggregation Integration** - Shelly data flows into virtual PV inverter, DC-averaging skip
 
 ## Phase Details
 
-### Phase 25: Publisher Infrastructure & Broker Connectivity
-**Goal**: The system can connect to a configurable MQTT broker, maintain a resilient connection, and discover brokers on the LAN
-**Depends on**: Phase 24 (v4.0 complete)
-**Requirements**: CONN-01, CONN-02, CONN-03, CONN-04, PUB-03, PUB-05
+### Phase 28: Plugin Core & Profiles
+**Goal**: A working ShellyPlugin can connect to any Shelly device, auto-detect its generation, poll energy data, and encode it as SunSpec registers
+**Depends on**: Phase 27 (v5.0 complete)
+**Requirements**: PLUG-01, PLUG-02, PLUG-03, PLUG-04, PLUG-05, PLUG-06, PLUG-07
 **Success Criteria** (what must be TRUE):
-  1. The proxy connects to a configured MQTT broker (default mqtt-master.local:1883) and publishes an "online" availability message on connect
-  2. When the broker becomes unreachable, the publisher reconnects automatically with exponential backoff without affecting inverter polling or WebSocket updates
-  3. When the proxy shuts down or crashes, the broker receives an "offline" LWT message so subscribers know the proxy is unavailable
-  4. The user can change broker host, port, and publish interval in config.yaml and the publisher hot-reloads without restarting the service
-  5. An mDNS scan discovers MQTT brokers advertising _mqtt._tcp.local. on the LAN
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 25-01-PLAN.md — Config dataclass, publisher module with LWT/reconnect, unit tests
-- [x] 25-02-PLAN.md — Lifecycle wiring (__main__.py + webapp.py hot-reload), mDNS discovery endpoint
+  1. ShellyPlugin implements the full InverterPlugin ABC and can be instantiated with a Shelly device IP
+  2. On first connect, the plugin auto-detects Gen1 vs Gen2+ by probing the /shelly endpoint and selects the correct API profile
+  3. The plugin polls power (W), voltage (V), current (A), frequency (Hz), energy (Wh), and temperature (C) from the Shelly device at the configured interval
+  4. Polled data is encoded into SunSpec Model 103 registers identical to how OpenDTU encodes its data
+  5. Missing fields (e.g., no temperature on some Gen1 models) result in zero/default values instead of errors
+**Plans**: TBD
 
-### Phase 26: Telemetry Publishing & Home Assistant Discovery
-**Goal**: All inverter data flows to the MQTT broker with per-device topics and Home Assistant discovers all sensors automatically
-**Depends on**: Phase 25
-**Requirements**: PUB-01, PUB-02, PUB-04, PUB-06, HA-01, HA-02, HA-03, HA-04
+### Phase 29: Switch Control & Config Wiring
+**Goal**: Users can turn Shelly relays on/off from the proxy, and Shelly devices are recognized by the plugin factory
+**Depends on**: Phase 28
+**Requirements**: CTRL-01, CTRL-02, CTRL-03
 **Success Criteria** (what must be TRUE):
-  1. Each inverter publishes a JSON telemetry payload (power, voltage, current, temperature, status, daily energy) to its own MQTT topic at the configured interval
-  2. The virtual PV plant publishes an aggregated payload (total power, per-inverter contributions) to a separate topic
-  3. Home Assistant auto-discovers all inverter sensors with correct device_class (power, energy, voltage, temperature) and state_class (measurement, total_increasing) without manual YAML configuration
-  4. Each inverter appears as a grouped device in Home Assistant with manufacturer, model, and SW version metadata
-  5. When telemetry data has not changed since the last publish, no redundant MQTT message is sent (change-based optimization)
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 26-01-PLAN.md — Pure payload extraction + HA discovery config builder (mqtt_payloads.py)
-- [x] 26-02-PLAN.md — Publisher integration: HA discovery on connect, change detection, queue wiring
+  1. The proxy can send on/off switch commands to a Shelly device via the correct Gen1 or Gen2 relay endpoint
+  2. The current switch state (on/off) is visible in the device data returned by the plugin
+  3. When Venus OS sends a power-limit command, write_power_limit() succeeds as a no-op and the device is excluded from throttling by default
+**Plans**: TBD
 
-### Phase 27: Webapp Config & Status UI
-**Goal**: Users can configure, monitor, and troubleshoot MQTT publishing entirely from the webapp
-**Depends on**: Phase 26
-**Requirements**: UI-01, UI-02, UI-03, UI-04
+### Phase 30: Add-Device Flow
+**Goal**: Users can add Shelly devices through the webapp with automatic generation detection
+**Depends on**: Phase 29
+**Requirements**: UI-01, UI-02, UI-05
 **Success Criteria** (what must be TRUE):
-  1. The config page shows an MQTT Publishing section with enable/disable toggle, broker host, port, topic prefix, and publish interval fields
-  2. A "Discover" button scans the LAN for MQTT brokers via mDNS and populates the broker field with the result
-  3. A connection status dot on the dashboard shows whether the MQTT publisher is currently connected to the broker (green/red)
-  4. A topic preview section shows the exact MQTT topics that will be published for each configured device
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 27-01-PLAN.md — Backend API + MQTT config panel with dirty tracking, save, enable toggle, mDNS discover
-- [x] 27-02-PLAN.md — Connection status dot via WebSocket, topic preview, human verification
+  1. The add-device dialog shows "Shelly Device" as a third option alongside SolarEdge and OpenDTU
+  2. After entering a Shelly IP, the webapp probes the device and displays the detected generation (Gen1/Gen2/Gen3) before confirming
+  3. The device config page shows the Shelly host and detected generation as a readonly field
+**Plans**: TBD
+
+### Phase 31: Device Dashboard & Connection Card
+**Goal**: Each Shelly device has a full dashboard with power gauge, AC values, and Shelly-specific connection info including on/off control
+**Depends on**: Phase 30
+**Requirements**: UI-03, UI-04
+**Success Criteria** (what must be TRUE):
+  1. The Shelly device dashboard shows a power gauge and AC values (power, voltage, current, frequency) but no DC section
+  2. The connection card displays Shelly-specific info (generation, model) and the current switch state with on/off buttons
+  3. On/off buttons in the connection card send switch commands and the UI reflects the new state within one poll cycle
+**Plans**: TBD
+
+### Phase 32: Aggregation Integration
+**Goal**: Shelly energy data is included in the virtual PV inverter totals and the aggregator handles Shelly's lack of DC data correctly
+**Depends on**: Phase 31
+**Requirements**: AGG-01, AGG-02
+**Success Criteria** (what must be TRUE):
+  1. A Shelly device's power and energy values are summed into the virtual PV inverter's aggregated SunSpec registers
+  2. The DC-averaging calculation in the aggregator skips Shelly devices without producing errors or skewing averages
+  3. The virtual PV inverter's total power on Venus OS includes the Shelly device's contribution
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 25 -> 26 -> 27
+Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 25. Publisher Infrastructure & Broker Connectivity | 2/2 | Complete    | 2026-03-22 |
-| 26. Telemetry Publishing & Home Assistant Discovery | 2/2 | Complete    | 2026-03-22 |
-| 27. Webapp Config & Status UI | 2/2 | Complete    | 2026-03-22 |
+| 28. Plugin Core & Profiles | 0/? | Not started | - |
+| 29. Switch Control & Config Wiring | 0/? | Not started | - |
+| 30. Add-Device Flow | 0/? | Not started | - |
+| 31. Device Dashboard & Connection Card | 0/? | Not started | - |
+| 32. Aggregation Integration | 0/? | Not started | - |
