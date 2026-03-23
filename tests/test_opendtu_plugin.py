@@ -208,7 +208,7 @@ class TestPollSuccess:
 
     @pytest.mark.asyncio
     async def test_poll_unreachable_inverter(self):
-        """Given JSON where target serial has reachable=false, returns success=False."""
+        """Given JSON where target serial has reachable=false, returns success=True (graceful)."""
         unreachable_data = {
             "inverters": [{
                 "serial": "112183818450",
@@ -225,8 +225,9 @@ class TestPollSuccess:
 
         result = await plugin.poll()
 
-        assert result.success is False
-        assert "reachable" in result.error.lower() or "unreachable" in result.error.lower()
+        # Unreachable via radio is not a connection failure — stays "connected"
+        assert result.success is True
+        assert result.error is None
 
     @pytest.mark.asyncio
     async def test_poll_serial_not_found(self):

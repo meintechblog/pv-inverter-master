@@ -82,17 +82,21 @@ class OpenDTUPlugin(InverterPlugin):
         # Find our inverter by serial
         inv = self._find_inverter(data)
         if inv is None:
-            serials = [str(i.get("serial", "?")) for i in data.get("inverters", []) if isinstance(i, dict)] if isinstance(data, dict) else []
+            inverters = data.get("inverters", []) if isinstance(data, dict) else []
+            if len(inverters) == 0:
+                # OpenDTU returned empty list — radio not yet synced, don't count as failure
+                log.debug("opendtu_empty_response", serial=self.serial)
+                return PollResult([], [], success=True, error=None)
+            serials = [str(i.get("serial", "?")) for i in inverters if isinstance(i, dict)]
             return PollResult(
                 [], [], success=False,
                 error=f"Serial {self.serial} not found (got: {serials})",
             )
 
         if not inv.get("reachable", False):
-            return PollResult(
-                [], [], success=False,
-                error=f"Inverter {self.serial} is unreachable",
-            )
+            # Inverter seen by OpenDTU but radio link down — don't count as failure
+            log.debug("opendtu_unreachable", serial=self.serial)
+            return PollResult([], [], success=True, error=None)
 
         # Update rated power from OpenDTU limit_absolute at 100%
         limit_abs = inv.get("limit_absolute", 0)
