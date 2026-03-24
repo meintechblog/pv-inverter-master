@@ -2558,7 +2558,12 @@ function buildRegisterViewer(container, models) {
 
         var headerRow = document.createElement('div');
         headerRow.className = 've-reg-header';
-        headerRow.innerHTML = '<span>Addr</span><span>Name</span><span class="ve-reg-se-value">SE30K Source</span><span class="ve-reg-fronius-value">Fronius Target</span><span class="ve-reg-decoded">Decoded</span>';
+        var sourceLabel = 'Device Source';
+        var targetLabel = 'Proxy Output';
+        if (_activeDeviceType === 'solaredge') { sourceLabel = 'SE30K Source'; targetLabel = 'Fronius Target'; }
+        else if (_activeDeviceType === 'opendtu') { sourceLabel = 'OpenDTU Source'; targetLabel = 'Proxy Output'; }
+        else if (_activeDeviceType === 'shelly') { sourceLabel = 'Shelly Source'; targetLabel = 'Proxy Output'; }
+        headerRow.innerHTML = '<span>Addr</span><span>Name</span><span class="ve-reg-se-value">' + sourceLabel + '</span><span class="ve-reg-fronius-value">' + targetLabel + '</span><span class="ve-reg-decoded">Decoded</span>';
         fields.appendChild(headerRow);
 
         model.fields.forEach(function(field) {
