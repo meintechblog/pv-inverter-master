@@ -143,7 +143,10 @@ Plans:
   2. After entering a Shelly IP, the webapp probes the device and displays the detected generation (Gen1/Gen2/Gen3) before confirming
   3. The device config page shows the Shelly host and detected generation as a readonly field
   4. The Discover button in the add-device flow finds Shelly devices on the LAN by scanning and probing /shelly
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 30-01-PLAN.md -- Shelly probe endpoint, mDNS discovery module, unit tests
+- [ ] 30-02-PLAN.md -- Frontend: type card, form, probe flow, discovery UI, config page fields
 
 ### Phase 31: Device Dashboard & Connection Card
 **Goal**: Each Shelly device has a full dashboard with power gauge, AC values, and Shelly-specific connection info including on/off control
@@ -174,6 +177,6 @@ Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
 |-------|----------------|--------|-----------|
 | 28. Plugin Core & Profiles | 0/1 | Complete    | 2026-03-24 |
 | 29. Switch Control & Config Wiring | 0/1 | Complete    | 2026-03-24 |
-| 30. Add-Device Flow & Discovery | 0/? | Not started | - |
+| 30. Add-Device Flow & Discovery | 0/2 | Not started | - |
 | 31. Device Dashboard & Connection Card | 0/? | Not started | - |
 | 32. Aggregation Integration | 0/? | Not started | - |
