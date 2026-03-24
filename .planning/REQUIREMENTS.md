@@ -1,4 +1,4 @@
-# Requirements: PV-Inverter-Proxy v6.0 — Shelly Plugin
+# Requirements: PV-Inverter-Master v6.0 — Shelly Plugin
 
 **Defined:** 2026-03-24
 **Core Value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen

@@ -1,6 +1,6 @@
 # Architecture Patterns
 
-**Domain:** Shelly Plugin Integration into PV-Inverter-Proxy
+**Domain:** Shelly Plugin Integration into PV-Inverter-Master
 **Researched:** 2026-03-24
 
 ## Recommended Architecture

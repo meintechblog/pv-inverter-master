@@ -59,7 +59,7 @@ No structural changes needed -- only content fixes within existing steps.
 The correct YAML structure derived from `config.py` (lines 22-60):
 
 ```yaml
-# PV-Inverter Proxy Configuration
+# PV-Inverter-Master Configuration
 inverter:
   host: "192.168.3.18"   # SolarEdge inverter IP
   port: 1502             # Modbus TCP port
@@ -144,7 +144,7 @@ README.md
 
 ```bash
     cat > "$CONFIG_DIR/config.yaml" << 'YAML'
-# PV-Inverter Proxy Configuration
+# PV-Inverter-Master Configuration
 # Docs: https://github.com/meintechblog/pv-inverter-proxy
 
 # SolarEdge inverter connection

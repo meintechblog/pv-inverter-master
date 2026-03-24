@@ -33,7 +33,7 @@ human_verification:
 | 5 | Exponential backoff 5s→10s→30s→60s for offline devices | VERIFIED | `_device_poll_loop` uses `conn_mgr.sleep_duration` from `ConnectionManager`; `test_backoff_on_failure` validates backoff progression |
 | 6 | Venus OS sees a single Fronius inverter whose power equals the sum of all active inverters | VERIFIED | `AggregationLayer.recalculate()` sums `ac_power_w` from all active `DeviceState.last_poll_data`, encodes with fixed SFs, writes to `INVERTER_CACHE_ADDR` |
 | 7 | If one inverter goes offline, Venus OS still receives aggregated data from the remaining reachable inverters | VERIFIED | `aggregation.py:162` — `if not active_data: return` (cache stays stale only if ALL offline); skips `ds` where `last_poll_data is None` |
-| 8 | Virtual inverter shows Manufacturer=Fronius, Model=user-defined name (default: Fronius PV Inverter Proxy) | VERIFIED | `_build_virtual_common()` hardcodes `"Fronius"` for manufacturer; reads `config.virtual_inverter.name` or defaults to `"Fronius PV Inverter Proxy"` |
+| 8 | Virtual inverter shows Manufacturer=Fronius, Model=user-defined name (default: Fronius PV-Inverter-Master) | VERIFIED | `_build_virtual_common()` hardcodes `"Fronius"` for manufacturer; reads `config.virtual_inverter.name` or defaults to `"Fronius PV-Inverter-Master"` |
 | 9 | WRtg (Model 120) equals the auto-sum of all active inverter rated_powers | VERIFIED | `_update_wrtg()` sums `entry.rated_power` for enabled entries present in active device IDs; writes to datablock address 40125 |
 | 10 | Aggregated values use consistent fixed scale factors (SF=0 power, SF=-1 voltage, SF=-2 current/freq) | VERIFIED | `encode_aggregated_model_103()` documents and applies: power SF=0, current SF=-2, voltage SF=-1, frequency SF=-2 — all via `_int16_as_uint16()` |
 
@@ -72,7 +72,7 @@ human_verification:
 | AGG-01 | 22-02-PLAN.md | Aggregation sums Power, Current, Energy from all active inverters in physical units | SATISFIED | `recalculate()` sums `ac_power_w`, `ac_current_a`, `energy_total_wh`, `dc_power_w`, etc. from decoded physical values |
 | AGG-02 | 22-02-PLAN.md | Aggregated values converted to SunSpec registers with consistent scale factors | SATISFIED | `encode_aggregated_model_103()` uses fixed SFs: power SF=0, current SF=-2, voltage SF=-1, frequency SF=-2 |
 | AGG-03 | 22-02-PLAN.md | On partial inverter failure, aggregation still delivers data from reachable devices | SATISFIED | `recalculate()` skips devices where `last_poll_data is None`; only returns early when ALL devices have no data |
-| AGG-04 | 22-02-PLAN.md | User can define name for virtual inverter (default pre-selected) | SATISFIED | `VirtualInverterConfig.name` default `"Fronius PV Inverter Proxy"`; `_build_virtual_common()` writes it to Common Model C_Model registers |
+| AGG-04 | 22-02-PLAN.md | User can define name for virtual inverter (default pre-selected) | SATISFIED | `VirtualInverterConfig.name` default `"Fronius PV-Inverter-Master"`; `_build_virtual_common()` writes it to Common Model C_Model registers |
 
 ### Anti-Patterns Found
 
@@ -92,7 +92,7 @@ The plan stated "When 0 active inverters: Modbus server stops." The implementati
 #### 1. End-to-End Virtual Inverter Aggregation
 
 **Test:** Configure two inverters in `config.yaml`, start the proxy, connect a Modbus client to port 502 and read registers 40002-40120. Then use Venus OS or a SunSpec reader to discover and poll the virtual device.
-**Expected:** Reads return Manufacturer="Fronius", Model="Fronius PV Inverter Proxy" (or configured name). AC power register equals the sum of both physical inverter AC powers. Voltage and frequency are averaged.
+**Expected:** Reads return Manufacturer="Fronius", Model="Fronius PV-Inverter-Master" (or configured name). AC power register equals the sum of both physical inverter AC powers. Voltage and frequency are averaged.
 **Why human:** Requires live inverter hardware or a Modbus simulator producing valid SunSpec Model 103 data. Cannot construct realistic poll data without actual inverter connections.
 
 #### 2. Partial Failure Resilience

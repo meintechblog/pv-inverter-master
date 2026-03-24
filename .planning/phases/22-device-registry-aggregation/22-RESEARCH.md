@@ -26,7 +26,7 @@ The existing codebase provides strong foundations: `AppContext.devices` dict, `D
 - Teilausfall: erreichbare Inverter summieren, offline-Inverter ignorieren (sofort, kein Caching des letzten Werts)
 - Aggregierte Werte werden in SunSpec-Register konvertiert mit konsistenten Scale Factors
 - Kein Fehler/Stale bei Teilausfall -- solange mindestens 1 Inverter online
-- Config-Abschnitt: `virtual_inverter: name: "Meine PV-Anlage"`, Default: "Fronius PV Inverter Proxy"
+- Config-Abschnitt: `virtual_inverter: name: "Meine PV-Anlage"`, Default: "Fronius PV-Inverter-Master"
 - Venus OS sieht: Manufacturer="Fronius", Model=user-definierter Name
 - Rated Power (WRtg Model 120): automatisch Summe aller aktiven Inverter rated_powers
 - Modbus-Server bleibt auf Port 502 mit Unit ID 126

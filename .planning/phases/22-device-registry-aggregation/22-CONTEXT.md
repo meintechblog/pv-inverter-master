@@ -30,7 +30,7 @@ DeviceRegistry manages N devices with independent poll loops (asyncio tasks). Ag
 
 ### Virtueller Inverter Name & Identity
 - Config-Abschnitt: `virtual_inverter: name: "Meine PV-Anlage"`
-- Default-Name wenn leer: "Fronius PV Inverter Proxy"
+- Default-Name wenn leer: "Fronius PV-Inverter-Master"
 - Venus OS sieht: Manufacturer="Fronius", Model=user-definierter Name
 - So bleibt Venus OS Auto Power Limit aktiviert (braucht Manufacturer=Fronius)
 - Rated Power (WRtg Model 120): automatisch Summe aller aktiven Inverter rated_powers

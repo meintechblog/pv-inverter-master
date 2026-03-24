@@ -58,7 +58,7 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 - ✓ Virtueller PV-Inverter: Alle aktiven Inverter zu einem aggregierten Fronius-Device fuer Venus OS — v4.0
 - ✓ Flexibles Regelverhalten: Prioritaets-Reihenfolge fuer Power Limiting (Wasserfall-Algorithmus) — v4.0
 - ✓ Inverter aus Regelverhalten ausschliessbar (Monitoring-Only) — v4.0
-- ✓ Benutzerdefinierter Name fuer den virtuellen Inverter (Default: "Fronius PV Inverter Proxy") — v4.0
+- ✓ Benutzerdefinierter Name fuer den virtuellen Inverter (Default: "Fronius PV-Inverter-Master") — v4.0
 - ✓ Venus OS als eigenes Device mit eigenem Menuepunkt (ESS, MQTT, Status) — v4.0
 - ✓ Zentrales Device-Management: "+" zum Hinzufuegen von Invertern und Venus OS — v4.0
 

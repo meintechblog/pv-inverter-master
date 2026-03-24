@@ -61,7 +61,7 @@ completed: 2026-03-20
 
 ## Accomplishments
 - AggregationLayer decodes per-device Model 103 registers to physical values, sums power/current/energy, averages voltage/frequency, takes max temperature, encodes with consistent fixed SFs
-- Virtual inverter identity: Manufacturer="Fronius", Model=user-defined name (default "Fronius PV Inverter Proxy")
+- Virtual inverter identity: Manufacturer="Fronius", Model=user-defined name (default "Fronius PV-Inverter-Master")
 - WRtg Model 120 auto-summed from active InverterEntry rated_powers
 - Proxy fully rewired: __main__.py creates DeviceRegistry + AggregationLayer, proxy.py provides server-only setup
 - Compat accessors removed from AppContext (primary_device, dashboard_collector, conn_mgr, poll_counter, last_poll_data)

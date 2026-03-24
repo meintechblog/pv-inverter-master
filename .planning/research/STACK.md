@@ -1,6 +1,6 @@
 # Technology Stack: Shelly Plugin Integration (v6.0)
 
-**Project:** PV Inverter Proxy
+**Project:** PV-Inverter-Master
 **Researched:** 2026-03-24
 **Scope:** Stack additions for Shelly Gen1/Gen2/Gen3 local REST API plugin
 **Overall confidence:** HIGH

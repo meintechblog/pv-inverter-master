@@ -1,4 +1,4 @@
-# Feature Research: Shelly Plugin for PV-Inverter-Proxy
+# Feature Research: Shelly Plugin for PV-Inverter-Master
 
 **Domain:** Shelly smart device integration as PV monitoring plugin
 **Researched:** 2026-03-24
@@ -264,5 +264,5 @@ Features that go beyond basic integration and add real value.
 - [dbus-shelly-1pm-pvinverter](https://github.com/vikt0rm/dbus-shelly-1pm-pvinverter) -- Community Victron/Shelly integration (MEDIUM confidence)
 
 ---
-*Feature research for: Shelly Plugin integration into PV-Inverter-Proxy v6.0*
+*Feature research for: Shelly Plugin integration into PV-Inverter-Master v6.0*
 *Researched: 2026-03-24*
