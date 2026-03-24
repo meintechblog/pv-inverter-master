@@ -136,25 +136,31 @@ class ShellyPlugin(InverterPlugin):
 
         Register layout matches OpenDTU encoding exactly.
         Shelly has no DC data -- DC registers are all zero.
+        abs() on power/current: Shelly reports negative values when the
+        attached device feeds power (PV inverter), but SunSpec registers
+        are always positive for generation.
         """
         regs = [0] * 52
         regs[0] = 103   # DID
         regs[1] = 50    # Length
 
+        power_w = abs(data.power_w)
+        current_a = abs(data.current_a)
+
         # AC Current (offset 2-6)
-        regs[2] = int(round(data.current_a * 100))    # Total AC current, SF=-2
-        regs[3] = int(round(data.current_a * 100))    # Phase A (single-phase)
+        regs[2] = int(round(current_a * 100))    # Total AC current, SF=-2
+        regs[3] = int(round(current_a * 100))    # Phase A (single-phase)
         regs[4] = 0  # Phase B (N/A)
         regs[5] = 0  # Phase C (N/A)
-        regs[6] = _int16_as_uint16(-2)                 # AC Current SF
+        regs[6] = _int16_as_uint16(-2)            # AC Current SF
 
         # AC Voltage (offset 7-13)
         regs[10] = int(round(data.voltage_v * 10))     # AC Voltage AN, SF=-1
         regs[13] = _int16_as_uint16(-1)                 # AC Voltage SF
 
         # AC Power (offset 14-15)
-        regs[14] = int(round(data.power_w)) & 0xFFFF   # AC Power, SF=0
-        regs[15] = 0                                     # AC Power SF
+        regs[14] = int(round(power_w)) & 0xFFFF   # AC Power, SF=0
+        regs[15] = 0                                # AC Power SF
 
         # AC Frequency (offset 16-17)
         regs[16] = int(round(data.frequency_hz * 100))  # Frequency, SF=-2
