@@ -22,11 +22,11 @@
 ## UI Integration
 
 - [ ] **UI-01**: "Shelly Device" als dritte Option im Add-Device Dialog
-- [ ] **UI-02**: Auto-Detection und Generation-Anzeige beim Hinzufuegen (testet /shelly Endpoint)
+- [x] **UI-02**: Auto-Detection und Generation-Anzeige beim Hinzufuegen (testet /shelly Endpoint)
 - [ ] **UI-03**: Device Dashboard mit Gauge, AC-Werte (kein DC-Section — Capability-Flag)
 - [ ] **UI-04**: Connection Card mit Shelly-spezifischen Infos (Generation, Switch-Status, On/Off Buttons)
 - [ ] **UI-05**: Config-Seite mit Shelly-Host und erkannter Generation (readonly)
-- [ ] **UI-06**: Auto-Discovery von Shelly-Devices im LAN (Netzwerk-Scan mit /shelly Probe auf gefundene Hosts)
+- [x] **UI-06**: Auto-Discovery von Shelly-Devices im LAN (Netzwerk-Scan mit /shelly Probe auf gefundene Hosts)
 
 ## Aggregation
 
@@ -48,11 +48,11 @@
 | CTRL-02 | Phase 29 | Complete |
 | CTRL-03 | Phase 29 | Complete |
 | UI-01 | Phase 30 | Pending |
-| UI-02 | Phase 30 | Pending |
+| UI-02 | Phase 30 | Complete |
 | UI-03 | Phase 31 | Pending |
 | UI-04 | Phase 31 | Pending |
 | UI-05 | Phase 30 | Pending |
-| UI-06 | Phase 30 | Pending |
+| UI-06 | Phase 30 | Complete |
 | AGG-01 | Phase 32 | Pending |
 | AGG-02 | Phase 32 | Pending |
 

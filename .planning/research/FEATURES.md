@@ -1,253 +1,268 @@
-# Feature Landscape: MQTT Data Publishing
+# Feature Research: Shelly Plugin for PV-Inverter-Proxy
 
-**Domain:** PV inverter data publishing to external MQTT broker
-**Researched:** 2026-03-22
-**Scope:** New features only -- building on existing v4.0 multi-inverter proxy with DeviceRegistry, DashboardCollector snapshots, and Venus OS MQTT subscriber
+**Domain:** Shelly smart device integration as PV monitoring plugin
+**Researched:** 2026-03-24
+**Confidence:** HIGH (official Shelly API docs verified, evcc reference implementation studied)
 
-## Table Stakes
+## Shelly Device Context for PV Monitoring
 
-Features users expect from any solar MQTT publisher. Missing = integration feels broken.
+Shelly smart plugs are widely used in the German balcony solar (Balkonkraftwerk) community to measure micro-inverter output. The typical setup: a Shelly Plug sits between the micro-inverter's AC output cable and the household socket. The Shelly measures power flowing through it -- effectively monitoring the inverter's production without requiring inverter-specific protocols.
 
-| Feature | Why Expected | Complexity | Dependencies | Notes |
-|---------|--------------|------------|--------------|-------|
-| Per-device MQTT topics | Every solar MQTT tool (SolarAssistant, deye-inverter-mqtt, growatt2mqtt) publishes per-device. Users filter by device in HA/Grafana | Low | DeviceRegistry, DashboardCollector snapshots | Topic per inverter + virtual aggregated device |
-| JSON payloads with physical units | Standard format. All HA integrations expect structured JSON, not raw register values | Low | DashboardCollector already decodes to physical units | Reuse existing snapshot structure, flatten for MQTT |
-| Configurable broker connection | Users have existing brokers (Mosquitto on HA, standalone, mqtt-master.local). Must point to their broker | Low | Config dataclass, existing YAML pattern | host, port, client_id, enable/disable |
-| Configurable publish interval | deye-inverter-mqtt defaults 60s, growatt2mqtt does 4s, SolarAssistant ~5s. Users need control | Low | asyncio timer | Default 5s (matches poll interval), range 1-60s |
-| Availability topic (online/offline) | HA uses availability to grey out sensors when device unreachable. Standard MQTT pattern | Low | MQTT LWT (Last Will and Testament) | `pv-proxy/status` with `online`/`offline` payload, set LWT on connect |
-| Broker connection status in webapp | Existing pattern: Venus MQTT shows connection bobble. Users expect same for publish broker | Low | Existing connection bobble pattern | Reuse `ve-dot` component |
-| Enable/disable toggle in config UI | Not everyone wants MQTT publishing. Must be opt-in, not forced | Low | Existing config page pattern | Per the existing Venus config section pattern |
+**Key difference from SolarEdge/OpenDTU:** Shelly devices are AC-only measurement devices with relay control. They have no DC data, no MPPT status, no inverter-internal telemetry. They measure what comes out of the micro-inverter at the socket level.
 
-## Differentiators
+## Shelly API Landscape by Generation
 
-Features that set this apart from generic solar MQTT bridges. Not expected, but valued.
+### Gen1 (Legacy: Shelly 1PM, Shelly Plug S original)
 
-| Feature | Value Proposition | Complexity | Dependencies | Notes |
-|---------|-------------------|------------|--------------|-------|
-| Home Assistant MQTT Auto-Discovery | Zero-config HA integration. Devices + entities appear automatically with correct units, icons, device_class. Huge UX win -- no manual sensor.yaml editing | Medium | Requires specific HA discovery topic format + JSON config payloads | THE killer feature for this milestone |
-| Virtual aggregated device in HA | HA sees both individual inverters AND the combined virtual PV plant. Matches proxy architecture | Low | AggregationLayer already computes sums | Publish aggregated snapshot as separate HA device |
-| mDNS broker autodiscovery | Find mqtt-master.local or any broker advertising `_mqtt._tcp` without manual IP entry. Matches v3.1 auto-discovery pattern | Medium | python-zeroconf (new dependency) or socket-based mDNS query | Nice for first-setup UX, but fallback to manual config essential |
-| Publish-on-change with max interval | Reduce broker load: only publish when values actually change, with configurable max staleness (e.g., 360s). deye-inverter-mqtt does this | Low-Med | Snapshot diff logic | Good for Grafana (less noise), but adds complexity. Defer to post-MVP |
-| Per-device enable/disable publishing | Some inverters might be monitoring-only, user may not want all devices in HA | Low | Existing per-inverter config pattern | Add `mqtt_publish: true/false` to InverterEntry |
-| Energy dashboard ready sensors | HA Energy Dashboard requires specific `state_class: total_increasing` + `device_class: energy` on kWh sensors. Without this, energy data won't appear in HA Energy tab | Low | Correct HA discovery config values | Include in auto-discovery payloads from day one |
+| Endpoint | Returns | Notes |
+|----------|---------|-------|
+| `GET /shelly` | `{type, mac, auth, fw, num_meters}` | No `gen` field -- absence of `gen` = Gen1 |
+| `GET /status` | Full device status JSON | Meters array with power, energy |
+| `GET /relay/0` | `{ison, power, energy, temperature}` | Relay state + basic metering |
+| `GET /relay/0?turn=on` | Turns relay on | Control endpoint |
+| `GET /relay/0?turn=off` | Turns relay off | Control endpoint |
 
-## Anti-Features
+**Gen1 meter fields:** `power` (W), `total` (Wh as Watt-minutes/60), `temperature` (device internal C)
+**Gen1 limitations:** No voltage/current on basic models; Shelly 1PM Gen1 reports power but not V/A separately. The BL0937 chip in Gen1 Plug S cannot detect power direction (no negative values for feed-in).
 
-Features to explicitly NOT build.
+### Gen2 (Plus series: Shelly Plus Plug S, Plus 1PM)
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Built-in MQTT broker | Proxy is a publisher, not infrastructure. Users have their own broker (Mosquitto, EMQX, etc.) | Connect to external broker only |
-| TLS/authentication for MQTT | PROJECT.md explicitly marks this out of scope -- everything is same-LAN. Adding TLS would complicate setup for zero security benefit in this context | Plain TCP connection. Document that TLS is not supported |
-| Retained messages for all data | Retained power/current values go stale instantly. Only retain availability and discovery config | Retain: discovery config + availability. Do NOT retain: telemetry data |
-| Command/control via external MQTT | Power limiting commands should only come through the webapp or Venus OS (safety critical). Accepting commands from random MQTT clients is dangerous | Publish-only, no subscribe on external broker. Control stays in webapp/Venus OS |
-| Custom topic templates | Jinja2 or variable substitution in topic paths adds complexity for marginal benefit. Fixed, well-structured topics are easier to document and debug | Fixed topic hierarchy with device ID interpolation |
-| Separate MQTT client per device | One shared paho-mqtt client is simpler, more resource-efficient, and easier to manage lifecycle | Single MqttPublisher with per-device topic routing |
-| Historical data replay | Proxy has in-memory ring buffers, not a database. MQTT is real-time. Grafana/InfluxDB handle history | Publish current values only. History is the consumer's job |
-| QoS 2 (exactly once delivery) | Massive overhead for telemetry that updates every few seconds. Lost message = next one arrives in 5s anyway | QoS 0 for telemetry, QoS 1 for discovery config and availability |
+| Endpoint | Returns | Notes |
+|----------|---------|-------|
+| `GET /shelly` | `{id, mac, model, gen:2, fw_id, ver, app, auth_en}` | `gen` field present |
+| `GET /rpc/Shelly.GetStatus` | All component statuses | Primary data endpoint |
+| `GET /rpc/Switch.GetStatus?id=0` | Switch + metering data | Per-channel status |
+| `GET /rpc/Switch.Set?id=0&on=true` | Turn on | Control via RPC |
+| `GET /rpc/Switch.Set?id=0&on=false` | Turn off | Control via RPC |
+
+**Gen2 Switch.GetStatus fields:**
+- `output` (bool) -- relay on/off state
+- `apower` (float) -- active power in Watts
+- `voltage` (float) -- supply voltage in Volts
+- `current` (float) -- current in Amps
+- `pf` (float) -- power factor
+- `freq` (float) -- network frequency in Hz
+- `aenergy.total` (float) -- total consumed energy in Wh
+- `aenergy.by_minute` (array) -- last 3 minutes in mWh
+- `ret_aenergy.total` (float) -- returned energy in Wh (only on supported devices)
+- `temperature.tC` (float) -- device temperature in Celsius
+- `errors` (array) -- `["overtemp", "overpower", "overvoltage", "undervoltage"]`
+
+### Gen3 (Shelly Plug S Gen3, Plug PM Gen3)
+
+Same RPC API as Gen2 (`gen:3` in `/shelly` response). Gen3 uses the BL0942 chip which CAN detect power direction, enabling negative `apower` values for solar feed-in measurement. This is the recommended device for PV monitoring.
+
+## Generation Auto-Detection Strategy
+
+All Shelly generations expose `GET /shelly`. The response structure differs:
+
+```
+Gen1: {"type":"SHPLG-S","mac":"XXXX","auth":false,"fw":"...","num_meters":1}
+Gen2: {"id":"shellypluss-XXXX","mac":"XXXX","model":"SNPL-00116EU","gen":2,...}
+Gen3: {"id":"shellyplugsg3-XXXX","mac":"XXXX","model":"S3PL-00112EU","gen":3,...}
+```
+
+**Detection algorithm:** `GET /shelly` -> if `gen` field exists, use its value (2 or 3 -> Gen2 API). If `gen` absent, it is Gen1. This matches the approach used by evcc (reference: evcc-io/evcc meter/shelly package).
+
+## Feature Landscape
+
+### Table Stakes (Users Expect These)
+
+Features that MUST exist for the Shelly plugin to feel like a first-class citizen alongside SolarEdge/OpenDTU.
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Power polling (W) | Core purpose -- measure micro-inverter output | LOW | Gen1: `power` from `/status`. Gen2/3: `apower` from `Switch.GetStatus` |
+| Voltage reading (V) | Existing plugins show voltage | LOW | Gen2/3 only. Gen1: synthesize 0 or skip |
+| Current reading (A) | Existing plugins show current | LOW | Gen2/3 only. Gen1: synthesize 0 or skip |
+| Energy total (Wh) | Dashboard shows daily yield + total | LOW | Gen1: `total` (Watt-minutes -> Wh). Gen2/3: `aenergy.total` |
+| Temperature (C) | Existing plugins show device temp | LOW | Gen1: `temperature`. Gen2/3: `temperature.tC` |
+| On/Off switch control | PROJECT.md specifies this explicitly | LOW | Gen1: `relay/0?turn=on/off`. Gen2/3: `Switch.Set?id=0&on=true/false` |
+| Generation auto-detection | PROJECT.md: "Auto-Detection der Shelly-Generation beim Hinzufuegen" | MEDIUM | `GET /shelly` -> check `gen` field presence/value |
+| Gen1/Gen2+ profile system | Different API shapes need abstraction | MEDIUM | Two profile classes behind one ShellyPlugin facade |
+| Device dashboard (gauge + AC values) | Every device gets a dashboard -- existing pattern | MEDIUM | Reuse existing gauge/AC-table components, no DC section |
+| Connection card with On/Off toggle | Matches OpenDTU pattern (has power on/off) | LOW | Replace power-limit slider with simple on/off toggle |
+| Aggregation into virtual inverter | Shelly data must flow into Venus OS | LOW | Plugin returns SunSpec registers via existing PollResult |
+| Add-Device flow: Shelly option | Third option alongside SolarEdge/OpenDTU | LOW | New "shelly" type in plugin_factory + UI selector |
+| Config persistence (host, channel) | Standard config pattern | LOW | New fields on InverterEntry: `shelly_channel` (default 0) |
+| Frequency reading (Hz) | Grid frequency is useful for PV monitoring | LOW | Gen2/3: `freq` field. Gen1: not available, synthesize 50.0 |
+
+### Differentiators (Competitive Advantage)
+
+Features that go beyond basic integration and add real value.
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Returned energy tracking | Shelly Gen3 can measure energy fed INTO grid (negative apower, ret_aenergy). Unique data point no other plugin has | LOW | Only on Gen3 with BL0942 chip. Show as "Feed-in Energy" on dashboard |
+| Error condition display | Shelly reports overtemp/overpower/overvoltage/undervoltage errors. Surface these as toast notifications | LOW | Gen2/3: `errors` array in Switch.GetStatus |
+| Power factor display | PF matters for micro-inverter efficiency assessment | LOW | Gen2/3: `pf` field. Nice addition to AC details |
+| mDNS discovery of Shellys | Shelly devices announce via mDNS as `_http._tcp.local.` with "shelly" in hostname. Auto-find them on the network | MEDIUM | Existing scanner infrastructure could be extended. Shellys respond to `GET /shelly` on port 80 |
+| Per-minute power history from device | Gen2/3 `aenergy.by_minute` gives 3-minute granular data directly from the device, no extra storage needed | LOW | Could supplement the existing ring buffer sparklines |
+
+### Anti-Features (Do NOT Build)
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Shelly Cloud API integration | "Access from anywhere" | Adds cloud dependency, auth complexity, latency. PROJECT.md explicitly says "Nur lokale REST API, kein Cloud-Account noetig" | Local REST API only, as designed |
+| Power limiting (%) for Shelly | "Match SolarEdge feature parity" | Shelly plugs are binary on/off relays. They cannot do percentage-based power limiting. Pretending otherwise would be misleading | On/Off only. Set `throttle_enabled: false` by default for Shelly devices (monitoring-only) |
+| DC values (voltage, current, power) | "Feature parity with SolarEdge dashboard" | Shelly measures AC only at the socket. There are no DC values. Showing zeros or N/A clutters the UI | Hide DC section entirely for Shelly devices. Dashboard should adapt based on device capabilities |
+| Shelly scripting/automation | "Run scripts on the Shelly device" | Out of scope -- this proxy monitors and aggregates, does not manage device firmware/scripts | Users configure Shelly scripts via Shelly app directly |
+| MQTT subscription to Shelly | "Subscribe to Shelly's built-in MQTT instead of polling REST" | Adds MQTT client complexity, Shelly MQTT needs configuration on the device side, REST polling is simpler and matches OpenDTU pattern | REST polling at configurable interval (default 5s) |
+| Shelly Gen4 support | "Future-proof for Gen4 devices" | Gen4 not widely available yet, API may change. YAGNI | Gen4 uses same RPC API as Gen2/3 per current docs, so it should work. Add explicit support when a user has one |
+| Shelly EM / 3EM support | "Measure grid/house consumption" | These are energy meters, not PV inverter monitors. They measure consumption at the panel level. Does not fit the "inverter plugin" abstraction | Out of scope per PROJECT.md -- proxy only handles PV data |
+| Automatic relay scheduling | "Turn micro-inverter on/off on schedule" | Feature creep. Proxy is for monitoring + Venus OS integration, not home automation | Users can use Shelly app or Home Assistant for scheduling |
 
 ## Feature Dependencies
 
 ```
-Config: MqttPublishConfig dataclass
-  |
-  +-> Broker Connection (paho-mqtt async loop)
-  |     |
-  |     +-> LWT / Availability topic (set on connect)
-  |     |
-  |     +-> HA Auto-Discovery (publish config payloads on connect)
-  |     |     |
-  |     |     +-> Energy Dashboard ready sensors (correct state_class/device_class)
-  |     |
-  |     +-> Telemetry Publishing (periodic JSON payloads)
-  |           |
-  |           +-> Per-device topics (individual inverters)
-  |           |
-  |           +-> Virtual aggregated device topic
-  |
-  +-> Webapp Config UI (broker settings, enable/disable, status dot)
-  |
-  +-> mDNS Broker Discovery (optional, enhances config UX)
+[Generation Auto-Detection]
+    |-- requires --> [/shelly endpoint probe]
+    |-- feeds -----> [Gen1/Gen2+ Profile System]
+                          |
+                          |-- Gen1Profile --> [/status + /relay polling]
+                          |-- Gen2Profile --> [/rpc/Switch.GetStatus polling]
+                          |
+                          v
+                    [ShellyPlugin (facade)]
+                          |
+                          |-- implements --> [InverterPlugin ABC]
+                          |                      |
+                          |                      |-- poll() --> [PollResult with SunSpec registers]
+                          |                      |-- write_power_limit() --> [On/Off only, no %]
+                          |                      |-- connect() --> [aiohttp session + gen detect]
+                          |
+                          |-- feeds -----> [DashboardCollector]
+                          |                      |
+                          |                      v
+                          |                [Device Dashboard (no DC section)]
+                          |
+                          |-- feeds -----> [AggregationLayer]
+                                               |
+                                               v
+                                         [Virtual Fronius Inverter for Venus OS]
+
+[Add-Device Flow]
+    |-- requires --> [plugin_factory update]
+    |-- requires --> [InverterEntry.type = "shelly"]
+    |-- requires --> [UI: third device type option]
+    |-- triggers --> [Generation Auto-Detection on save]
+
+[On/Off Toggle]
+    |-- requires --> [ShellyPlugin.send_switch_command()]
+    |-- requires --> [Dashboard UI: toggle instead of slider]
+    |-- uses -----> [Existing WebSocket command pattern]
 ```
 
-## Detailed Feature Specifications
+### Dependency Notes
 
-### 1. MQTT Topic Structure
+- **Profile System requires Auto-Detection:** The profile (Gen1 vs Gen2+) must be determined before the first poll. Auto-detection runs once at connect time and caches the result.
+- **Dashboard adapts to capabilities:** Shelly devices have no DC data. The dashboard component must conditionally hide the DC section and show only AC values + temperature.
+- **Aggregation is transparent:** Once ShellyPlugin returns a valid PollResult with SunSpec Model 103 registers, the existing AggregationLayer handles it identically to SolarEdge/OpenDTU data. No aggregation changes needed.
+- **On/Off conflicts with power limiting:** Shelly must default to `throttle_enabled: false` so the PowerLimitDistributor does not try to send percentage limits to it. On/Off is a separate control path.
 
-Use a fixed hierarchy. Based on ecosystem research (SolarAssistant, deye-inverter-mqtt, growatt2mqtt):
+## MVP Definition
 
-```
-pv-proxy/status                              -> "online" / "offline" (LWT)
-pv-proxy/device/{device_id}/state            -> JSON telemetry payload
-pv-proxy/device/{device_id}/availability     -> "online" / "offline"
-pv-proxy/virtual/state                       -> aggregated virtual inverter JSON
-pv-proxy/virtual/availability                -> "online" / "offline"
-```
+### Launch With (v6.0 Core)
 
-Where `{device_id}` is the existing InverterEntry.id (12-char hex). The topic prefix `pv-proxy` should be configurable (default: `pv-proxy`).
+- [ ] ShellyPlugin implementing InverterPlugin ABC with Gen1/Gen2+ profiles
+- [ ] Generation auto-detection via `GET /shelly` on connect
+- [ ] REST polling: power, voltage, current, energy, temperature, frequency
+- [ ] On/Off relay control via webapp toggle
+- [ ] SunSpec register encoding (AC values mapped to Model 103, no DC)
+- [ ] Device dashboard: power gauge, AC values table, connection card with on/off
+- [ ] Add-Device flow: "Shelly" as third option with host input
+- [ ] Config: `type: "shelly"`, `shelly_channel: 0`, host field
+- [ ] Aggregation: Shelly power flows into virtual inverter sum
+- [ ] `throttle_enabled: false` default (monitoring-only in power distributor)
 
-### 2. Telemetry Payload Format
+### Add After Validation (v6.x)
 
-Flat JSON, physical units, matching existing DashboardCollector snapshot fields:
+- [ ] Returned energy display -- when Gen3 device is detected, show feed-in Wh
+- [ ] Error condition toasts -- surface overtemp/overpower from Shelly errors array
+- [ ] mDNS discovery -- find Shellys on network automatically (extend scanner)
+- [ ] Power factor display -- add PF to AC details panel
 
-```json
-{
-  "ts": 1711100000.0,
-  "ac_power_w": 8450.0,
-  "ac_voltage_an_v": 230.5,
-  "ac_voltage_bn_v": 231.2,
-  "ac_voltage_cn_v": 229.8,
-  "ac_current_a": 12.3,
-  "ac_current_l1_a": 4.1,
-  "ac_current_l2_a": 4.1,
-  "ac_current_l3_a": 4.1,
-  "ac_frequency_hz": 50.01,
-  "dc_power_w": 8620.0,
-  "dc_voltage_v": 680.0,
-  "dc_current_a": 12.7,
-  "energy_total_wh": 45230000,
-  "daily_energy_wh": 32400,
-  "temperature_c": 42.5,
-  "status": "MPPT",
-  "status_code": 4,
-  "peak_power_w": 12500.0,
-  "operating_hours": 6.25,
-  "efficiency_pct": 67.6
-}
-```
+### Future Consideration (v7+)
 
-### 3. Home Assistant MQTT Auto-Discovery
+- [ ] Shelly Gen4 explicit support -- when devices become common
+- [ ] Multi-channel Shellys (2PM, 4PM) -- monitor multiple circuits per device
 
-Publish config payloads to `homeassistant/sensor/{node_id}/{object_id}/config` on connect. One config message per sensor entity. All sensors grouped under one HA device per inverter.
+## Feature Prioritization Matrix
 
-Example discovery payload for AC Power sensor:
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Power/energy polling | HIGH | LOW | P1 |
+| Gen auto-detection + profile system | HIGH | MEDIUM | P1 |
+| On/Off switch control | HIGH | LOW | P1 |
+| Device dashboard | HIGH | MEDIUM | P1 |
+| Add-Device flow UI | HIGH | LOW | P1 |
+| Aggregation integration | HIGH | LOW | P1 |
+| Voltage/current/frequency | MEDIUM | LOW | P1 |
+| Temperature display | MEDIUM | LOW | P1 |
+| Config persistence | HIGH | LOW | P1 |
+| Returned energy (Gen3) | MEDIUM | LOW | P2 |
+| Error condition toasts | MEDIUM | LOW | P2 |
+| Power factor display | LOW | LOW | P2 |
+| mDNS discovery | MEDIUM | MEDIUM | P2 |
+| Multi-channel support | LOW | MEDIUM | P3 |
 
-```json
-{
-  "name": "AC Power",
-  "unique_id": "pv_proxy_{device_id}_ac_power",
-  "state_topic": "pv-proxy/device/{device_id}/state",
-  "value_template": "{{ value_json.ac_power_w }}",
-  "unit_of_measurement": "W",
-  "device_class": "power",
-  "state_class": "measurement",
-  "suggested_display_precision": 0,
-  "availability": [
-    {"topic": "pv-proxy/status"},
-    {"topic": "pv-proxy/device/{device_id}/availability"}
-  ],
-  "availability_mode": "all",
-  "device": {
-    "identifiers": ["pv_proxy_{device_id}"],
-    "name": "{inverter_name}",
-    "manufacturer": "{inverter_mfr}",
-    "model": "{inverter_model}",
-    "serial_number": "{inverter_serial}",
-    "sw_version": "5.0",
-    "via_device": "pv_proxy",
-    "configuration_url": "http://{proxy_ip}/"
-  },
-  "origin": {
-    "name": "PV Inverter Proxy",
-    "sw_version": "5.0",
-    "support_url": "http://{proxy_ip}/"
-  }
-}
-```
+**Priority key:**
+- P1: Must have for v6.0 launch
+- P2: Should have, add in v6.x
+- P3: Nice to have, future milestone
 
-**Sensor entity map (per device):**
+## Existing Architecture Integration Points
 
-| Sensor | device_class | state_class | unit | display_precision |
-|--------|-------------|-------------|------|-------------------|
-| AC Power | `power` | `measurement` | `W` | 0 |
-| DC Power | `power` | `measurement` | `W` | 0 |
-| AC Voltage L1 | `voltage` | `measurement` | `V` | 1 |
-| AC Voltage L2 | `voltage` | `measurement` | `V` | 1 |
-| AC Voltage L3 | `voltage` | `measurement` | `V` | 1 |
-| AC Current | `current` | `measurement` | `A` | 1 |
-| AC Frequency | `frequency` | `measurement` | `Hz` | 2 |
-| DC Voltage | `voltage` | `measurement` | `V` | 1 |
-| DC Current | `current` | `measurement` | `A` | 1 |
-| Temperature | `temperature` | `measurement` | `C` | 1 |
-| Total Energy | `energy` | `total_increasing` | `Wh` | 0 |
-| Daily Energy | `energy` | `total` | `Wh` | 0 |
-| Peak Power | `power` | `measurement` | `W` | 0 |
-| Operating Hours | `duration` | `total_increasing` | `h` | 2 |
-| Efficiency | None | `measurement` | `%` | 1 |
-| Status | `enum` | None | None | None |
+| Integration Point | What Changes | What Stays |
+|-------------------|--------------|------------|
+| `plugin_factory()` | Add `elif entry.type == "shelly"` branch | Factory pattern unchanged |
+| `InverterEntry` | Add `shelly_channel: int = 0` field | All existing fields remain |
+| `DashboardCollector` | No changes needed -- reads SunSpec registers generically | Decode map, snapshot format |
+| `AggregationLayer` | No changes needed -- sums Model 103 registers | Summation logic |
+| `PowerLimitDistributor` | Shelly defaults to `throttle_enabled: false`, skipped for % limits | Waterfall algorithm |
+| `DeviceRegistry` | No changes needed -- starts poll task per device | Lifecycle management |
+| Webapp HTML/JS | Add Shelly device type in add-device modal, on/off toggle on dashboard | Existing pages, routing |
+| Config YAML | New type value `"shelly"` in inverters list | YAML schema |
 
-**Important HA 2026.4 change:** Use `default_entity_id` instead of `object_id` in discovery payloads. The old `object_id` option is deprecated as of HA Core 2026.4.
+## Shelly-Specific Data Mapping to SunSpec Model 103
 
-### 4. Broker Connection Management
+| Shelly Field (Gen2/3) | SunSpec Register | Offset | Scale Factor | Notes |
+|------------------------|-----------------|--------|--------------|-------|
+| `apower` | AC Power (40083) | 14 | SF=0 | Direct watts |
+| `voltage` | AC Voltage AN (40079) | 10 | SF=-1 | x10 encoding |
+| `current` | AC Current (40071) | 2 | SF=-2 | x100 encoding |
+| `freq` | AC Frequency (40085) | 16 | SF=-2 | x100 encoding |
+| `aenergy.total` | AC Energy (40093) | 24-25 | SF=0 | acc32 in Wh |
+| `temperature.tC` | Temperature Cab (40102) | 33 | SF=-1 | x10 encoding |
+| N/A | DC Current (40096) | 27 | -- | Always 0 |
+| N/A | DC Voltage (40098) | 29 | -- | Always 0 |
+| N/A | DC Power (40100) | 31 | -- | Always 0 |
+| `output` (bool) | Status (40107) | 38 | -- | true=4 (MPPT), false=2 (SLEEPING) |
 
-Use paho-mqtt v2.x async client (already a project dependency). Key behaviors:
+## Competitor Feature Analysis
 
-- **Reconnect:** Automatic with exponential backoff (paho built-in)
-- **LWT (Last Will):** Set `pv-proxy/status` to `offline` with retain=True on connect
-- **On connect:** Publish `online` to status topic, then all discovery configs (retained)
-- **Clean session:** True (no persistent sessions needed for publish-only)
-- **Client ID:** `pv-proxy-pub-{short_uuid}` to avoid collision with Venus subscriber
-- **Keep-alive:** 60s (standard)
-
-### 5. Config Structure
-
-New `MqttPublishConfig` dataclass alongside existing `VenusConfig`:
-
-```yaml
-mqtt_publish:
-  enabled: false          # opt-in
-  host: "mqtt-master.local"  # or IP, or discovered via mDNS
-  port: 1883
-  topic_prefix: "pv-proxy"
-  interval: 5             # seconds, 1-60
-  client_id: ""           # auto-generated if empty
-```
-
-### 6. mDNS Broker Discovery
-
-Browse for `_mqtt._tcp.local.` services using python-zeroconf. This is a new dependency but well-established (used by Home Assistant itself). Discovery flow:
-
-1. User clicks "Discover Broker" in config UI
-2. Backend does 5-second mDNS browse
-3. Returns list of found brokers with hostname + IP + port
-4. User selects one, populates config fields
-5. Falls back to manual entry if nothing found
-
-**Confidence:** MEDIUM -- zeroconf is reliable, but not all MQTT brokers advertise via mDNS. Mosquitto does NOT do this by default (requires separate Avahi service file). The user's mqtt-master.local suggests they already have mDNS working for hostname resolution, so a simple `socket.getaddrinfo("mqtt-master.local", 1883)` might be sufficient without full zeroconf.
-
-**Recommendation:** Start with hostname resolution (mqtt-master.local works via system mDNS). Add full zeroconf browse as a differentiator if time permits.
-
-## MVP Recommendation
-
-**Phase 1: Core Publishing (must-have)**
-1. `MqttPublishConfig` dataclass + YAML config loading
-2. paho-mqtt publisher with LWT, reconnect, lifecycle management
-3. Per-device telemetry publishing (JSON payloads from DashboardCollector snapshots)
-4. Virtual aggregated device publishing
-5. Availability topics per device
-
-**Phase 2: Home Assistant Integration (high value)**
-6. HA MQTT Auto-Discovery config payloads (all sensor entities)
-7. Energy Dashboard ready sensors (correct state_class/device_class)
-8. Discovery cleanup on device removal (publish empty retained config)
-
-**Phase 3: Webapp Config (user-facing)**
-9. Config UI section for MQTT Publishing (host, port, interval, enable)
-10. Connection status dot (reuse existing pattern)
-11. mDNS broker discovery button (hostname resolution first, full zeroconf as stretch)
-
-**Defer:**
-- Publish-on-change mode: Nice optimization but adds snapshot diff complexity. Ship fixed interval first.
-- Per-device publish enable/disable: All enabled devices publish. Keep it simple for v5.0.
+| Feature | dbus-shelly-1pm-pvinverter (Victron community) | evcc Shelly meter | Our Approach |
+|---------|------------------------------------------------|-------------------|--------------|
+| Gen1 + Gen2 support | Gen1 only | Both (auto-detect) | Both (auto-detect via /shelly) |
+| Power monitoring | Yes (power only) | Yes (power, energy) | Full: power, voltage, current, energy, temp, freq |
+| Venus OS integration | Yes (D-Bus direct) | No (EV charger focus) | Via Modbus proxy (Fronius emulation) |
+| On/Off control | No | Yes | Yes, via webapp toggle |
+| Multi-device aggregation | No (single device) | No (single meter) | Yes, aggregated virtual inverter |
+| Dashboard | No | No | Full device-centric dashboard |
+| Gen3 returned energy | No | No | Planned (v6.x differentiator) |
 
 ## Sources
 
-- [Home Assistant MQTT Integration](https://www.home-assistant.io/integrations/mqtt/) -- Discovery topic format, device grouping, origin field (HIGH confidence)
-- [Home Assistant MQTT Sensor](https://www.home-assistant.io/integrations/sensor.mqtt/) -- device_class, state_class, value_template (HIGH confidence)
-- [SolarAssistant MQTT](https://solar-assistant.io/help/integration/mqtt) -- Topic structure patterns for solar monitoring (MEDIUM confidence)
-- [deye-inverter-mqtt](https://github.com/kbialek/deye-inverter-mqtt) -- Publish intervals, publish-on-change, availability topics (MEDIUM confidence)
-- [growatt2mqtt](https://github.com/nygma2004/growatt2mqtt) -- 4s publish interval reference (LOW confidence)
-- [HA 2026.4 discovery deprecation](https://github.com/jomjol/AI-on-the-edge-device/issues/3932) -- object_id -> default_entity_id migration (MEDIUM confidence)
-- [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) -- mDNS service discovery for _mqtt._tcp (HIGH confidence)
-- [HA Community: MQTT discovery + JSON](https://community.home-assistant.io/t/mqtt-auto-discovery-and-json-payload/409459) -- JSON payload patterns (MEDIUM confidence)
-- [huABus Huawei Solar MQTT](https://community.home-assistant.io/t/app-huabus-huawei-solar-modbus-to-mqtt-sun2-3-5-000-mqtt-home-assistant-auto-discovery/958230) -- Real-world solar inverter MQTT auto-discovery with 68 entities (MEDIUM confidence)
+- [Shelly Gen2+ Switch Component API](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Switch/) -- Switch.GetStatus response fields, power metering data (HIGH confidence)
+- [Shelly Gen1 API Reference](https://shelly-api-docs.shelly.cloud/gen1/) -- Legacy HTTP endpoints, /status, /relay structure (HIGH confidence)
+- [Shelly Gen1 Compatibility (Gen2 docs)](https://shelly-api-docs.shelly.cloud/gen2/General/gen1Compatibility/) -- /shelly endpoint shared across generations (HIGH confidence)
+- [Shelly Returned Energy Support](https://support.shelly.cloud/en/support/solutions/articles/103000316350) -- BL0937 vs BL0942 chip, which devices support negative power (HIGH confidence)
+- [Shelly Balcony Power Plant Guide](https://www.shelly.com/pages/shelly-balcony-power-plant-how-to-measure-electricity-easily-and-accurately) -- Typical PV monitoring use case (MEDIUM confidence)
+- [evcc Shelly meter integration](https://pkg.go.dev/github.com/evcc-io/evcc/meter/shelly) -- Reference implementation for Gen1/Gen2 auto-detection and unified interface (HIGH confidence)
+- [Shelly Gen1/Gen2/Gen3/Gen4 Comparison](https://support.shelly.cloud/en/support/solutions/articles/103000316073) -- Device capabilities by generation (MEDIUM confidence)
+- [Shelly Plug PM Gen3 Documentation](https://shelly-api-docs.shelly.cloud/gen2/Devices/Gen3/ShellyPlugPMG3/) -- Gen3 device specifics (HIGH confidence)
+- [dbus-shelly-1pm-pvinverter](https://github.com/vikt0rm/dbus-shelly-1pm-pvinverter) -- Community Victron/Shelly integration (MEDIUM confidence)
+
+---
+*Feature research for: Shelly Plugin integration into PV-Inverter-Proxy v6.0*
+*Researched: 2026-03-24*
