@@ -857,7 +857,14 @@ class TestShellySwitchRoute:
 
     async def test_switch_non_shelly_device(self, client):
         """POST on a non-Shelly device returns 400."""
-        resp = await client.post("/api/devices/default/shelly/switch", json={"on": True})
+        from pv_inverter_proxy.plugins.opendtu import OpenDTUPlugin
+
+        plugin = MagicMock(spec=OpenDTUPlugin)
+        ds = DeviceState(conn_mgr=MagicMock(), poll_counter={"success": 0, "total": 0}, last_poll_data={})
+        ds.plugin = plugin
+        client.app["app_ctx"].devices["opendtu1"] = ds
+
+        resp = await client.post("/api/devices/opendtu1/shelly/switch", json={"on": True})
         assert resp.status == 400
         data = await resp.json()
         assert data["success"] is False
