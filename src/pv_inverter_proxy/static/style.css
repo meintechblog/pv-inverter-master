@@ -1804,6 +1804,18 @@ body {
     color: var(--ve-green);
 }
 
+/* Shelly generation badge (readonly, config page) */
+.ve-gen-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    background: var(--ve-blue-dim);
+    color: var(--ve-text);
+    border-radius: var(--ve-radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 /* ===== Inline Dot in Panel Headings ===== */
 .ve-panel h2 .ve-dot,
 .ve-panel h2 > .ve-dot {
