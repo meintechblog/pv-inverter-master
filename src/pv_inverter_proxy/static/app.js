@@ -596,6 +596,40 @@ function buildInverterDashboard(container, data, deviceType) {
         '<h2 class="ve-card-title">Connection</h2>' +
         '<div class="ve-status-row"><span class="ve-dot ' + connDotClass + '"></span><span>Inverter: ' + (connState === 'night_mode' ? 'sleeping' : connState) + '</span></div>';
 
+    if (deviceType === 'shelly') {
+        var relayStatus = inv.status === 'MPPT' ? 'On' : 'Off';
+        var relayDot = inv.status === 'MPPT' ? 've-dot' : 've-dot ve-dot--dim';
+        connCard.innerHTML +=
+            '<div style="margin-top:10px">' +
+            '  <div class="ve-status-row"><span class="ve-text-dim">Relay:</span><span class="' + relayDot + '" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 6px;background:' + (inv.status === 'MPPT' ? 'var(--ve-green)' : 'var(--ve-text-dim)') + '"></span><span class="ve-shelly-relay-state">' + relayStatus + '</span></div>' +
+            '</div>' +
+            '<div class="ve-shelly-actions" style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
+            '  <button class="ve-btn ve-btn--sm ve-shelly-on">Switch On</button>' +
+            '  <button class="ve-btn ve-btn--sm ve-btn--cancel ve-shelly-off">Switch Off</button>' +
+            '</div>';
+
+        var _shellyDevId = data.device_id || _activeDeviceId;
+        function _sendShellySwitch(on) {
+            fetch('/api/devices/' + _shellyDevId + '/shelly/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ on: on })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.success) {
+                    showToast('Relay ' + (on ? 'On' : 'Off'), 'success');
+                    var stateEl = connCard.querySelector('.ve-shelly-relay-state');
+                    if (stateEl) stateEl.textContent = on ? 'On' : 'Off';
+                } else {
+                    showToast(d.error || 'Failed', 'error');
+                }
+            }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+        }
+        var shellyOnBtn = connCard.querySelector('.ve-shelly-on');
+        var shellyOffBtn = connCard.querySelector('.ve-shelly-off');
+        if (shellyOnBtn) shellyOnBtn.addEventListener('click', function() { _sendShellySwitch(true); });
+        if (shellyOffBtn) shellyOffBtn.addEventListener('click', function() { _sendShellySwitch(false); });
+    }
+
     if (deviceType === 'opendtu') {
         var dtuCached = data.opendtu_status || null;
         connCard.innerHTML +=
