@@ -2124,11 +2124,12 @@ function triggerShellyDiscover(formArea) {
         var html = '';
         data.devices.forEach(function(dev) {
             var genLabel = dev.generation === 'gen2' ? 'Gen2' : (dev.generation === 'gen3' ? 'Gen3' : 'Gen1');
-            html += '<label class="ve-scan-result-item">' +
-                '<input type="checkbox" class="ve-scan-result-cb" data-host="' + esc(dev.host) + '" data-name="' + esc(dev.name) + '" data-gen="' + esc(dev.generation) + '">' +
-                '<span class="ve-scan-result-label">' + esc(dev.name || dev.model || 'Shelly') + '</span>' +
-                '<span class="ve-scan-result-meta">' + esc(dev.host) + ' · ' + genLabel + '</span>' +
-                '</label>';
+            html += '<div class="ve-scan-result">' +
+                '<span class="ve-scan-result-check"><input type="checkbox" class="ve-scan-result-cb" data-host="' + esc(dev.host) + '" data-name="' + esc(dev.name || dev.model || 'Shelly') + '" data-gen="' + esc(dev.generation) + '"></span>' +
+                '<span class="ve-scan-result-identity">' + esc(dev.name || dev.model || 'Shelly') + '</span>' +
+                '<span class="ve-scan-result-host">' + esc(dev.host) + '</span>' +
+                '<span class="ve-scan-result-unit">' + genLabel + '</span>' +
+                '</div>';
         });
         results.innerHTML = html;
 
