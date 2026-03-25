@@ -250,7 +250,7 @@ Plans:
   2. DeviceRegistry._distributor is set so webapp can read device limit states
   3. `on_poll()` is called on every successful device poll (convergence tracking fires)
   4. DC voltage averaging in aggregation.py skips devices with dc_power_w == 0
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 37 to break down)
+- [ ] 37-01-PLAN.md -- Wire distributor into AppContext/DeviceRegistry, fix DC voltage averaging
