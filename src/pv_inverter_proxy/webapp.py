@@ -283,6 +283,7 @@ async def config_get_handler(request: web.Request) -> web.Response:
             "topic_prefix": config.mqtt_publish.topic_prefix,
             "interval_s": config.mqtt_publish.interval_s,
         },
+        "auto_throttle": config.auto_throttle,
     })
 
 
@@ -399,6 +400,10 @@ async def config_save_handler(request: web.Request) -> web.Response:
         config.venus.host = venus_host
         config.venus.port = venus_port
         config.venus.portal_id = venus_portal_id
+
+        # Update auto_throttle if provided
+        if "auto_throttle" in body:
+            config.auto_throttle = bool(body["auto_throttle"])
 
         save_config(request.app["config_path"], config)
         log.info("user_action", action="config_saved", venus_changed=venus_changed, venus_host=venus_host)
@@ -764,6 +769,7 @@ async def broadcast_virtual_snapshot(app: web.Application) -> None:
         "total_rated_w": total_rated_w,
         "virtual_name": config.virtual_inverter.name,
         "contributions": contributions,
+        "auto_throttle": config.auto_throttle,
     }})
     for ws in set(clients):
         try:
@@ -868,6 +874,12 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
         else:
             dev_entry["throttle_mode"] = "none"
             dev_entry["throttle_score"] = 0.0
+        # Measured response time from convergence tracking (Phase 35)
+        distributor = getattr(app_ctx, 'distributor', None)
+        if distributor is not None:
+            dist_ds = distributor._device_states.get(inv.id)
+            if dist_ds is not None and dist_ds.measured_response_time_s is not None:
+                dev_entry["measured_response_time_s"] = round(dist_ds.measured_response_time_s, 2)
         devices.append(dev_entry)
 
     venus_conn = "connected" if app_ctx.venus_mqtt_connected else "disconnected"
@@ -1596,6 +1608,7 @@ async def virtual_snapshot_handler(request: web.Request) -> web.Response:
         "virtual_name": config.virtual_inverter.name,
         "contributions": contributions,
         "control": control,
+        "auto_throttle": config.auto_throttle,
     })
 
 
