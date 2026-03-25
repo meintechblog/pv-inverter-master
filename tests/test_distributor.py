@@ -11,7 +11,7 @@ import pytest
 from pv_inverter_proxy.config import Config, InverterEntry
 from pv_inverter_proxy.connection import ConnectionState
 from pv_inverter_proxy.distributor import DeviceLimitState, PowerLimitDistributor
-from pv_inverter_proxy.plugin import ThrottleCaps
+from pv_inverter_proxy.plugin import ThrottleCaps, compute_throttle_score
 
 
 # ---------------------------------------------------------------------------
@@ -610,3 +610,200 @@ async def test_proportional_device_unchanged():
     # Neither should have switch called (proportional plugins don't have it)
     assert not hasattr(plugins["se30k"], "switch") or not plugins["se30k"].switch.called
     assert not hasattr(plugins["opendtu"], "switch") or not plugins["opendtu"].switch.called
+
+
+# ---------------------------------------------------------------------------
+# Auto-Throttle Tests (Phase 35)
+# ---------------------------------------------------------------------------
+
+def _make_plugin_with_caps(
+    mode: str = "proportional",
+    response_time_s: float = 1.0,
+    cooldown_s: float = 0.0,
+    startup_delay_s: float = 0.0,
+) -> MagicMock:
+    """Create a mock plugin with specific ThrottleCaps."""
+    plugin = MagicMock()
+    caps = ThrottleCaps(
+        mode=mode,
+        response_time_s=response_time_s,
+        cooldown_s=cooldown_s,
+        startup_delay_s=startup_delay_s,
+    )
+    type(plugin).throttle_capabilities = PropertyMock(return_value=caps)
+    if mode == "binary":
+        plugin.switch = AsyncMock(return_value=True)
+    else:
+        if hasattr(plugin, "switch"):
+            del plugin.switch
+    plugin.write_power_limit = AsyncMock(
+        return_value=MagicMock(success=True, error=None)
+    )
+    return plugin
+
+
+def _build_distributor_with_caps(
+    entries: list[tuple[str, int, int, bool, float, str, float, float, float]],
+    conn_states: dict[str, ConnectionState] | None = None,
+) -> tuple[PowerLimitDistributor, dict[str, MagicMock]]:
+    """Build distributor with specific throttle caps per device.
+
+    entries: list of (device_id, rated_power, throttle_order, throttle_enabled, dead_time_s,
+                       mode, response_time_s, cooldown_s, startup_delay_s)
+    """
+    conn_states = conn_states or {}
+    inverter_entries = []
+    plugins: dict[str, MagicMock] = {}
+
+    for dev_id, rated, to, te, dt, mode, resp, cool, startup in entries:
+        entry = _make_entry(
+            device_id=dev_id,
+            rated_power=rated,
+            throttle_order=to,
+            throttle_enabled=te,
+            throttle_dead_time_s=dt,
+        )
+        inverter_entries.append(entry)
+        plugins[dev_id] = _make_plugin_with_caps(
+            mode=mode,
+            response_time_s=resp,
+            cooldown_s=cool,
+            startup_delay_s=startup,
+        )
+
+    config = Config(inverters=inverter_entries, auto_throttle=True)
+
+    from pv_inverter_proxy.context import AppContext
+    app_ctx = AppContext()
+
+    for dev_id, rated, to, te, dt, mode, resp, cool, startup in entries:
+        entry = next(e for e in inverter_entries if e.id == dev_id)
+        cs = conn_states.get(dev_id, ConnectionState.CONNECTED)
+        ds = _make_device_state(plugin=plugins[dev_id], conn_mgr=_make_conn_mgr(cs))
+        app_ctx.devices[dev_id] = ds
+
+    registry = MagicMock()
+    managed = {}
+    for dev_id in plugins:
+        entry = next(e for e in inverter_entries if e.id == dev_id)
+        ds = app_ctx.devices[dev_id]
+        md = MagicMock()
+        md.entry = entry
+        md.plugin = plugins[dev_id]
+        md.device_state = ds
+        managed[dev_id] = md
+    registry._managed = managed
+
+    distributor = PowerLimitDistributor(registry=registry, config=config)
+    return distributor, plugins
+
+
+from dataclasses import asdict
+
+
+def test_auto_throttle_config_default_false():
+    """Config().auto_throttle defaults to False."""
+    assert Config().auto_throttle is False
+
+
+def test_auto_throttle_config_round_trip():
+    """Config(auto_throttle=True) persists through asdict."""
+    assert asdict(Config(auto_throttle=True))["auto_throttle"] is True
+
+
+@pytest.mark.asyncio
+async def test_auto_throttle_score_ordering():
+    """With auto_throttle=True, devices are sorted by throttle score descending."""
+    # shelly (binary, score ~2.9), se30k (proportional, score ~9.7), opendtu (proportional, score ~7.0)
+    # Auto order: se30k (9.7) first -> gets all budget
+    dist, plugins = _build_distributor_with_caps([
+        # (id, rated, TO, throttle_en, dead_time, mode, response_s, cooldown_s, startup_s)
+        ("shelly", 800, 3, True, 0.0, "binary", 0.5, 300.0, 30.0),      # score ~2.9
+        ("se30k", 30000, 2, True, 0.0, "proportional", 1.0, 0.0, 0.0),  # score ~9.7
+        ("opendtu", 800, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),  # score ~7.0 (same caps)
+    ])
+
+    await dist.distribute(50.0, enable=True)
+
+    # se30k should be processed first (highest score ~9.7)
+    # total_rated = 31600W, allowed = 15800W
+    # se30k rated 30000W: gets min(30000, 15800) = 15800W -> 15800/30000 = 52.67%
+    se_args = plugins["se30k"].write_power_limit.call_args[0]
+    assert 50.0 <= se_args[1] <= 55.0, f"se30k got {se_args[1]}%, expected ~52.7%"
+
+    # opendtu gets 0% (remaining = 0 after se30k)
+    opendtu_args = plugins["opendtu"].write_power_limit.call_args[0]
+    assert abs(opendtu_args[1] - 0.0) < 0.01
+
+    # shelly gets switch(False)
+    plugins["shelly"].switch.assert_called_once_with(False)
+
+
+@pytest.mark.asyncio
+async def test_auto_proportional_before_binary():
+    """Proportional devices always appear before binary in auto mode."""
+    # binary (TO=1, higher manual priority) vs proportional (TO=2, lower manual priority)
+    # auto_throttle=True -> proportional (score 7+) before binary (score 3+)
+    dist, plugins = _build_distributor_with_caps([
+        ("binary_dev", 800, 1, True, 0.0, "binary", 0.5, 300.0, 30.0),        # score ~2.9
+        ("proportional_dev", 800, 2, True, 0.0, "proportional", 1.0, 0.0, 0.0),  # score ~9.7
+    ])
+
+    # 50% limit: total=1600W, allowed=800W
+    # Auto order: proportional (score 9.7) first -> gets all 800W -> 100%
+    # Binary: remaining=0 -> switch(False)
+    await dist.distribute(50.0, enable=True)
+
+    proportional_args = plugins["proportional_dev"].write_power_limit.call_args[0]
+    assert abs(proportional_args[1] - 100.0) < 0.5
+
+    plugins["binary_dev"].switch.assert_called_once_with(False)
+
+
+@pytest.mark.asyncio
+async def test_auto_throttle_off_uses_manual_order():
+    """With auto_throttle=False, waterfall uses throttle_order (no regression)."""
+    dist, plugins = _build_distributor_with_caps([
+        ("shelly", 800, 3, True, 0.0, "binary", 0.5, 300.0, 30.0),
+        ("se30k", 30000, 2, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+        ("opendtu", 800, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+    # Override to manual mode
+    dist._config.auto_throttle = False
+
+    # Manual order: opendtu (TO=1), se30k (TO=2), shelly (TO=3)
+    # total_rated = 31600W, 50% = 15800W
+    # TO=1 (opendtu, 800W): gets 800W -> 100%. remaining = 15000W
+    # TO=2 (se30k, 30000W): gets min(30000, 15000) -> 15000/30000 = 50%
+    # TO=3 (shelly, 800W): remaining=0 -> switch(False)
+    await dist.distribute(50.0, enable=True)
+
+    opendtu_args = plugins["opendtu"].write_power_limit.call_args[0]
+    assert abs(opendtu_args[1] - 100.0) < 0.5
+
+    se_args = plugins["se30k"].write_power_limit.call_args[0]
+    assert abs(se_args[1] - 50.0) < 0.5
+
+    plugins["shelly"].switch.assert_called_once_with(False)
+
+
+@pytest.mark.asyncio
+async def test_auto_throttle_tiebreak_by_device_id():
+    """Two devices with identical scores sort by device_id for deterministic ordering."""
+    # Two proportional devices with identical caps -> identical score
+    dist, plugins = _build_distributor_with_caps([
+        ("alpha", 5000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+        ("beta", 5000, 2, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    # 50% limit: total=10000W, allowed=5000W
+    # Both have same score. Sorted descending by (score, device_id).
+    # "beta" > "alpha" alphabetically -> beta first in reverse sort.
+    # beta gets 5000W -> 100%, alpha gets 0%.
+    await dist.distribute(50.0, enable=True)
+
+    beta_args = plugins["beta"].write_power_limit.call_args[0]
+    assert abs(beta_args[1] - 100.0) < 0.5
+
+    alpha_args = plugins["alpha"].write_power_limit.call_args[0]
+    assert abs(alpha_args[1] - 0.0) < 0.5

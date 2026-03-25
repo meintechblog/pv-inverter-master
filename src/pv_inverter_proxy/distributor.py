@@ -17,7 +17,7 @@ import structlog
 
 from pv_inverter_proxy.config import Config, InverterEntry
 from pv_inverter_proxy.connection import ConnectionState
-from pv_inverter_proxy.plugin import compute_throttle_score
+from pv_inverter_proxy.plugin import ThrottleCaps, compute_throttle_score
 
 
 @dataclass
@@ -150,22 +150,70 @@ class PowerLimitDistributor:
         for device_id in self._sort_binary_reenable(binary_on):
             await self._send_binary_command(device_id, turn_on=True)
 
+    def _effective_score(self, ds: DeviceLimitState) -> float:
+        """Compute effective throttle score, using measured response time if available."""
+        if not hasattr(ds.plugin, 'throttle_capabilities'):
+            return 0.0
+        caps = ds.plugin.throttle_capabilities
+        if getattr(ds, 'measured_response_time_s', None) is not None:
+            measured_caps = ThrottleCaps(
+                mode=caps.mode,
+                response_time_s=ds.measured_response_time_s,
+                cooldown_s=caps.cooldown_s,
+                startup_delay_s=caps.startup_delay_s,
+            )
+            return compute_throttle_score(measured_caps)
+        return compute_throttle_score(caps)
+
     def _waterfall(self, allowed_watts: float) -> dict[str, float]:
-        """Pure function: waterfall distribution by Throttling Order.
+        """Pure function: waterfall distribution by Throttling Order or score.
+
+        When auto_throttle is True, sorts by effective score descending (each
+        device is its own tier). When False, uses manual throttle_order groups.
 
         Returns {device_id: limit_pct} for all throttle-eligible devices.
         """
         # Collect throttle-eligible: throttle_enabled=True, online, rated_power > 0
         # Exclude binary devices in startup grace period
-        eligible = sorted(
-            [ds for ds in self._device_states.values()
-             if ds.entry.throttle_enabled and ds.is_online and ds.entry.rated_power > 0
-             and not self._is_in_startup(ds)],
-            key=lambda ds: ds.entry.throttle_order,
+        eligible_list = [
+            ds for ds in self._device_states.values()
+            if ds.entry.throttle_enabled and ds.is_online and ds.entry.rated_power > 0
+            and not self._is_in_startup(ds)
+        ]
+
+        if not eligible_list:
+            return {}
+
+        if self._config.auto_throttle:
+            return self._waterfall_auto(eligible_list, allowed_watts)
+        else:
+            return self._waterfall_manual(eligible_list, allowed_watts)
+
+    def _waterfall_auto(self, eligible: list[DeviceLimitState], allowed_watts: float) -> dict[str, float]:
+        """Score-based waterfall: each device is its own tier, sorted by score descending."""
+        sorted_eligible = sorted(
+            eligible,
+            key=lambda ds: (self._effective_score(ds), ds.device_id),
+            reverse=True,
         )
 
-        if not eligible:
-            return {}
+        result: dict[str, float] = {}
+        remaining = allowed_watts
+
+        for ds in sorted_eligible:
+            if remaining <= 0:
+                result[ds.device_id] = 0.0
+                continue
+            budget = min(remaining, ds.entry.rated_power)
+            pct = max(0.0, min(100.0, (budget / ds.entry.rated_power) * 100.0))
+            result[ds.device_id] = round(pct, 1)
+            remaining -= budget
+
+        return result
+
+    def _waterfall_manual(self, eligible: list[DeviceLimitState], allowed_watts: float) -> dict[str, float]:
+        """Manual waterfall: group by throttle_order, split within group."""
+        eligible = sorted(eligible, key=lambda ds: ds.entry.throttle_order)
 
         result: dict[str, float] = {}
         remaining = allowed_watts
