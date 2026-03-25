@@ -58,6 +58,10 @@ Plan: Not started
 - [Phase 30]: Probe-on-Add: single click probes Shelly, shows generation, then auto-saves
 - [Phase 30]: Type-filtered discovery: Discover button routes to mDNS for Shelly vs Modbus scan for SolarEdge
 
+### Roadmap Evolution
+
+- Phase 33 added: Binary Throttle (Relay On/Off) for Shelly Devices
+
 ### Pending Todos
 
 None.

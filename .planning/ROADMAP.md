@@ -180,3 +180,13 @@ Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
 | 30. Add-Device Flow & Discovery | 0/2 | Complete    | 2026-03-24 |
 | 31. Device Dashboard & Connection Card | 0/? | Complete    | 2026-03-24 |
 | 32. Aggregation Integration | 0/? | Complete    | 2026-03-24 |
+
+### Phase 33: Binary Throttle (Relay On/Off) for Shelly Devices
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 32
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 33 to break down)
