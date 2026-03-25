@@ -54,7 +54,7 @@
 | UI-05 | Phase 30 | Pending |
 | UI-06 | Phase 30 | Complete |
 | AGG-01 | Phase 32 | Pending |
-| AGG-02 | Phase 32 | Pending |
+| AGG-02 | Phase 37 | Pending |
 
 ## Future Requirements
 

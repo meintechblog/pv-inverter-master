@@ -9,7 +9,7 @@
 - v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (shipped 2026-03-20)
 - v4.0 Multi-Source Virtual Inverter -- Phases 21-24 (shipped 2026-03-21)
 - v5.0 MQTT Data Publishing -- Phases 25-27 (shipped 2026-03-22)
-- v6.0 Shelly Plugin -- Phases 28-32 (in progress)
+- v6.0 Shelly Plugin -- Phases 28-37 (in progress)
 
 ## Phases
 
@@ -239,3 +239,18 @@ Plans:
 Plans:
 - [x] 36-01-PLAN.md -- Backend: preset config, config-driven distributor params, enriched contributions payload
 - [ ] 36-02-PLAN.md -- Frontend: auto-throttle toggle, preset buttons, enhanced throttle table, per-device throttle info
+
+### Phase 37: Distributor Wiring & DC Average Fix
+**Goal**: Wire the distributor into AppContext and DeviceRegistry so convergence tracking fires at runtime, and fix DC voltage averaging to skip Shelly zero-DC devices
+**Depends on**: Phase 36
+**Requirements**: AGG-02, THRT-08, THRT-09
+**Gap Closure**: Closes gaps from v6.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. AppContext has a `distributor` field and __main__.py sets `app_ctx.distributor = distributor`
+  2. DeviceRegistry._distributor is set so webapp can read device limit states
+  3. `on_poll()` is called on every successful device poll (convergence tracking fires)
+  4. DC voltage averaging in aggregation.py skips devices with dc_power_w == 0
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 37 to break down)
