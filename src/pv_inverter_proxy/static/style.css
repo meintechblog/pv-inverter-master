@@ -2306,6 +2306,34 @@ body {
     color: var(--ve-text);
 }
 
+/* ===== Auto-Throttle Card ===== */
+.ve-auto-throttle-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.ve-preset-group {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+.ve-throttle-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 0.85rem;
+}
+.ve-throttle-state-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
 /* ===== Responsive: Sidebar Device Groups ===== */
 @media (max-width: 1024px) {
     .ve-sidebar-device {

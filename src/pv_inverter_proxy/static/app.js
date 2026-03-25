@@ -1756,6 +1756,13 @@ function renderVirtualPVPage(container) {
 }
 
 var CONTRIBUTION_COLORS = ['var(--ve-blue)', 'var(--ve-orange)', 'var(--ve-green)', 'var(--ve-text-dim)', 'var(--ve-blue-light)', 'var(--ve-red)'];
+var THROTTLE_STATE_COLORS = {
+    active: 'var(--ve-green)',
+    throttled: 'var(--ve-orange)',
+    disabled: 'var(--ve-text-dim)',
+    cooldown: 'var(--ve-blue)',
+    startup: 'var(--ve-blue-light)'
+};
 
 function buildVirtualPVPage(container, data) {
     var totalW = data.total_power_w || 0;
@@ -1823,6 +1830,62 @@ function buildVirtualPVPage(container, data) {
         '</svg>' + clampHtml;
     container.appendChild(gaugeCard);
 
+    // Auto-Throttle control card
+    var atCard = document.createElement('div');
+    atCard.className = 've-card';
+    var atChecked = data.auto_throttle ? ' checked' : '';
+    var atPreset = data.auto_throttle_preset || 'balanced';
+    var presetNames = ['aggressive', 'balanced', 'conservative'];
+    var presetBtns = '';
+    for (var pi = 0; pi < presetNames.length; pi++) {
+        var pn = presetNames[pi];
+        var pActive = pn === atPreset ? ' ve-btn--primary' : '';
+        presetBtns += '<button class="ve-btn ve-btn--sm' + pActive + '" data-preset="' + pn + '">' + pn.charAt(0).toUpperCase() + pn.slice(1) + '</button>';
+    }
+    atCard.innerHTML =
+        '<h2 class="ve-card-title">Auto-Throttle</h2>' +
+        '<div class="ve-auto-throttle-card">' +
+        '  <label class="ve-toggle-label">' +
+        '    <span>Enable</span>' +
+        '    <input type="checkbox" class="ve-auto-throttle-toggle"' + atChecked + '>' +
+        '    <span class="ve-switch"><span class="ve-switch-knob"></span></span>' +
+        '  </label>' +
+        '  <div class="ve-preset-group">' + presetBtns + '</div>' +
+        '</div>';
+    container.appendChild(atCard);
+
+    // Auto-throttle toggle handler
+    var atToggle = atCard.querySelector('.ve-auto-throttle-toggle');
+    if (atToggle) {
+        atToggle.addEventListener('change', function() {
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auto_throttle: atToggle.checked })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                showToast('Auto-Throttle ' + (atToggle.checked ? 'enabled' : 'disabled'), 'success');
+            }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+        });
+    }
+
+    // Preset button handlers
+    var presetGroupBtns = atCard.querySelectorAll('.ve-preset-group .ve-btn');
+    presetGroupBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var preset = btn.getAttribute('data-preset');
+            // Optimistic UI update
+            presetGroupBtns.forEach(function(b) { b.classList.remove('ve-btn--primary'); });
+            btn.classList.add('ve-btn--primary');
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auto_throttle_preset: preset })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                showToast('Preset: ' + preset.charAt(0).toUpperCase() + preset.slice(1), 'success');
+            }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+        });
+    });
+
     // Wire up virtual power limit dropdown events
     var vClampMin = gaugeCard.querySelector('.ve-clamp-min');
     var vClampMax = gaugeCard.querySelector('.ve-clamp-max');
@@ -1858,7 +1921,7 @@ function buildVirtualPVPage(container, data) {
     for (var i = 0; i < contributions.length; i++) {
         var c = contributions[i];
         var pct = totalW > 0 ? (c.power_w / totalW * 100) : 0;
-        var color = CONTRIBUTION_COLORS[i % CONTRIBUTION_COLORS.length];
+        var color = THROTTLE_STATE_COLORS[c.throttle_state] || CONTRIBUTION_COLORS[i % CONTRIBUTION_COLORS.length];
 
         var seg = document.createElement('div');
         seg.className = 've-contribution-segment';
@@ -1881,7 +1944,7 @@ function buildVirtualPVPage(container, data) {
     barCard.appendChild(legend);
     container.appendChild(barCard);
 
-    // Throttle table
+    // Throttle table (enhanced 6-column)
     if (contributions.length > 0) {
         var throttleCard = document.createElement('div');
         throttleCard.className = 've-card';
@@ -1889,15 +1952,23 @@ function buildVirtualPVPage(container, data) {
 
         var table = document.createElement('table');
         table.className = 've-throttle-table';
-        var thead = '<thead><tr><th>Name</th><th>TO#</th><th>Throttle</th><th>Limit</th></tr></thead>';
+        var thead = '<thead><tr><th>Name</th><th>Score</th><th>Mode</th><th>Response</th><th>Limit</th><th>State</th></tr></thead>';
         var tbody = '<tbody>';
         for (var j = 0; j < contributions.length; j++) {
             var ct = contributions[j];
+            var scoreVal = ct.throttle_score != null ? '<span style="font-family:var(--ve-mono)">' + ct.throttle_score.toFixed(1) + '</span>' : '--';
+            var modeVal = ct.throttle_mode || '--';
+            var respVal = ct.measured_response_time_s != null ? '<span style="font-family:var(--ve-mono)">' + ct.measured_response_time_s.toFixed(1) + 's</span>' : '--';
+            var limitVal = ct.current_limit_pct != null ? '<span style="font-family:var(--ve-mono)">' + ct.current_limit_pct.toFixed(1) + '%</span>' : '--';
+            var stateColor = THROTTLE_STATE_COLORS[ct.throttle_state] || 'var(--ve-text-dim)';
+            var stateDot = '<span class="ve-throttle-state-dot" style="background:' + stateColor + '"></span>';
             tbody += '<tr>' +
                 '<td>' + esc(ct.name || ct.device_id) + '</td>' +
-                '<td>' + (ct.throttle_order || '--') + '</td>' +
-                '<td>' + (ct.throttle_enabled ? 'On' : 'Off') + '</td>' +
-                '<td>' + (ct.current_limit_pct != null ? ct.current_limit_pct.toFixed(1) + '%' : '--') + '</td>' +
+                '<td>' + scoreVal + '</td>' +
+                '<td>' + modeVal + '</td>' +
+                '<td>' + respVal + '</td>' +
+                '<td>' + limitVal + '</td>' +
+                '<td>' + stateDot + '</td>' +
                 '</tr>';
         }
         tbody += '</tbody>';
@@ -1926,28 +1997,65 @@ function updateVirtualPVPage(data) {
     }
     if (gaugeVal) gaugeVal.textContent = formatW(totalW);
 
-    // Update bar segments
+    // Sync auto-throttle toggle (guard with !== to avoid flicker)
+    var atToggle = el.querySelector('.ve-auto-throttle-toggle');
+    if (atToggle && atToggle.checked !== !!data.auto_throttle) {
+        atToggle.checked = !!data.auto_throttle;
+    }
+
+    // Sync preset buttons
+    var presetBtns = el.querySelectorAll('.ve-preset-group .ve-btn');
+    var curPreset = data.auto_throttle_preset || 'balanced';
+    presetBtns.forEach(function(btn) {
+        if (btn.getAttribute('data-preset') === curPreset) {
+            btn.classList.add('ve-btn--primary');
+        } else {
+            btn.classList.remove('ve-btn--primary');
+        }
+    });
+
+    // Check if contribution count changed -- rebuild if so
     var segments = el.querySelectorAll('.ve-contribution-segment');
+    if (segments.length !== contributions.length) {
+        // Rebuild entire page
+        el.innerHTML = '';
+        buildVirtualPVPage(el, data);
+        return;
+    }
+
+    // Update bar segments with throttle state colors
     for (var i = 0; i < segments.length && i < contributions.length; i++) {
         var pct = totalW > 0 ? (contributions[i].power_w / totalW * 100) : 0;
         segments[i].style.width = pct.toFixed(1) + '%';
+        var segColor = THROTTLE_STATE_COLORS[contributions[i].throttle_state] || CONTRIBUTION_COLORS[i % CONTRIBUTION_COLORS.length];
+        segments[i].style.background = segColor;
     }
 
-    // Update legend powers
+    // Update legend powers and dot colors
     var legendItems = el.querySelectorAll('.ve-contribution-legend-item');
     for (var j = 0; j < legendItems.length && j < contributions.length; j++) {
         var pwrEl = legendItems[j].querySelector('.ve-contribution-legend-power');
         if (pwrEl) pwrEl.textContent = formatW(contributions[j].power_w);
+        var dotEl = legendItems[j].querySelector('.ve-contribution-legend-dot');
+        if (dotEl) {
+            var dotColor = THROTTLE_STATE_COLORS[contributions[j].throttle_state] || CONTRIBUTION_COLORS[j % CONTRIBUTION_COLORS.length];
+            dotEl.style.background = dotColor;
+        }
     }
 
-    // Update throttle table
+    // Update enhanced throttle table (6 columns)
     var tds = el.querySelectorAll('.ve-throttle-table tbody tr');
     for (var k = 0; k < tds.length && k < contributions.length; k++) {
         var cells = tds[k].querySelectorAll('td');
-        if (cells.length >= 4) {
-            cells[1].textContent = formatW(contributions[k].power_w);
-            cells[2].textContent = contributions[k].throttle_enabled ? 'On' : 'Off';
-            cells[3].textContent = contributions[k].current_limit_pct != null ? contributions[k].current_limit_pct.toFixed(1) + '%' : '--';
+        var ck = contributions[k];
+        if (cells.length >= 6) {
+            cells[1].innerHTML = ck.throttle_score != null ? '<span style="font-family:var(--ve-mono)">' + ck.throttle_score.toFixed(1) + '</span>' : '--';
+            cells[2].textContent = ck.throttle_mode || '--';
+            cells[3].innerHTML = ck.measured_response_time_s != null ? '<span style="font-family:var(--ve-mono)">' + ck.measured_response_time_s.toFixed(1) + 's</span>' : '--';
+            cells[4].innerHTML = ck.current_limit_pct != null ? '<span style="font-family:var(--ve-mono)">' + ck.current_limit_pct.toFixed(1) + '%</span>' : '--';
+            var stColor = THROTTLE_STATE_COLORS[ck.throttle_state] || 'var(--ve-text-dim)';
+            var stDot = cells[5].querySelector('.ve-throttle-state-dot');
+            if (stDot) stDot.style.background = stColor;
         }
     }
 }
