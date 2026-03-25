@@ -219,10 +219,11 @@ Plans:
   2. The waterfall first exhausts proportional devices (highest score first), then falls through to binary devices
   3. The algorithm converges to the target power within 3 poll cycles for proportional devices
   4. Live response-time measurement updates the throttle_score based on actual Soll-Ist convergence speed (not just preset values)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 35 to break down)
+- [ ] 35-01-PLAN.md -- Auto-throttle config, score-based waterfall, convergence tracking (TDD)
+- [ ] 35-02-PLAN.md -- Poll-loop integration and webapp API exposure
 
 ### Phase 36: Auto-Throttle UI & Live Tuning
 **Goal**: Users can enable Auto-Throttle from the virtual inverter dashboard, see live scores, and the system self-tunes based on measured response times
