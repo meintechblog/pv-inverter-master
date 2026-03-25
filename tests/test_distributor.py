@@ -807,3 +807,158 @@ async def test_auto_throttle_tiebreak_by_device_id():
 
     alpha_args = plugins["alpha"].write_power_limit.call_args[0]
     assert abs(alpha_args[1] - 0.0) < 0.5
+
+
+# ---------------------------------------------------------------------------
+# Convergence Tracking Tests (Phase 35)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_convergence_target_set_after_limit():
+    """After distribute(), ds.target_power_w and ds.target_set_ts are set."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    await dist.distribute(50.0, enable=True)
+
+    ds = dist._device_states["se30k"]
+    # 50% of 30000 = 15000W
+    assert ds.target_power_w is not None
+    assert abs(ds.target_power_w - 15000.0) < 100.0
+    assert ds.target_set_ts is not None
+    assert ds.target_set_ts > 0
+
+
+@pytest.mark.asyncio
+async def test_convergence_detected_on_poll():
+    """on_poll with power within 5% of target sets measured_response_time_s."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    await dist.distribute(50.0, enable=True)
+
+    ds = dist._device_states["se30k"]
+    assert ds.target_power_w is not None
+    # Simulate convergence: power within 5% of target
+    dist.on_poll("se30k", ds.target_power_w * 0.98)
+
+    assert ds.measured_response_time_s is not None
+    assert ds.measured_response_time_s >= 0
+
+
+@pytest.mark.asyncio
+async def test_convergence_not_detected_when_far():
+    """on_poll with power 20% away from target does NOT set measured_response_time_s."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    await dist.distribute(50.0, enable=True)
+
+    ds = dist._device_states["se30k"]
+    assert ds.target_power_w is not None
+    # 20% error - should NOT converge
+    dist.on_poll("se30k", ds.target_power_w * 0.80)
+
+    assert ds.measured_response_time_s is None
+
+
+@pytest.mark.asyncio
+async def test_convergence_rolling_average():
+    """After 3 convergence events, measured_response_time_s is the mean."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    await dist.distribute(50.0, enable=True)
+    ds = dist._device_states["se30k"]
+
+    # Simulate 3 convergence events with known response times
+    response_times = [1.0, 2.0, 3.0]
+    for rt in response_times:
+        # Set target again (new distribute)
+        ds.target_power_w = 15000.0
+        ds.target_set_ts = time.monotonic() - rt  # rt seconds ago
+        dist.on_poll("se30k", 15000.0)
+
+    expected_mean = sum(response_times) / len(response_times)
+    assert ds.measured_response_time_s is not None
+    assert abs(ds.measured_response_time_s - expected_mean) < 0.1
+
+
+@pytest.mark.asyncio
+async def test_convergence_binary_off_threshold():
+    """Binary device target=0W, poll shows 30W (< 50W threshold) -> converged."""
+    dist, plugins = _build_distributor_with_caps([
+        ("shelly", 800, 1, True, 0.0, "binary", 0.5, 300.0, 30.0),
+    ])
+
+    # Manually set target as if the device was just switched off
+    dist.sync_devices()
+    ds = dist._device_states["shelly"]
+    ds.target_power_w = 0.0
+    ds.target_set_ts = time.monotonic() - 1.0  # 1s ago
+    ds.relay_on = False
+
+    dist.on_poll("shelly", 30.0)  # < 50W threshold
+
+    assert ds.measured_response_time_s is not None
+
+
+@pytest.mark.asyncio
+async def test_convergence_skips_startup_grace():
+    """During startup grace period, convergence is not checked."""
+    dist, plugins = _build_distributor_with_caps([
+        ("shelly", 800, 1, True, 0.0, "binary", 0.5, 300.0, 30.0),
+    ])
+
+    dist.sync_devices()
+    ds = dist._device_states["shelly"]
+    ds.target_power_w = 800.0
+    ds.target_set_ts = time.monotonic() - 1.0
+    ds.startup_until_ts = time.monotonic() + 30.0  # In startup grace
+
+    dist.on_poll("shelly", 800.0)  # Exact target match
+
+    assert ds.measured_response_time_s is None
+
+
+@pytest.mark.asyncio
+async def test_target_not_reset_when_same_limit():
+    """If new distribute() produces same target (within 2%), target_set_ts is NOT reset."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    await dist.distribute(50.0, enable=True)
+    ds = dist._device_states["se30k"]
+    original_ts = ds.target_set_ts
+    assert original_ts is not None
+
+    # Same limit again -> target_set_ts should NOT change
+    await dist.distribute(50.0, enable=True)
+    assert ds.target_set_ts == original_ts
+
+
+@pytest.mark.asyncio
+async def test_effective_score_uses_measured():
+    """After convergence measurement, _effective_score() differs from preset score."""
+    dist, plugins = _build_distributor_with_caps([
+        ("se30k", 30000, 1, True, 0.0, "proportional", 1.0, 0.0, 0.0),
+    ])
+
+    dist.sync_devices()
+    ds = dist._device_states["se30k"]
+
+    preset_score = dist._effective_score(ds)
+
+    # Set measured response time (much faster than preset 1.0s)
+    ds.measured_response_time_s = 0.1
+
+    measured_score = dist._effective_score(ds)
+
+    assert measured_score != preset_score
+    # Faster response -> higher score
+    assert measured_score > preset_score
