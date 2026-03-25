@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Shelly Plugin
-status: Ready to plan
-stopped_at: Completed 34-01-PLAN.md
-last_updated: "2026-03-25T16:52:49.040Z"
+status: Ready for verification
+stopped_at: Completed 35-02-PLAN.md
+last_updated: "2026-03-25T18:40:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
-**Current focus:** Phase 34 — binary-throttle-engine-with-hysteresis
+**Current focus:** Phase 35 — smart-auto-throttle-algorithm
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
+Phase: 35 (smart-auto-throttle-algorithm) — COMPLETE
+Plan: 2 of 2 (all complete)
 
 ## Performance Metrics
 
@@ -61,6 +61,9 @@ Plan: Not started
 - [Phase 33]: Used hasattr guard pattern for throttle_capabilities to handle plugins without the property gracefully
 - [Phase 34]: Separate dispatch paths: switch() for binary, write_power_limit() for proportional
 - [Phase 34]: Cooldown uses ThrottleCaps.cooldown_s (intrinsic), not InverterEntry.throttle_dead_time_s (config)
+- [Phase 35]: Auto waterfall: each device own tier, sorted by effective score descending
+- [Phase 35]: Convergence tracking: 5% tolerance, 50W binary-off threshold, 10-sample rolling average
+- [Phase 35]: AC power extraction uses register indices 14/15 verified against aggregation.py
 
 ### Roadmap Evolution
 
@@ -76,6 +79,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-25T16:48:54.955Z
-Stopped at: Completed 34-01-PLAN.md
-Resume point: Plan phase 28 (Plugin Core & Profiles)
+Last session: 2026-03-25T18:40:00Z
+Stopped at: Completed 35-02-PLAN.md
+Resume point: Phase 35 complete, ready for verification
