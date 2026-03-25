@@ -17,7 +17,14 @@ import structlog
 
 from pv_inverter_proxy.config import Config, InverterEntry
 from pv_inverter_proxy.connection import ConnectionState
-from pv_inverter_proxy.plugin import compute_throttle_score
+from pv_inverter_proxy.plugin import ThrottleCaps, compute_throttle_score
+
+
+# Convergence tracking constants
+CONVERGENCE_TOLERANCE_PCT = 5.0
+CONVERGENCE_MAX_SAMPLES = 10
+CONVERGENCE_NEAR_ZERO_W = 50.0
+TARGET_CHANGE_TOLERANCE_PCT = 2.0
 
 
 @dataclass
@@ -36,6 +43,11 @@ class DeviceLimitState:
     relay_on: bool = True                # Current relay state (binary devices)
     last_toggle_ts: float | None = None  # Monotonic timestamp of last relay toggle
     startup_until_ts: float = 0.0        # Monotonic time when startup grace ends
+    # Convergence tracking fields (Phase 35)
+    target_power_w: float | None = None
+    target_set_ts: float | None = None
+    measured_response_time_s: float | None = None
+    _convergence_samples: list = field(default_factory=list)
 
 
 class PowerLimitDistributor:
@@ -150,22 +162,70 @@ class PowerLimitDistributor:
         for device_id in self._sort_binary_reenable(binary_on):
             await self._send_binary_command(device_id, turn_on=True)
 
+    def _effective_score(self, ds: DeviceLimitState) -> float:
+        """Compute effective throttle score, using measured response time if available."""
+        if not hasattr(ds.plugin, 'throttle_capabilities'):
+            return 0.0
+        caps = ds.plugin.throttle_capabilities
+        if getattr(ds, 'measured_response_time_s', None) is not None:
+            measured_caps = ThrottleCaps(
+                mode=caps.mode,
+                response_time_s=ds.measured_response_time_s,
+                cooldown_s=caps.cooldown_s,
+                startup_delay_s=caps.startup_delay_s,
+            )
+            return compute_throttle_score(measured_caps)
+        return compute_throttle_score(caps)
+
     def _waterfall(self, allowed_watts: float) -> dict[str, float]:
-        """Pure function: waterfall distribution by Throttling Order.
+        """Pure function: waterfall distribution by Throttling Order or score.
+
+        When auto_throttle is True, sorts by effective score descending (each
+        device is its own tier). When False, uses manual throttle_order groups.
 
         Returns {device_id: limit_pct} for all throttle-eligible devices.
         """
         # Collect throttle-eligible: throttle_enabled=True, online, rated_power > 0
         # Exclude binary devices in startup grace period
-        eligible = sorted(
-            [ds for ds in self._device_states.values()
-             if ds.entry.throttle_enabled and ds.is_online and ds.entry.rated_power > 0
-             and not self._is_in_startup(ds)],
-            key=lambda ds: ds.entry.throttle_order,
+        eligible_list = [
+            ds for ds in self._device_states.values()
+            if ds.entry.throttle_enabled and ds.is_online and ds.entry.rated_power > 0
+            and not self._is_in_startup(ds)
+        ]
+
+        if not eligible_list:
+            return {}
+
+        if self._config.auto_throttle:
+            return self._waterfall_auto(eligible_list, allowed_watts)
+        else:
+            return self._waterfall_manual(eligible_list, allowed_watts)
+
+    def _waterfall_auto(self, eligible: list[DeviceLimitState], allowed_watts: float) -> dict[str, float]:
+        """Score-based waterfall: each device is its own tier, sorted by score descending."""
+        sorted_eligible = sorted(
+            eligible,
+            key=lambda ds: (self._effective_score(ds), ds.device_id),
+            reverse=True,
         )
 
-        if not eligible:
-            return {}
+        result: dict[str, float] = {}
+        remaining = allowed_watts
+
+        for ds in sorted_eligible:
+            if remaining <= 0:
+                result[ds.device_id] = 0.0
+                continue
+            budget = min(remaining, ds.entry.rated_power)
+            pct = max(0.0, min(100.0, (budget / ds.entry.rated_power) * 100.0))
+            result[ds.device_id] = round(pct, 1)
+            remaining -= budget
+
+        return result
+
+    def _waterfall_manual(self, eligible: list[DeviceLimitState], allowed_watts: float) -> dict[str, float]:
+        """Manual waterfall: group by throttle_order, split within group."""
+        eligible = sorted(eligible, key=lambda ds: ds.entry.throttle_order)
 
         result: dict[str, float] = {}
         remaining = allowed_watts
@@ -232,6 +292,7 @@ class PowerLimitDistributor:
                 ds.current_limit_pct = limit_pct
                 ds.last_write_ts = now
                 ds.pending_limit_pct = None
+                self._record_target(ds, limit_pct)
                 self._log.debug(
                     "limit_sent",
                     device_id=device_id,
@@ -321,6 +382,7 @@ class PowerLimitDistributor:
                 ds.last_toggle_ts = now
                 if turn_on:
                     ds.startup_until_ts = now + caps.startup_delay_s
+                self._record_target(ds, 100.0 if turn_on else 0.0)
                 self._log.info("binary_switch", device_id=device_id, relay_on=turn_on)
             else:
                 self._log.warning("binary_switch_failed", device_id=device_id, on=turn_on)
@@ -343,3 +405,54 @@ class PowerLimitDistributor:
             and ds.is_online
             and ds.entry.rated_power > 0
         )
+
+    def _record_target(self, ds: DeviceLimitState, limit_pct: float) -> None:
+        """Record target power for convergence tracking after a successful send.
+
+        Only updates target_set_ts if the new target differs from current by
+        more than TARGET_CHANGE_TOLERANCE_PCT to avoid stale target resets.
+        """
+        new_target_w = (limit_pct / 100.0) * ds.entry.rated_power
+        if ds.target_power_w is not None:
+            if ds.target_power_w == 0 and new_target_w == 0:
+                return  # No change
+            if ds.target_power_w != 0:
+                change_pct = abs(new_target_w - ds.target_power_w) / ds.target_power_w * 100.0
+                if change_pct <= TARGET_CHANGE_TOLERANCE_PCT:
+                    return  # Target unchanged within tolerance
+        ds.target_power_w = new_target_w
+        ds.target_set_ts = time.monotonic()
+
+    def on_poll(self, device_id: str, actual_power_w: float) -> None:
+        """Check convergence after receiving polled power data.
+
+        If the actual power is within CONVERGENCE_TOLERANCE_PCT of the target,
+        records the response time and computes a rolling average.
+        """
+        ds = self._device_states.get(device_id)
+        if ds is None:
+            return
+        if ds.target_power_w is None or ds.target_set_ts is None:
+            return
+        # Skip during startup grace period
+        if self._is_in_startup(ds):
+            return
+
+        # Check convergence
+        converged = False
+        if ds.target_power_w == 0:
+            converged = actual_power_w < CONVERGENCE_NEAR_ZERO_W
+        else:
+            error_pct = abs(actual_power_w - ds.target_power_w) / ds.target_power_w * 100.0
+            converged = error_pct <= CONVERGENCE_TOLERANCE_PCT
+
+        if converged:
+            elapsed = time.monotonic() - ds.target_set_ts
+            ds._convergence_samples.append(elapsed)
+            # Trim to max samples
+            if len(ds._convergence_samples) > CONVERGENCE_MAX_SAMPLES:
+                ds._convergence_samples = ds._convergence_samples[-CONVERGENCE_MAX_SAMPLES:]
+            ds.measured_response_time_s = sum(ds._convergence_samples) / len(ds._convergence_samples)
+            # Reset target (convergence detected, wait for next limit command)
+            ds.target_power_w = None
+            ds.target_set_ts = None
