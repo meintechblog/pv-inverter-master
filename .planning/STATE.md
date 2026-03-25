@@ -4,7 +4,7 @@ milestone: v6.0
 milestone_name: Shelly Plugin
 status: Milestone complete
 stopped_at: "Checkpoint: 30-02 Task 3 human-verify"
-last_updated: "2026-03-24T08:55:12.704Z"
+last_updated: "2026-03-25T15:17:08.692Z"
 progress:
   total_phases: 5
   completed_phases: 3

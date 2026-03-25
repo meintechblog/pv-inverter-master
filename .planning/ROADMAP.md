@@ -181,12 +181,58 @@ Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
 | 31. Device Dashboard & Connection Card | 0/? | Complete    | 2026-03-24 |
 | 32. Aggregation Integration | 0/? | Complete    | 2026-03-24 |
 
-### Phase 33: Binary Throttle (Relay On/Off) for Shelly Devices
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 32
-**Plans:** 0 plans
+### Phase 33: Device Throttle Capabilities & Scoring
+**Goal**: Each device type declares its throttle capabilities (proportional vs binary, response time, cooldown) and receives a speed score that the distributor can use for prioritization
+**Depends on**: Phase 32
+**Requirements**: THRT-01, THRT-02, THRT-03
+**Success Criteria** (what must be TRUE):
+  1. InverterPlugin ABC has a `throttle_capabilities` property returning a ThrottleCaps dataclass (mode: proportional|binary|none, response_time_s, cooldown_s, startup_delay_s)
+  2. SolarEdge returns proportional/1s/0s/0s, OpenDTU returns proportional/10s/0s/0s, Shelly returns binary/0.5s/300s/30s
+  3. Each device exposes a computed `throttle_score` (0-10) in the API based on its capabilities — higher = faster regulation
+  4. The device list API includes throttle_score and throttle_mode for each device
+**Plans**: TBD
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 33 to break down)
+
+### Phase 34: Binary Throttle Engine with Hysteresis
+**Goal**: The PowerLimitDistributor can control binary (relay on/off) devices with configurable hysteresis to prevent flapping
+**Depends on**: Phase 33
+**Requirements**: THRT-04, THRT-05, THRT-06
+**Success Criteria** (what must be TRUE):
+  1. PowerLimitDistributor recognizes binary-throttle devices and sends relay off when their turn comes in the waterfall
+  2. A hysteresis timer prevents relay toggling more than once per cooldown period (default 300s)
+  3. After relay on, the distributor waits startup_delay_s before expecting power from that device
+  4. Re-enable happens in reverse order (slowest devices come back online first, fastest stay throttled longest for fine-tuning)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 34 to break down)
+
+### Phase 35: Smart Auto-Throttle Algorithm
+**Goal**: An "Auto" mode in the distributor that automatically selects the optimal throttle order based on device speed scores — fastest devices regulate first, binary devices are last resort
+**Depends on**: Phase 34
+**Requirements**: THRT-07, THRT-08, THRT-09
+**Success Criteria** (what must be TRUE):
+  1. When auto_throttle is enabled, the distributor ignores manual throttle_order and uses throttle_score ranking instead
+  2. The waterfall first exhausts proportional devices (highest score first), then falls through to binary devices
+  3. The algorithm converges to the target power within 3 poll cycles for proportional devices
+  4. Live response-time measurement updates the throttle_score based on actual Soll-Ist convergence speed (not just preset values)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 35 to break down)
+
+### Phase 36: Auto-Throttle UI & Live Tuning
+**Goal**: Users can enable Auto-Throttle from the virtual inverter dashboard, see live scores, and the system self-tunes based on measured response times
+**Depends on**: Phase 35
+**Requirements**: THRT-10, THRT-11, THRT-12
+**Success Criteria** (what must be TRUE):
+  1. The virtual Fronius dashboard has an "Auto-Throttle" toggle that enables/disables the smart algorithm
+  2. Each device's connection card shows its throttle_score, mode (proportional/binary), and measured response time
+  3. The contribution bar in the virtual dashboard visualizes throttle state per device (active/throttled/disabled/cooldown)
+  4. Presets (Aggressive/Balanced/Conservative) adjust the algorithm parameters (convergence speed, hysteresis timers)
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 36 to break down)
