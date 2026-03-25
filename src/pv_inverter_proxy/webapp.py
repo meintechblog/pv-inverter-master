@@ -875,11 +875,13 @@ def _build_device_list(app_ctx: Any, config: Config) -> list[dict]:
     if slave_ctx and getattr(slave_ctx, "last_successful_read", 0) > 0:
         age = time.monotonic() - slave_ctx.last_successful_read
         virtual_conn = "connected" if age < 30 else "disconnected"
+    virtual_rated_w = sum(inv.rated_power for inv in config.inverters if inv.enabled)
     devices.append({
         "id": "virtual",
         "name": config.virtual_inverter.name,
         "type": "virtual",
         "connection_state": virtual_conn,
+        "rated_power": virtual_rated_w,
     })
     mqtt_pub_conn = "connected" if app_ctx.mqtt_pub_connected else "disconnected"
     devices.append({
@@ -1562,11 +1564,20 @@ async def virtual_snapshot_handler(request: web.Request) -> web.Response:
 
     total_power_w, total_rated_w, contributions = _build_virtual_contributions(app_ctx, config)
 
+    # Include control limits from virtual inverter config
+    vi = config.virtual_inverter
+    control = {
+        "clamp_min_pct": getattr(vi, "clamp_min_pct", 0),
+        "clamp_max_pct": getattr(vi, "clamp_max_pct", 100),
+    }
+
     return web.json_response({
         "total_power_w": total_power_w,
         "total_rated_w": total_rated_w,
+        "rated_power_w": total_rated_w,
         "virtual_name": config.virtual_inverter.name,
         "contributions": contributions,
+        "control": control,
     })
 
 
