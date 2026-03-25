@@ -193,7 +193,7 @@ Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
 **Plans**: 2 plans
 
 Plans:
-- [ ] 33-01-PLAN.md -- ThrottleCaps dataclass, scoring function, ABC extension, all plugin implementations
+- [x] 33-01-PLAN.md -- ThrottleCaps dataclass, scoring function, ABC extension, all plugin implementations
 - [ ] 33-02-PLAN.md -- API enrichment: throttle_score and throttle_mode in device list and snapshot
 
 ### Phase 34: Binary Throttle Engine with Hysteresis

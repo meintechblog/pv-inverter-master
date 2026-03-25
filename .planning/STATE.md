@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Shelly Plugin
-status: Milestone complete
-stopped_at: "Checkpoint: 30-02 Task 3 human-verify"
-last_updated: "2026-03-25T15:17:08.692Z"
+status: Ready to plan
+stopped_at: Completed 33-02-PLAN.md
+last_updated: "2026-03-25T16:05:15.668Z"
 progress:
-  total_phases: 5
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 9
+  completed_phases: 4
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
-**Current focus:** Phase 30 — add-device-flow-discovery
+**Current focus:** Phase 33 — device-throttle-capabilities-scoring
 
 ## Current Position
 
-Phase: 32
+Phase: 34
 Plan: Not started
 
 ## Performance Metrics
@@ -57,6 +57,8 @@ Plan: Not started
 - [Phase 30]: Gen2+ devices map to generation=gen2 with gen_display showing actual gen number
 - [Phase 30]: Probe-on-Add: single click probes Shelly, shows generation, then auto-saves
 - [Phase 30]: Type-filtered discovery: Discover button routes to mDNS for Shelly vs Modbus scan for SolarEdge
+- [Phase 33]: Scoring formula: proportional base=7, binary base=3, none=0 with response/cooldown/startup penalties
+- [Phase 33]: Used hasattr guard pattern for throttle_capabilities to handle plugins without the property gracefully
 
 ### Roadmap Evolution
 
@@ -72,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T01:50:35.434Z
-Stopped at: Checkpoint: 30-02 Task 3 human-verify
+Last session: 2026-03-25T16:00:30.536Z
+Stopped at: Completed 33-02-PLAN.md
 Resume point: Plan phase 28 (Plugin Core & Profiles)
