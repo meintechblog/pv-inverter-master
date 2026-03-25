@@ -190,10 +190,11 @@ Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
   2. SolarEdge returns proportional/1s/0s/0s, OpenDTU returns proportional/10s/0s/0s, Shelly returns binary/0.5s/300s/30s
   3. Each device exposes a computed `throttle_score` (0-10) in the API based on its capabilities — higher = faster regulation
   4. The device list API includes throttle_score and throttle_mode for each device
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 33 to break down)
+- [ ] 33-01-PLAN.md -- ThrottleCaps dataclass, scoring function, ABC extension, all plugin implementations
+- [ ] 33-02-PLAN.md -- API enrichment: throttle_score and throttle_mode in device list and snapshot
 
 ### Phase 34: Binary Throttle Engine with Hysteresis
 **Goal**: The PowerLimitDistributor can control binary (relay on/off) devices with configurable hysteresis to prevent flapping
