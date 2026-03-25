@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: Shelly Plugin
-status: Milestone complete
+status: v6.0 milestone complete
 stopped_at: Completed 37-01-PLAN.md
-last_updated: "2026-03-25T21:10:32.398Z"
+last_updated: "2026-03-25T21:26:30.614Z"
 progress:
   total_phases: 10
   completed_phases: 8

@@ -62,20 +62,21 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 - ✓ Venus OS als eigenes Device mit eigenem Menuepunkt (ESS, MQTT, Status) — v4.0
 - ✓ Zentrales Device-Management: "+" zum Hinzufuegen von Invertern und Venus OS — v4.0
 
+- ✓ Shelly Plugin: Shelly Smart Devices als Inverter-Plugin mit Profil-System (Gen1/Gen2/Gen3) — v6.0
+- ✓ Auto-Detection der Shelly-Generation beim Hinzufuegen — v6.0
+- ✓ Shelly Polling: Leistung, Spannung, Strom, Energie, Temperatur via REST API — v6.0
+- ✓ Shelly Switch-Steuerung: On/Off per Webapp (kein Power-Limiting) — v6.0
+- ✓ Shelly Device-Dashboard: Gauge, AC-Werte, Connection-Card mit On/Off Toggle — v6.0
+- ✓ Shelly Aggregation: Daten fliessen in virtuellen PV-Inverter ein (DC-Skip fuer Zero-DC Devices) — v6.0
+- ✓ Shelly Add-Device Flow: Dritte Option neben SolarEdge/OpenDTU mit mDNS Discovery — v6.0
+- ✓ Throttle Capabilities: ThrottleCaps mit Score (0-10) pro Device — v6.0
+- ✓ Binary Throttle Engine: Relay-Steuerung mit Cooldown-Hysterese und Startup-Grace — v6.0
+- ✓ Smart Auto-Throttle: Score-basierte Waterfall-Reihenfolge mit Live-Convergence-Messung — v6.0
+- ✓ Auto-Throttle UI: Toggle, Presets, Throttle-Tabelle, State-Contribution-Bar — v6.0
+
 ### Active
 
-- ✓ Shelly Plugin: Shelly Smart Devices als Inverter-Plugin mit Profil-System (Gen1/Gen2/Gen3) — Validated in Phase 28: Plugin Core & Profiles
-- ✓ Auto-Detection der Shelly-Generation beim Hinzufuegen — Validated in Phase 28: Plugin Core & Profiles
-- ✓ Shelly Polling: Leistung, Spannung, Strom, Energie, Temperatur via REST API — Validated in Phase 28: Plugin Core & Profiles
-- [ ] Shelly Switch-Steuerung: On/Off per Webapp (kein Power-Limiting)
-- [ ] Shelly Device-Dashboard: Gauge, AC-Werte, Connection-Card mit On/Off Toggle
-- [ ] Shelly Aggregation: Daten fliessen in virtuellen PV-Inverter ein
-- [ ] Shelly Add-Device Flow: Dritte Option neben SolarEdge/OpenDTU
-- ✓ Throttle Capabilities: Jedes Plugin deklariert ThrottleCaps (mode, response_time, cooldown, startup_delay) — Validated in Phase 33
-- ✓ Throttle Score: Berechneter Score (0-10) pro Device im API (SolarEdge 9.7, OpenDTU 7.0, Shelly 2.9) — Validated in Phase 33
-- ✓ Binary Throttle Engine: Distributor steuert Relay-Devices (on/off) mit Cooldown-Hysterese (300s), Startup-Grace (30s) und Reverse-Re-Enable — Validated in Phase 34
-- ✓ Smart Auto-Throttle: Score-basierte Waterfall-Reihenfolge (proportional vor binary), Live-Convergence-Messung mit Effective-Score-Feedback — Validated in Phase 35
-- ✓ Auto-Throttle UI: Toggle, Presets (Aggressive/Balanced/Conservative), Throttle-Tabelle, State-Contribution-Bar, Per-Device Throttle Info — Validated in Phase 36
+(None — define requirements for next milestone with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -172,19 +173,11 @@ Tech stack: Python 3.12, pymodbus 3.8+, aiohttp (HTTP + WebSocket + REST client 
 - LXC Container: 192.168.3.191 (Debian 13, Proxmox)
 - Proxy: Port 502 (Modbus) + Port 80 (Webapp)
 
-## Current Milestone: v6.0 Shelly Plugin
+## Completed Milestone: v6.0 Shelly Plugin (shipped 2026-03-25)
 
-**Goal:** Shelly Smart Devices als drittes Inverter-Plugin integrieren — misst Energiedaten des angeschlossenen Micro-PV-WR, ermoeglicht On/Off-Steuerung, unterstuetzt verschiedene Shelly-Generationen ueber austauschbare API-Profile.
+**Delivered:** Shelly Smart Devices als drittes Inverter-Plugin mit Gen1/Gen2/Gen3 Profil-System, On/Off-Steuerung, mDNS Discovery, Aggregation, und Smart Auto-Throttle mit Score-basierter Waterfall-Reihenfolge und Live-Convergence-Messung.
 
-**Target features:**
-- Shelly Plugin mit Profil-System (Gen1 vs Gen2/Gen3 API)
-- Auto-Detection der Shelly-Generation beim Hinzufuegen
-- Polling: Leistung, Spannung, Strom, Energie, Temperatur
-- Switch-Steuerung: On/Off per Webapp (kein %-Limiting)
-- Device-Dashboard: Gauge, AC-Werte, Connection-Card mit On/Off
-- Aggregation: Shelly-Daten fliessen in virtuellen PV-Inverter ein
-- Add-Device Flow: Shelly als dritte Option neben SolarEdge/OpenDTU
-- Nahtlose Integration: gleiches Look & Feel wie bestehende Plugins
+**10 phases, 12 plans, 23 tasks. See .planning/milestones/ for archive.**
 
 ## Evolution
 
