@@ -234,7 +234,8 @@ Plans:
   2. Each device's connection card shows its throttle_score, mode (proportional/binary), and measured response time
   3. The contribution bar in the virtual dashboard visualizes throttle state per device (active/throttled/disabled/cooldown)
   4. Presets (Aggressive/Balanced/Conservative) adjust the algorithm parameters (convergence speed, hysteresis timers)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 36 to break down)
+- [ ] 36-01-PLAN.md -- Backend: preset config, config-driven distributor params, enriched contributions payload
+- [ ] 36-02-PLAN.md -- Frontend: auto-throttle toggle, preset buttons, enhanced throttle table, per-device throttle info
