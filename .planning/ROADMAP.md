@@ -237,5 +237,5 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 36-01-PLAN.md -- Backend: preset config, config-driven distributor params, enriched contributions payload
+- [x] 36-01-PLAN.md -- Backend: preset config, config-driven distributor params, enriched contributions payload
 - [ ] 36-02-PLAN.md -- Frontend: auto-throttle toggle, preset buttons, enhanced throttle table, per-device throttle info
