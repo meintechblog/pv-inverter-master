@@ -76,7 +76,16 @@ Venus OS muss alle PV-Inverter (egal welche Marke/Protokoll) als einen einzigen 
 
 ### Active
 
-(None — define requirements for next milestone with `/gsd:new-milestone`)
+## Current Milestone: v7.0 Sungrow SG-RT Plugin
+
+**Goal:** Full-Stack Integration des Sungrow SG-RT Wechselrichters als vierter Inverter-Typ mit Modbus TCP Polling, 3-Phasen Dashboard, Power Limiting, Discovery und Throttle-Integration.
+
+**Target features:**
+- Sungrow Plugin mit Modbus TCP Polling und SunSpec Register Encoding
+- Power Limiting via Modbus Holding Register Write
+- 3-Phasen AC Dashboard mit MPPT DC Channels
+- Add-Device Flow mit Modbus Probe und Netzwerk-Discovery
+- Config UI und Throttle Integration
 
 ### Out of Scope
 
