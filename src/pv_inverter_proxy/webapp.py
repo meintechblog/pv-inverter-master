@@ -1133,10 +1133,13 @@ async def power_limit_handler(request: web.Request) -> web.Response:
                 {"success": False, "error": error}, status=400,
             )
 
-        # Accept locally (power limit distribution handled by PowerLimitDistributor)
+        # Accept locally and trigger distribution immediately
         control.set_from_webapp(raw_value, 1)
         if override_log is not None:
             override_log.append("webapp", "set", limit_pct)
+        distributor = getattr(app_ctx, 'distributor', None)
+        if distributor is not None:
+            await distributor.distribute(control.wmaxlimpct_float, control.is_enabled)
         return web.json_response({"success": True, "error": None})
 
     elif action == "enable":
@@ -1146,6 +1149,9 @@ async def power_limit_handler(request: web.Request) -> web.Response:
         control.webapp_revert_at = time.monotonic() + 300.0
         if override_log is not None:
             override_log.append("webapp", "enable", control.wmaxlimpct_float)
+        distributor = getattr(app_ctx, 'distributor', None)
+        if distributor is not None:
+            await distributor.distribute(control.wmaxlimpct_float, control.is_enabled)
         return web.json_response({"success": True, "error": None})
 
     else:  # disable
@@ -1154,6 +1160,9 @@ async def power_limit_handler(request: web.Request) -> web.Response:
         control.webapp_revert_at = None
         if override_log is not None:
             override_log.append("webapp", "disable", None)
+        distributor = getattr(app_ctx, 'distributor', None)
+        if distributor is not None:
+            await distributor.distribute(control.wmaxlimpct_float, False)
         return web.json_response({"success": True, "error": None})
 
 
