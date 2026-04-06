@@ -62,29 +62,29 @@ Deferred to future release.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | — | Pending |
-| PLUG-02 | — | Pending |
-| PLUG-03 | — | Pending |
-| PLUG-04 | — | Pending |
-| CTRL-01 | — | Pending |
-| CTRL-02 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
-| DASH-04 | — | Pending |
-| DASH-05 | — | Pending |
-| ADD-01 | — | Pending |
-| ADD-02 | — | Pending |
-| ADD-03 | — | Pending |
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
+| PLUG-01 | Phase 38 | Pending |
+| PLUG-02 | Phase 38 | Pending |
+| PLUG-03 | Phase 38 | Pending |
+| PLUG-04 | Phase 38 | Pending |
+| CTRL-01 | Phase 41 | Pending |
+| CTRL-02 | Phase 41 | Pending |
+| DASH-01 | Phase 39 | Pending |
+| DASH-02 | Phase 39 | Pending |
+| DASH-03 | Phase 39 | Pending |
+| DASH-04 | Phase 39 | Pending |
+| DASH-05 | Phase 39 | Pending |
+| ADD-01 | Phase 40 | Pending |
+| ADD-02 | Phase 40 | Pending |
+| ADD-03 | Phase 40 | Pending |
+| CFG-01 | Phase 42 | Pending |
+| CFG-02 | Phase 42 | Pending |
+| CFG-03 | Phase 42 | Pending |
 
 **Coverage:**
 - v7.0 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-06*
-*Last updated: 2026-04-06 after initial definition*
+*Last updated: 2026-04-06 after roadmap creation*

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v7.0
 milestone_name: Sungrow SG-RT Plugin
-status: Defining requirements
-stopped_at: null
+status: Ready to plan
+stopped_at: Roadmap created, ready to plan Phase 38
 last_updated: "2026-04-06"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,14 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
-**Current focus:** Defining requirements for v7.0
+**Current focus:** v7.0 Sungrow SG-RT Plugin -- Phase 38 (Plugin Core)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-06 — Milestone v7.0 started
+Phase: 38 of 42 (Plugin Core)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-04-06 -- Roadmap created for v7.0
+
+Progress: [..........] 0%
 
 ## Performance Metrics
 
@@ -45,18 +47,11 @@ Last activity: 2026-04-06 — Milestone v7.0 started
 
 ### Decisions
 
-- [v4.0]: DeviceRegistry per-device asyncio poll loops with independent lifecycle
-- [v4.0]: AggregationLayer SunSpec register summation across heterogeneous sources
-- [v4.0]: Device-centric SPA with hash routing and per-device sub-tabs
-- [v5.0]: aiomqtt for publisher, queue-based decoupling, HA discovery
 - [v6.0]: Profile-based Gen1/Gen2 abstraction (dict, not class hierarchy)
-- [v6.0]: Zero new deps -- reuse aiohttp for all HTTP communication
 - [v6.0]: Scoring formula: proportional base=7, binary base=3, with response/cooldown/startup penalties
-- [v6.0→post]: Removed auto_throttle toggle and manual TO — always score-based waterfall
-- [v6.0→post]: Higher score = throttled first (fastest responders handle throttling)
-- [v6.0→post]: Force-bypass cooldown + dead-time when disabling all limiting
+- [v6.0->post]: Higher score = throttled first (fastest responders handle throttling)
 
-### Sungrow Research (from this session)
+### Sungrow Research
 
 - Live device: SG8.0RT at 192.168.2.151:502 via WiNet-S Dongle
 - Modbus TCP read-only confirmed working parallel to Loxone
@@ -67,17 +62,13 @@ Last activity: 2026-04-06 — Milestone v7.0 started
 - State register at wire 5037 (0x8100 = Derating observed)
 - Power limiting via Holding Registers needs research (write registers not yet probed)
 
-### Pending Todos
-
-None.
-
 ### Blockers/Concerns
 
-- Modbus TCP shared with Loxone — read-only is safe, write (power limiting) needs testing
+- Modbus TCP shared with Loxone -- read-only is safe, write (power limiting) needs testing
 - Power limit write registers for Sungrow SG-RT not yet identified
 
 ## Session Continuity
 
 Last session: 2026-04-06
-Stopped at: Milestone v7.0 initialization
-Resume point: Define requirements, then roadmap
+Stopped at: Roadmap created for v7.0 (5 phases, 17 requirements)
+Resume point: `/gsd-plan-phase 38`

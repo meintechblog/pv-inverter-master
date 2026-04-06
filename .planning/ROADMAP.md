@@ -9,7 +9,8 @@
 - v3.1 Auto-Discovery & Inverter Management -- Phases 17-20 (shipped 2026-03-20)
 - v4.0 Multi-Source Virtual Inverter -- Phases 21-24 (shipped 2026-03-21)
 - v5.0 MQTT Data Publishing -- Phases 25-27 (shipped 2026-03-22)
-- v6.0 Shelly Plugin -- Phases 28-37 (in progress)
+- v6.0 Shelly Plugin -- Phases 28-37 (shipped 2026-03-25)
+- v7.0 Sungrow SG-RT Plugin -- Phases 38-42 (in progress)
 
 ## Phases
 
@@ -52,10 +53,10 @@ Full details: `.planning/milestones/v2.1-ROADMAP.md`
 <details>
 <summary>v3.0 Setup & Onboarding (Phases 13-16) -- SHIPPED 2026-03-19</summary>
 
-- [x] Phase 13: MQTT Config Backend (2/2 plans) -- completed 2026-03-19
-- [x] Phase 14: Config Page & Dashboard UX (2/2 plans) -- completed 2026-03-19
-- [x] Phase 15: Venus OS Auto-Detect (1/1 plan) -- completed 2026-03-19
-- [x] Phase 16: Install Script & README (1/1 plan) -- completed 2026-03-19
+- [x] Phase 13: MQTT Config Backend (2/2 plans)
+- [x] Phase 14: Config Page & Dashboard UX (2/2 plans)
+- [x] Phase 15: Venus OS Auto-Detect (1/1 plan)
+- [x] Phase 16: Install Script & README (1/1 plan)
 
 Full details: `.planning/milestones/v3.0-ROADMAP.md`
 
@@ -64,10 +65,10 @@ Full details: `.planning/milestones/v3.0-ROADMAP.md`
 <details>
 <summary>v3.1 Auto-Discovery & Inverter Management (Phases 17-20) -- SHIPPED 2026-03-20</summary>
 
-- [x] Phase 17: Discovery Engine (2/2 plans) -- completed 2026-03-20
-- [x] Phase 18: Multi-Inverter Config (2/2 plans) -- completed 2026-03-20
-- [x] Phase 19: Inverter Management UI (1/1 plan) -- completed 2026-03-20
-- [x] Phase 20: Discovery UI & Onboarding (2/2 plans) -- completed 2026-03-20
+- [x] Phase 17: Discovery Engine (2/2 plans)
+- [x] Phase 18: Multi-Inverter Config (2/2 plans)
+- [x] Phase 19: Inverter Management UI (1/1 plan)
+- [x] Phase 20: Discovery UI & Onboarding (2/2 plans)
 
 Full details: `.planning/milestones/v3.1-ROADMAP.md`
 
@@ -76,10 +77,10 @@ Full details: `.planning/milestones/v3.1-ROADMAP.md`
 <details>
 <summary>v4.0 Multi-Source Virtual Inverter (Phases 21-24) -- SHIPPED 2026-03-21</summary>
 
-- [x] Phase 21: Data Model & OpenDTU Plugin (2/2 plans) -- completed 2026-03-20
-- [x] Phase 22: Device Registry & Aggregation (2/2 plans) -- completed 2026-03-20
-- [x] Phase 23: Power Limit Distribution (2/2 plans) -- completed 2026-03-21
-- [x] Phase 24: Device-Centric API & Frontend (2/2 plans) -- completed 2026-03-21
+- [x] Phase 21: Data Model & OpenDTU Plugin (2/2 plans)
+- [x] Phase 22: Device Registry & Aggregation (2/2 plans)
+- [x] Phase 23: Power Limit Distribution (2/2 plans)
+- [x] Phase 24: Device-Centric API & Frontend (2/2 plans)
 
 Full details: `.planning/milestones/v4.0-ROADMAP.md`
 
@@ -88,169 +89,111 @@ Full details: `.planning/milestones/v4.0-ROADMAP.md`
 <details>
 <summary>v5.0 MQTT Data Publishing (Phases 25-27) -- SHIPPED 2026-03-22</summary>
 
-- [x] Phase 25: Publisher Infrastructure & Broker Connectivity (2/2 plans) -- completed 2026-03-22
-- [x] Phase 26: Telemetry Publishing & Home Assistant Discovery (2/2 plans) -- completed 2026-03-22
-- [x] Phase 27: Webapp Config & Status UI (2/2 plans) -- completed 2026-03-22
+- [x] Phase 25: Publisher Infrastructure & Broker Connectivity (2/2 plans)
+- [x] Phase 26: Telemetry Publishing & Home Assistant Discovery (2/2 plans)
+- [x] Phase 27: Webapp Config & Status UI (2/2 plans)
 
 Full details: `.planning/milestones/v5.0-ROADMAP.md`
 
 </details>
 
-### v6.0 Shelly Plugin (In Progress)
+<details>
+<summary>v6.0 Shelly Plugin (Phases 28-37) -- SHIPPED 2026-03-25</summary>
 
-**Milestone Goal:** Shelly Smart Devices als drittes Inverter-Plugin integrieren -- misst Energiedaten des angeschlossenen Micro-PV-WR, ermoeglicht On/Off-Steuerung, unterstuetzt verschiedene Shelly-Generationen ueber austauschbare API-Profile.
+- [x] Phase 28: Plugin Core & Profiles (1/1 plan)
+- [x] Phase 29: Switch Control & Config Wiring (1/1 plan)
+- [x] Phase 30: Add-Device Flow & Discovery (2/2 plans)
+- [x] Phase 31: Device Dashboard & Connection Card (1/1 plan)
+- [x] Phase 32: Aggregation Integration (1/1 plan)
+- [x] Phase 33: Device Throttle Capabilities & Scoring (2/2 plans)
+- [x] Phase 34: Binary Throttle Engine with Hysteresis (1/1 plan)
+- [x] Phase 35: Smart Auto-Throttle Algorithm (2/2 plans)
+- [x] Phase 36: Auto-Throttle UI & Live Tuning (2/2 plans)
+- [x] Phase 37: Distributor Wiring & DC Average Fix (1/1 plan)
 
-- [x] **Phase 28: Plugin Core & Profiles** - ShellyPlugin with Gen1/Gen2 profiles, auto-detection, polling, SunSpec encoding, graceful degradation (completed 2026-03-24)
-- [x] **Phase 29: Switch Control & Config Wiring** - On/Off relay control, switch status display, power-limit no-op, plugin_factory integration (completed 2026-03-24)
-- [x] **Phase 30: Add-Device Flow & Discovery** - Shelly as third option in add-device dialog, auto-detection UI, LAN discovery, config page (completed 2026-03-24)
-- [x] **Phase 31: Device Dashboard & Connection Card** - Gauge, AC values, Shelly-specific connection card with on/off toggle (completed 2026-03-24)
-- [x] **Phase 32: Aggregation Integration** - Shelly data flows into virtual PV inverter, DC-averaging skip (completed 2026-03-24)
+Full details: `.planning/milestones/v6.0-ROADMAP.md`
+
+</details>
+
+### v7.0 Sungrow SG-RT Plugin (In Progress)
+
+**Milestone Goal:** Full-Stack Integration des Sungrow SG-RT Wechselrichters als vierter Inverter-Typ mit Modbus TCP Polling, SunSpec Encoding, 3-Phasen Dashboard, Power Limiting, Discovery und Throttle-Integration.
+
+- [ ] **Phase 38: Plugin Core** - Modbus TCP polling, SunSpec encoding, config entry, ThrottleCaps declaration
+- [ ] **Phase 39: Dashboard** - Power gauge, 3-phase AC, MPPT DC channels, state card, register viewer
+- [ ] **Phase 40: Add Device & Discovery** - Type card, Modbus probe, network scan with Sungrow detection
+- [ ] **Phase 41: Power Control** - Write register research, write_power_limit, waterfall distributor integration
+- [ ] **Phase 42: Integration** - Aggregation wiring, MQTT publishing, config UI, E2E verification
 
 ## Phase Details
 
-### Phase 28: Plugin Core & Profiles
-**Goal**: A working ShellyPlugin can connect to any Shelly device, auto-detect its generation, poll energy data, and encode it as SunSpec registers
-**Depends on**: Phase 27 (v5.0 complete)
-**Requirements**: PLUG-01, PLUG-02, PLUG-03, PLUG-04, PLUG-05, PLUG-06, PLUG-07
+### Phase 38: Plugin Core
+**Goal**: A working SungrowPlugin can connect to a Sungrow SG-RT inverter via Modbus TCP, poll all essential data, encode it as SunSpec registers, and declare its throttle capabilities
+**Depends on**: Phase 37 (v6.0 complete)
+**Requirements**: PLUG-01, PLUG-02, PLUG-03, PLUG-04
 **Success Criteria** (what must be TRUE):
-  1. ShellyPlugin implements the full InverterPlugin ABC and can be instantiated with a Shelly device IP
-  2. On first connect, the plugin auto-detects Gen1 vs Gen2+ by probing the /shelly endpoint and selects the correct API profile
-  3. The plugin polls power (W), voltage (V), current (A), frequency (Hz), energy (Wh), and temperature (C) from the Shelly device at the configured interval
-  4. Polled data is encoded into SunSpec Model 103 registers identical to how OpenDTU encodes its data
-  5. Missing fields (e.g., no temperature on some Gen1 models) result in zero/default values instead of errors
-**Plans**: 1 plan
-Plans:
-- [ ] 28-01-PLAN.md -- ShellyPlugin with Gen1/Gen2 profiles, tests, and factory wiring
-
-### Phase 29: Switch Control & Config Wiring
-**Goal**: Users can turn Shelly relays on/off from the proxy, and Shelly devices are recognized by the plugin factory
-**Depends on**: Phase 28
-**Requirements**: CTRL-01, CTRL-02, CTRL-03
-**Success Criteria** (what must be TRUE):
-  1. The proxy can send on/off switch commands to a Shelly device via the correct Gen1 or Gen2 relay endpoint
-  2. The current switch state (on/off) is visible in the device data returned by the plugin
-  3. When Venus OS sends a power-limit command, write_power_limit() succeeds as a no-op and the device is excluded from throttling by default
-**Plans**: 1 plan
-Plans:
-- [ ] 29-01-PLAN.md -- Switch control API route, ShellyPlugin.switch() method, throttle_enabled default
-
-### Phase 30: Add-Device Flow & Discovery
-**Goal**: Users can add Shelly devices through the webapp with automatic generation detection, and discover Shelly devices on the LAN
-**Depends on**: Phase 29
-**Requirements**: UI-01, UI-02, UI-05, UI-06
-**Success Criteria** (what must be TRUE):
-  1. The add-device dialog shows "Shelly Device" as a third option alongside SolarEdge and OpenDTU
-  2. After entering a Shelly IP, the webapp probes the device and displays the detected generation (Gen1/Gen2/Gen3) before confirming
-  3. The device config page shows the Shelly host and detected generation as a readonly field
-  4. The Discover button in the add-device flow finds Shelly devices on the LAN by scanning and probing /shelly
-**Plans**: 2 plans
-Plans:
-- [ ] 30-01-PLAN.md -- Shelly probe endpoint, mDNS discovery module, unit tests
-- [ ] 30-02-PLAN.md -- Frontend: type card, form, probe flow, discovery UI, config page fields
-
-### Phase 31: Device Dashboard & Connection Card
-**Goal**: Each Shelly device has a full dashboard with power gauge, AC values, and Shelly-specific connection info including on/off control
-**Depends on**: Phase 30
-**Requirements**: UI-03, UI-04
-**Success Criteria** (what must be TRUE):
-  1. The Shelly device dashboard shows a power gauge and AC values (power, voltage, current, frequency) but no DC section
-  2. The connection card displays Shelly-specific info (generation, model) and the current switch state with on/off buttons
-  3. On/off buttons in the connection card send switch commands and the UI reflects the new state within one poll cycle
+  1. SungrowPlugin implements the full InverterPlugin ABC and polls live data (AC power/voltage/current/frequency, DC MPPT1+MPPT2, temperature, energy counters, running state) from a Sungrow SG-RT at the configured interval
+  2. Polled data is encoded into SunSpec Model 103 registers identical to the pattern used by SolarEdge and OpenDTU plugins
+  3. User can change host/port/unit_id via reconfigure() without restarting the proxy
+  4. Plugin declares ThrottleCaps with proportional mode and ~2s Modbus response time, producing a valid throttle_score
 **Plans**: TBD
 
-### Phase 32: Aggregation Integration
-**Goal**: Shelly energy data is included in the virtual PV inverter totals and the aggregator handles Shelly's lack of DC data correctly
-**Depends on**: Phase 31
-**Requirements**: AGG-01, AGG-02
+### Phase 39: Dashboard
+**Goal**: Each Sungrow device has a full dashboard with power gauge, 3-phase AC table, dual MPPT DC channels, inverter state card, and register viewer
+**Depends on**: Phase 38
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05
 **Success Criteria** (what must be TRUE):
-  1. A Shelly device's power and energy values are summed into the virtual PV inverter's aggregated SunSpec registers
-  2. The DC-averaging calculation in the aggregator skips Shelly devices without producing errors or skewing averages
-  3. The virtual PV inverter's total power on Venus OS includes the Shelly device's contribution
+  1. The Sungrow device dashboard shows a power gauge scaled to the device's rated power (8kW for SG8.0RT)
+  2. The 3-phase AC table displays L1/L2/L3 voltage, current, and power values updating in real-time
+  3. The DC section shows MPPT1 and MPPT2 channels with voltage, current, and power per tracker
+  4. The connection card displays inverter state (Run/Standby/Derating/Fault) and temperature
+  5. The register viewer shows all Sungrow registers with Sungrow-specific labels (wire addresses 5002-5037)
 **Plans**: TBD
+**UI hint**: yes
+
+### Phase 40: Add Device & Discovery
+**Goal**: Users can add Sungrow inverters through the webapp with Modbus probe validation, and discover Sungrow devices on the network
+**Depends on**: Phase 39
+**Requirements**: ADD-01, ADD-02, ADD-03
+**Success Criteria** (what must be TRUE):
+  1. The add-device dialog shows "Sungrow" as a fourth option alongside SolarEdge, OpenDTU, and Shelly
+  2. After entering a Sungrow IP, the webapp probes the device via Modbus TCP and displays the detected device type code and serial number before confirming
+  3. The Discover button finds Sungrow inverters on the LAN by scanning port 502 and detecting Sungrow device type responses
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 41: Power Control
+**Goal**: Users can set a power limit (0-100%) on a Sungrow inverter, and the waterfall distributor includes Sungrow in its score-based throttle ordering
+**Depends on**: Phase 38
+**Requirements**: CTRL-01, CTRL-02
+**Success Criteria** (what must be TRUE):
+  1. The proxy can write a power limit percentage to the Sungrow inverter via Modbus holding registers and the inverter responds with actual derating
+  2. When auto-throttle is active, the Sungrow device participates in the score-based waterfall at its declared throttle_score position
+  3. Power limit changes are reflected in the device snapshot and visible on the dashboard within one poll cycle
+**Plans**: TBD
+
+### Phase 42: Integration
+**Goal**: Sungrow devices are fully wired into the virtual PV inverter ecosystem -- aggregation, MQTT publishing, and config UI all work seamlessly
+**Depends on**: Phase 39, Phase 40, Phase 41
+**Requirements**: CFG-01, CFG-02, CFG-03
+**Success Criteria** (what must be TRUE):
+  1. The Sungrow config form allows editing Host, Port, Unit ID, Rated Power, and Throttle Enabled with save-and-apply behavior
+  2. Sungrow AC and DC data flows into the virtual PV inverter aggregation and Venus OS shows the combined power including Sungrow contribution
+  3. MQTT publisher includes Sungrow device telemetry alongside SolarEdge, OpenDTU, and Shelly devices
+  4. End-to-end: adding a Sungrow device, seeing it on the dashboard, and verifying its data in Venus OS works without manual intervention
+**Plans**: TBD
+**UI hint**: yes
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 28 -> 29 -> 30 -> 31 -> 32
+Phases execute in numeric order: 38 -> 39 -> 40 -> 41 -> 42
+(Note: Phase 41 depends only on Phase 38, so it can run in parallel with 39/40 if desired)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 28. Plugin Core & Profiles | 0/1 | Complete    | 2026-03-24 |
-| 29. Switch Control & Config Wiring | 0/1 | Complete    | 2026-03-24 |
-| 30. Add-Device Flow & Discovery | 0/2 | Complete    | 2026-03-24 |
-| 31. Device Dashboard & Connection Card | 0/? | Complete    | 2026-03-24 |
-| 32. Aggregation Integration | 0/? | Complete    | 2026-03-24 |
-
-### Phase 33: Device Throttle Capabilities & Scoring
-**Goal**: Each device type declares its throttle capabilities (proportional vs binary, response time, cooldown) and receives a speed score that the distributor can use for prioritization
-**Depends on**: Phase 32
-**Requirements**: THRT-01, THRT-02, THRT-03
-**Success Criteria** (what must be TRUE):
-  1. InverterPlugin ABC has a `throttle_capabilities` property returning a ThrottleCaps dataclass (mode: proportional|binary|none, response_time_s, cooldown_s, startup_delay_s)
-  2. SolarEdge returns proportional/1s/0s/0s, OpenDTU returns proportional/10s/0s/0s, Shelly returns binary/0.5s/300s/30s
-  3. Each device exposes a computed `throttle_score` (0-10) in the API based on its capabilities — higher = faster regulation
-  4. The device list API includes throttle_score and throttle_mode for each device
-**Plans**: 2 plans
-
-Plans:
-- [x] 33-01-PLAN.md -- ThrottleCaps dataclass, scoring function, ABC extension, all plugin implementations
-- [ ] 33-02-PLAN.md -- API enrichment: throttle_score and throttle_mode in device list and snapshot
-
-### Phase 34: Binary Throttle Engine with Hysteresis
-**Goal**: The PowerLimitDistributor can control binary (relay on/off) devices with configurable hysteresis to prevent flapping
-**Depends on**: Phase 33
-**Requirements**: THRT-04, THRT-05, THRT-06
-**Success Criteria** (what must be TRUE):
-  1. PowerLimitDistributor recognizes binary-throttle devices and sends relay off when their turn comes in the waterfall
-  2. A hysteresis timer prevents relay toggling more than once per cooldown period (default 300s)
-  3. After relay on, the distributor waits startup_delay_s before expecting power from that device
-  4. Re-enable happens in reverse order (slowest devices come back online first, fastest stay throttled longest for fine-tuning)
-**Plans**: 1 plan
-
-Plans:
-- [ ] 34-01-PLAN.md -- Binary dispatch, cooldown hysteresis, startup grace, reverse re-enable (TDD)
-
-### Phase 35: Smart Auto-Throttle Algorithm
-**Goal**: An "Auto" mode in the distributor that automatically selects the optimal throttle order based on device speed scores — fastest devices regulate first, binary devices are last resort
-**Depends on**: Phase 34
-**Requirements**: THRT-07, THRT-08, THRT-09
-**Success Criteria** (what must be TRUE):
-  1. When auto_throttle is enabled, the distributor ignores manual throttle_order and uses throttle_score ranking instead
-  2. The waterfall first exhausts proportional devices (highest score first), then falls through to binary devices
-  3. The algorithm converges to the target power within 3 poll cycles for proportional devices
-  4. Live response-time measurement updates the throttle_score based on actual Soll-Ist convergence speed (not just preset values)
-**Plans**: 2 plans
-
-Plans:
-- [x] 35-01-PLAN.md -- Auto-throttle config, score-based waterfall, convergence tracking (TDD)
-- [ ] 35-02-PLAN.md -- Poll-loop integration and webapp API exposure
-
-### Phase 36: Auto-Throttle UI & Live Tuning
-**Goal**: Users can enable Auto-Throttle from the virtual inverter dashboard, see live scores, and the system self-tunes based on measured response times
-**Depends on**: Phase 35
-**Requirements**: THRT-10, THRT-11, THRT-12
-**Success Criteria** (what must be TRUE):
-  1. The virtual Fronius dashboard has an "Auto-Throttle" toggle that enables/disables the smart algorithm
-  2. Each device's connection card shows its throttle_score, mode (proportional/binary), and measured response time
-  3. The contribution bar in the virtual dashboard visualizes throttle state per device (active/throttled/disabled/cooldown)
-  4. Presets (Aggressive/Balanced/Conservative) adjust the algorithm parameters (convergence speed, hysteresis timers)
-**Plans**: 2 plans
-
-Plans:
-- [x] 36-01-PLAN.md -- Backend: preset config, config-driven distributor params, enriched contributions payload
-- [ ] 36-02-PLAN.md -- Frontend: auto-throttle toggle, preset buttons, enhanced throttle table, per-device throttle info
-
-### Phase 37: Distributor Wiring & DC Average Fix
-**Goal**: Wire the distributor into AppContext and DeviceRegistry so convergence tracking fires at runtime, and fix DC voltage averaging to skip Shelly zero-DC devices
-**Depends on**: Phase 36
-**Requirements**: AGG-02, THRT-08, THRT-09
-**Gap Closure**: Closes gaps from v6.0 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. AppContext has a `distributor` field and __main__.py sets `app_ctx.distributor = distributor`
-  2. DeviceRegistry._distributor is set so webapp can read device limit states
-  3. `on_poll()` is called on every successful device poll (convergence tracking fires)
-  4. DC voltage averaging in aggregation.py skips devices with dc_power_w == 0
-**Plans**: 1 plan
-
-Plans:
-- [ ] 37-01-PLAN.md -- Wire distributor into AppContext/DeviceRegistry, fix DC voltage averaging
+| 38. Plugin Core | 0/? | Not started | - |
+| 39. Dashboard | 0/? | Not started | - |
+| 40. Add Device & Discovery | 0/? | Not started | - |
+| 41. Power Control | 0/? | Not started | - |
+| 42. Integration | 0/? | Not started | - |
