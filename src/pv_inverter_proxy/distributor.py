@@ -105,13 +105,13 @@ class PowerLimitDistributor:
         self._enabled = enable
 
         if not enable:
-            # Disable: send 100% to proportional, force-switch(True) binary
+            # Disable: force-send 100% to all devices (skip dead-time + cooldown)
             for ds in self._device_states.values():
                 if self._is_throttle_eligible(ds):
                     if self._is_binary_device(ds):
                         await self._send_binary_command(ds.device_id, turn_on=True, force=True)
                     else:
-                        await self._send_limit(ds.device_id, 100.0, enable=False)
+                        await self._send_limit(ds.device_id, 100.0, enable=False, force=True)
             return
 
         # Calculate total rated power of ALL enabled devices with rated_power > 0
@@ -230,14 +230,34 @@ class PowerLimitDistributor:
         return result
 
     async def _send_limit(
-        self, device_id: str, limit_pct: float, enable: bool = True
+        self, device_id: str, limit_pct: float, enable: bool = True,
+        *, force: bool = False,
     ) -> None:
-        """Send limit to one device, respecting dead-time buffering."""
+        """Send limit to one device, respecting dead-time buffering.
+
+        Args:
+            force: Skip dead-time buffering and pass force=True to plugin
+                   (used when disabling all limiting).
+        """
         ds = self._device_states.get(device_id)
         if ds is None:
             return
 
         now = time.monotonic()
+
+        if force:
+            # Skip dead-time, send immediately with force flag
+            try:
+                result = await ds.plugin.write_power_limit(enable, limit_pct, force=True)
+                if result.success:
+                    ds.current_limit_pct = limit_pct
+                    ds.last_write_ts = now
+                    ds.pending_limit_pct = None
+                    self._record_target(ds, limit_pct)
+                    self._log.debug("limit_sent_forced", device_id=device_id, limit_pct=round(limit_pct, 2))
+            except Exception as exc:
+                self._log.error("limit_write_error", device_id=device_id, error=str(exc))
+            return
 
         # First write ever: no dead-time applies
         if ds.last_write_ts is None:
