@@ -136,7 +136,10 @@ Full details: `.planning/milestones/v6.0-ROADMAP.md`
   2. Polled data is encoded into SunSpec Model 103 registers identical to the pattern used by SolarEdge and OpenDTU plugins
   3. User can change host/port/unit_id via reconfigure() without restarting the proxy
   4. Plugin declares ThrottleCaps with proportional mode and ~2s Modbus response time, producing a valid throttle_score
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 38-01-PLAN.md -- SungrowPlugin TDD: tests + implementation (Modbus TCP polling, SunSpec encoding, reconfigure, ThrottleCaps)
+- [ ] 38-02-PLAN.md -- Plugin factory wiring (register sungrow type in plugin_factory)
 
 ### Phase 39: Dashboard
 **Goal**: Each Sungrow device has a full dashboard with power gauge, 3-phase AC table, dual MPPT DC channels, inverter state card, and register viewer
@@ -192,7 +195,7 @@ Phases execute in numeric order: 38 -> 39 -> 40 -> 41 -> 42
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 38. Plugin Core | 0/? | Not started | - |
+| 38. Plugin Core | 0/2 | Planned | - |
 | 39. Dashboard | 0/? | Not started | - |
 | 40. Add Device & Discovery | 0/? | Not started | - |
 | 41. Power Control | 0/? | Not started | - |
