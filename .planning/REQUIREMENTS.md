@@ -1,68 +1,90 @@
-# Requirements: PV-Inverter-Master v6.0 — Shelly Plugin
+# Requirements: PV-Inverter-Master v7.0 — Sungrow SG-RT Plugin
 
-**Defined:** 2026-03-24
+**Defined:** 2026-04-06
 **Core Value:** Venus OS muss alle PV-Inverter als einen virtuellen Fronius-Inverter erkennen und steuern koennen
 
-## Plugin Core
+## v7.0 Requirements
 
-- [x] **PLUG-01**: ShellyPlugin implementiert InverterPlugin ABC (poll, connect, close, write_power_limit, get_model_120_registers, reconfigure)
-- [x] **PLUG-02**: Profil-System mit Gen1 (REST /status, /relay) und Gen2+ (RPC /rpc/Switch.GetStatus, /rpc/Switch.Set) API-Adaptern
-- [x] **PLUG-03**: Auto-Detection der Shelly-Generation via GET /shelly (gen-Feld vorhanden = Gen2+, fehlt = Gen1)
-- [x] **PLUG-04**: Polling liefert Leistung (W), Spannung (V), Strom (A), Frequenz (Hz), Energie (Wh), Temperatur (C)
-- [x] **PLUG-05**: SunSpec Model 103 Register-Encoding aus Shelly JSON (wie OpenDTU)
-- [x] **PLUG-06**: Energy-Counter Offset-Tracking (Shelly resettet bei Reboot, Tagesertrag darf nicht springen)
-- [x] **PLUG-07**: Fehlende Felder graceful behandeln (Gen1 hat weniger Daten, manche Modelle ohne Temperatur)
+Requirements for Sungrow SG-RT Plugin milestone. Each maps to roadmap phases.
 
-## Device Control
+### Plugin Core
 
-- [x] **CTRL-01**: On/Off Switch-Steuerung per Webapp (relay on/off statt Power-Limit Prozent)
-- [x] **CTRL-02**: Switch-Status (on/off) in Connection Card anzeigen
-- [x] **CTRL-03**: write_power_limit() als No-Op (Shelly kann kein %-Limiting), throttle_enabled default false
+- [ ] **PLUG-01**: Sungrow plugin polls live data via Modbus TCP (AC power, voltage, current, frequency, DC MPPT1+MPPT2, temperature, energy counters, running state)
+- [ ] **PLUG-02**: Plugin encodes polled data into SunSpec Model 103 registers (identical pattern to SolarEdge/OpenDTU)
+- [ ] **PLUG-03**: Plugin supports reconfigure (host/port/unit_id change without restart)
+- [ ] **PLUG-04**: Plugin declares ThrottleCaps (proportional mode, ~2s Modbus response time)
 
-## UI Integration
+### Power Control
 
-- [ ] **UI-01**: "Shelly Device" als dritte Option im Add-Device Dialog
-- [x] **UI-02**: Auto-Detection und Generation-Anzeige beim Hinzufuegen (testet /shelly Endpoint)
-- [ ] **UI-03**: Device Dashboard mit Gauge, AC-Werte (kein DC-Section — Capability-Flag)
-- [ ] **UI-04**: Connection Card mit Shelly-spezifischen Infos (Generation, Switch-Status, On/Off Buttons)
-- [ ] **UI-05**: Config-Seite mit Shelly-Host und erkannter Generation (readonly)
-- [x] **UI-06**: Auto-Discovery von Shelly-Devices im LAN (Netzwerk-Scan mit /shelly Probe auf gefundene Hosts)
+- [ ] **CTRL-01**: Plugin can write power limit (0-100%) via Sungrow Modbus holding registers
+- [ ] **CTRL-02**: Power limit integrates with score-based waterfall distributor
 
-## Aggregation
+### Dashboard
 
-- [ ] **AGG-01**: Shelly-Daten fliessen korrekt in den virtuellen PV-Inverter ein (AggregationLayer)
-- [x] **AGG-02**: DC-Averaging im Aggregator ueberspringt Shelly (kein DC-Data)
+- [ ] **DASH-01**: Device dashboard shows Power Gauge with rated power
+- [ ] **DASH-02**: 3-Phase AC table (L1/L2/L3 voltage, current, power)
+- [ ] **DASH-03**: DC section shows MPPT1 and MPPT2 channels (voltage, current, power)
+- [ ] **DASH-04**: Connection card shows inverter state (Run/Standby/Derating/Fault) and temperature
+- [ ] **DASH-05**: Register viewer with Sungrow-specific register labels
+
+### Add Device Flow
+
+- [ ] **ADD-01**: Type card "Sungrow" als vierte Option neben SolarEdge/OpenDTU/Shelly
+- [ ] **ADD-02**: Modbus TCP probe (read device type code + serial) before saving
+- [ ] **ADD-03**: Auto-Discovery via Netzwerk-Scan (Port 502, Sungrow device type detection)
+
+### Config & Integration
+
+- [ ] **CFG-01**: Config form with Host, Port, Unit ID, Rated Power, Throttle Enabled
+- [ ] **CFG-02**: Sungrow data flows into virtual PV inverter aggregation
+- [ ] **CFG-03**: MQTT publisher includes Sungrow device data
+
+## v8.0+ Requirements
+
+Deferred to future release.
+
+### Extended Sungrow Support
+
+- **SGEXT-01**: Support for Sungrow hybrid inverters (SH-RT series with battery)
+- **SGEXT-02**: Battery charge/discharge control via Modbus
+- **SGEXT-03**: Support for multiple Sungrow inverters on same WiNet-S
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Sungrow Cloud/iSolarCloud API | Nur lokale Modbus TCP, kein Cloud-Account noetig |
+| WiNet-S HTTP API (WebSocket) | Modbus TCP ist zuverlaessiger und standardisierter |
+| Battery management (SH-RT) | Nur PV-Inverter-Funktionalitaet, Battery ist separates Thema |
+| Sungrow firmware updates | Ausserhalb des Proxy-Scope |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | Phase 28 | Complete |
-| PLUG-02 | Phase 28 | Complete |
-| PLUG-03 | Phase 28 | Complete |
-| PLUG-04 | Phase 28 | Complete |
-| PLUG-05 | Phase 28 | Complete |
-| PLUG-06 | Phase 28 | Complete |
-| PLUG-07 | Phase 28 | Complete |
-| CTRL-01 | Phase 29 | Complete |
-| CTRL-02 | Phase 29 | Complete |
-| CTRL-03 | Phase 29 | Complete |
-| UI-01 | Phase 30 | Pending |
-| UI-02 | Phase 30 | Complete |
-| UI-03 | Phase 31 | Pending |
-| UI-04 | Phase 31 | Pending |
-| UI-05 | Phase 30 | Pending |
-| UI-06 | Phase 30 | Complete |
-| AGG-01 | Phase 32 | Pending |
-| AGG-02 | Phase 37 | Complete |
+| PLUG-01 | — | Pending |
+| PLUG-02 | — | Pending |
+| PLUG-03 | — | Pending |
+| PLUG-04 | — | Pending |
+| CTRL-01 | — | Pending |
+| CTRL-02 | — | Pending |
+| DASH-01 | — | Pending |
+| DASH-02 | — | Pending |
+| DASH-03 | — | Pending |
+| DASH-04 | — | Pending |
+| DASH-05 | — | Pending |
+| ADD-01 | — | Pending |
+| ADD-02 | — | Pending |
+| ADD-03 | — | Pending |
+| CFG-01 | — | Pending |
+| CFG-02 | — | Pending |
+| CFG-03 | — | Pending |
 
-## Future Requirements
+**Coverage:**
+- v7.0 requirements: 17 total
+- Mapped to phases: 0
+- Unmapped: 17
 
-- Shelly Auth-Support (Digest Auth fuer Gen2+)
-- Multi-Channel Support (Shelly 2.5, Shelly Pro 2PM)
-
-## Out of Scope
-
-- Shelly Cloud API — Nur lokale REST API, kein Cloud-Account
-- Shelly Scripting/Automation — Nur Polling + Switch, keine Shelly-interne Logik
-- Shelly Firmware Updates — Nicht ueber unsere Webapp
+---
+*Requirements defined: 2026-04-06*
+*Last updated: 2026-04-06 after initial definition*
