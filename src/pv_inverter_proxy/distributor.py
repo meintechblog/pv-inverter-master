@@ -101,6 +101,7 @@ class PowerLimitDistributor:
             enable: True to enable limiting, False to disable (send 100%).
         """
         self.sync_devices()
+        limit_pct = max(0.0, min(100.0, limit_pct))
         self._global_limit_pct = limit_pct
         self._enabled = enable
 
@@ -333,8 +334,11 @@ class PowerLimitDistributor:
                     elapsed = now - ds.last_write_ts
                 if elapsed >= ds.entry.throttle_dead_time_s:
                     pending = ds.pending_limit_pct
-                    ds.pending_limit_pct = None  # clear before send to avoid recursion
-                    await self._send_limit(ds.device_id, pending, enable=self._enabled)
+                    ds.pending_limit_pct = None
+                    try:
+                        await self._send_limit(ds.device_id, pending, enable=self._enabled)
+                    except Exception:
+                        ds.pending_limit_pct = pending  # restore on failure
 
     def get_device_limits(self) -> dict[str, float]:
         """Return current limit percentage for each managed device."""
@@ -402,7 +406,10 @@ class PowerLimitDistributor:
             return
         # Cooldown check
         now = time.monotonic()
-        caps = ds.plugin.throttle_capabilities
+        caps = get_throttle_caps(ds.plugin)
+        if caps is None:
+            self._log.warning("binary_no_caps", device_id=device_id)
+            return
         if ds.last_toggle_ts is not None:
             elapsed = now - ds.last_toggle_ts
             if elapsed < caps.cooldown_s:
