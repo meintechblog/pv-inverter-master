@@ -596,7 +596,7 @@ function buildInverterDashboard(container, data, deviceType) {
             '<div class="ve-throttle-info-grid">' +
             '  <span class="ve-text-dim">Score</span><span style="font-family:var(--ve-mono)">' + tiScore + '</span>' +
             '  <span class="ve-text-dim">Mode</span><span>' + tiMode + '</span>' +
-            '  <span class="ve-text-dim">Response</span><span>' + tiResp + '</span>' +
+            '  <span class="ve-text-dim">Reaktion</span><span>' + tiResp + '</span>' +
             '</div>';
         topRow.appendChild(throttleInfoCard);
     }
@@ -1958,7 +1958,7 @@ function buildVirtualPVPage(container, data) {
 
         var table = document.createElement('table');
         table.className = 've-throttle-table';
-        var thead = '<thead><tr><th>Name</th><th>Score</th><th>Mode</th><th>Response</th><th>Limit</th><th>State</th></tr></thead>';
+        var thead = '<thead><tr><th>Name</th><th>Score</th><th>Modus</th><th>Reaktion</th><th>Limit</th><th>Status</th></tr></thead>';
         var tbody = '<tbody>';
         for (var j = 0; j < contributions.length; j++) {
             var ct = contributions[j];
