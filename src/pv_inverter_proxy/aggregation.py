@@ -282,7 +282,7 @@ class AggregationLayer:
         # C_Model (offset 18-33, 16 registers): user-defined name or default
         name = self._config.virtual_inverter.name
         if not name:
-            name = "Fronius PV-Inverter-Proxy"
+            name = "Fronius Proxy"
         regs[18:34] = encode_string(name, 16)
 
         # C_Options (offset 34-41, 8 registers): empty

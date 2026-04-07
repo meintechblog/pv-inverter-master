@@ -60,7 +60,7 @@ class InverterEntry:
 @dataclass
 class VirtualInverterConfig:
     """Configuration for the aggregated virtual inverter identity."""
-    name: str = "Fronius PV-Inverter-Proxy"
+    name: str = "Fronius Proxy"
 
 
 @dataclass
