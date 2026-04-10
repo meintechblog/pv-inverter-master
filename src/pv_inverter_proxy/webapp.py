@@ -806,6 +806,8 @@ def _build_virtual_contributions(
     device_limits = distributor.get_device_limits() if distributor is not None else {}
 
     for inv in config.inverters:
+        if not inv.aggregate:
+            continue
         ds = app_ctx.devices.get(inv.id)
         power_w = 0
         rated_w = inv.rated_power
