@@ -175,18 +175,55 @@ async def _verify_sunspec(
         client.close()
 
 
+def parse_subnet_override(value: str) -> IPv4Network:
+    """Parse a user-supplied subnet/CIDR string for the scanner.
+
+    Accepts:
+      - Full CIDR: "192.168.11.0/24"
+      - Single IP shorthand: "192.168.11.1" -> /24 around that IP
+      - "192.168.11.x" / "192.168.11.*" -> "192.168.11.0/24"
+
+    Always returns a strict=False IPv4Network so a host bit in the input
+    doesn't raise. Caps the network size at /22 (1024 hosts) to avoid
+    accidental large scans over VPN.
+    """
+    raw = value.strip()
+    if not raw:
+        raise ValueError("empty subnet")
+    # "192.168.11.x" or "192.168.11.*" -> .0/24
+    last = raw.rsplit(".", 1)[-1] if "." in raw else ""
+    if last in ("x", "X", "*"):
+        head = raw.rsplit(".", 1)[0]
+        raw = f"{head}.0/24"
+    # Single IP -> /24
+    if "/" not in raw:
+        raw = f"{raw}/24"
+    network = IPv4Network(raw, strict=False)
+    if network.prefixlen < 22:
+        raise ValueError(
+            f"subnet too large (got /{network.prefixlen}, min /22 = 1024 hosts)"
+        )
+    return network
+
+
 async def scan_subnet(
     config: ScanConfig | None = None,
     progress_callback: Callable | None = None,
+    subnet_override: str | None = None,
 ) -> list[DiscoveredDevice]:
-    """Scan the local subnet for SunSpec-compatible inverters.
+    """Scan a subnet for SunSpec-compatible inverters and OpenDTU gateways.
 
     Phase 1: TCP probe all hosts on configured ports (concurrent, bounded by semaphore).
     Phase 2: Verify SunSpec on hosts with open ports.
+    Phase 3: HTTP probe for OpenDTU gateways across all hosts.
 
     Args:
         config: Scan configuration. Uses defaults if None.
         progress_callback: Optional callback(phase, current, total) for progress updates.
+        subnet_override: Optional CIDR (e.g. "192.168.11.0/24") or shorthand
+            ("192.168.11.x", "192.168.11.1") to scan a remote subnet —
+            useful for VPN-reachable networks. Falls back to local subnet
+            auto-detection when None or empty.
 
     Returns:
         List of discovered SunSpec devices.
@@ -194,7 +231,10 @@ async def scan_subnet(
     if config is None:
         config = ScanConfig()
 
-    subnet = detect_subnet()
+    if subnet_override:
+        subnet = parse_subnet_override(subnet_override)
+    else:
+        subnet = detect_subnet()
     all_hosts = [str(ip) for ip in subnet.hosts()]
     # skip_ips only applies to Modbus scan (SolarEdge), not OpenDTU HTTP scan
     modbus_hosts = [ip for ip in all_hosts if ip not in config.skip_ips]

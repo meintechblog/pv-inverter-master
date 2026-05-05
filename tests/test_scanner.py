@@ -604,3 +604,109 @@ class TestScannerAPI:
             call_args = mock_scan.call_args
             scan_config = call_args[0][0]
             assert "192.168.3.18" in scan_config.skip_ips
+
+
+# ---------------------------------------------------------------------------
+# parse_subnet_override
+# ---------------------------------------------------------------------------
+
+import pytest
+from ipaddress import IPv4Network
+
+
+@pytest.mark.parametrize("inp,expected", [
+    ("192.168.11.0/24", "192.168.11.0/24"),
+    ("192.168.11.x", "192.168.11.0/24"),
+    ("192.168.11.X", "192.168.11.0/24"),
+    ("192.168.11.*", "192.168.11.0/24"),
+    ("192.168.11.1", "192.168.11.0/24"),
+    ("192.168.0.0/22", "192.168.0.0/22"),
+    ("  192.168.11.0/24  ", "192.168.11.0/24"),
+    # Single host bit set in /24 input is normalized via strict=False.
+    ("192.168.11.1/24", "192.168.11.0/24"),
+])
+def test_parse_subnet_override_accepts(inp, expected):
+    from pv_inverter_proxy.scanner import parse_subnet_override
+    net = parse_subnet_override(inp)
+    assert net == IPv4Network(expected)
+
+
+@pytest.mark.parametrize("inp", [
+    "",
+    "   ",
+    "not-an-ip",
+    "192.168.11.0/16",  # too large (>1024 hosts)
+    "10.0.0.0/8",       # way too large
+    "999.999.999.999/24",
+])
+def test_parse_subnet_override_rejects(inp):
+    from pv_inverter_proxy.scanner import parse_subnet_override
+    with pytest.raises((ValueError, Exception)):
+        parse_subnet_override(inp)
+
+
+    @pytest.mark.asyncio
+    async def test_discover_accepts_subnet_override_in_body(self, scanner_client):
+        """POST with body.subnet forwards to scan_subnet via subnet_override.
+
+        Covers the VPN-reachable remote subnet feature: caller specifies
+        e.g. "192.168.11.0/24" and the scan runs against that subnet
+        instead of auto-detecting the local one.
+        """
+        from unittest.mock import AsyncMock, patch
+        with patch("pv_inverter_proxy.webapp.scan_subnet",
+                    new_callable=AsyncMock, return_value=[]) as mock_scan:
+            resp = await scanner_client.post(
+                "/api/scanner/discover",
+                json={"subnet": "192.168.11.0/24"},
+            )
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["subnet"] == "192.168.11.0/24"
+            # Give the background task a moment to invoke scan_subnet
+            import asyncio
+            for _ in range(20):
+                if mock_scan.called:
+                    break
+                await asyncio.sleep(0.05)
+            assert mock_scan.called
+            kwargs = mock_scan.await_args.kwargs
+            assert kwargs.get("subnet_override") == "192.168.11.0/24"
+
+    @pytest.mark.asyncio
+    async def test_discover_rejects_invalid_subnet(self, scanner_client):
+        """Invalid subnet input returns 400 instead of silent background failure."""
+        resp = await scanner_client.post(
+            "/api/scanner/discover",
+            json={"subnet": "not-a-valid-cidr"},
+        )
+        assert resp.status == 400
+        data = await resp.json()
+        assert "Invalid subnet" in data["error"]
+
+    @pytest.mark.asyncio
+    async def test_discover_rejects_oversized_subnet(self, scanner_client):
+        """Subnet larger than /22 must be rejected (avoid huge VPN scans)."""
+        resp = await scanner_client.post(
+            "/api/scanner/discover",
+            json={"subnet": "10.0.0.0/8"},
+        )
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_discover_omits_subnet_means_auto(self, scanner_client):
+        """When body has no subnet, subnet_override=None reaches scan_subnet."""
+        from unittest.mock import AsyncMock, patch
+        with patch("pv_inverter_proxy.webapp.scan_subnet",
+                    new_callable=AsyncMock, return_value=[]) as mock_scan:
+            resp = await scanner_client.post("/api/scanner/discover", json={})
+            assert resp.status == 200
+            data = await resp.json()
+            assert data["subnet"] == "auto"
+            import asyncio
+            for _ in range(20):
+                if mock_scan.called:
+                    break
+                await asyncio.sleep(0.05)
+            assert mock_scan.called
+            assert mock_scan.await_args.kwargs.get("subnet_override") is None

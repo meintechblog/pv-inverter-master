@@ -1681,11 +1681,19 @@ async def _broadcast_scan_error(app: web.Application, error: str) -> None:
             clients.discard(ws)
 
 
-async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: bool = False) -> None:
+async def _run_scan(
+    app: web.Application,
+    scan_config: ScanConfig,
+    auto_add: bool = False,
+    subnet_override: str | None = None,
+) -> None:
     """Run scan as background task, broadcasting progress via WS.
 
     If auto_add=True, automatically add supported discovered devices to config
     and start polling. Used for first-run onboarding and manual "Scan & Add".
+
+    subnet_override (optional): CIDR or shorthand passed straight to
+    scan_subnet so VPN-reachable remote subnets can be scanned.
     """
     app["_scan_running"] = True
     app_ctx = app["app_ctx"]
@@ -1698,7 +1706,11 @@ async def _run_scan(app: web.Application, scan_config: ScanConfig, auto_add: boo
         def progress_cb(phase: str, current: int, total: int) -> None:
             asyncio.create_task(_broadcast_scan_progress(app, phase, current, total))
 
-        devices = await scan_subnet(scan_config, progress_callback=progress_cb)
+        devices = await scan_subnet(
+            scan_config,
+            progress_callback=progress_cb,
+            subnet_override=subnet_override,
+        )
 
         # Auto-add supported devices that aren't already configured
         if auto_add and devices:
@@ -2127,7 +2139,17 @@ async def scanner_config_save_handler(request: web.Request) -> web.Response:
 
 
 async def scanner_discover_handler(request: web.Request) -> web.Response:
-    """POST /api/scanner/discover -- trigger background subnet scan."""
+    """POST /api/scanner/discover -- trigger background subnet scan.
+
+    Body (all fields optional):
+        ports: list[int] — Modbus ports to probe (default: from config)
+        scan_unit_ids: list[int] — Modbus unit IDs to verify (default: [1])
+        subnet: str — CIDR ("192.168.11.0/24"), shorthand ("192.168.11.x" /
+            "192.168.11.*"), or single IP ("192.168.11.1" -> /24). Empty
+            string or omitted = auto-detect local subnet. Useful for
+            scanning VPN-reachable remote networks.
+        auto_add: bool
+    """
     app = request.app
     if app.get("_scan_running"):
         return web.json_response({"error": "Scan already running"}, status=409)
@@ -2142,15 +2164,37 @@ async def scanner_discover_handler(request: web.Request) -> web.Response:
 
     ports = body.get("ports", config.scanner.ports)
     scan_unit_ids = body.get("scan_unit_ids", [1])
+    subnet_override = body.get("subnet") or None
+
+    # Validate subnet eagerly so the user gets a 400 instead of a silent
+    # background failure.
+    if subnet_override:
+        from pv_inverter_proxy.scanner import parse_subnet_override
+        try:
+            parse_subnet_override(subnet_override)
+        except ValueError as e:
+            return web.json_response(
+                {"error": f"Invalid subnet: {e}"}, status=400,
+            )
+
     scan_config = ScanConfig(ports=ports, skip_ips=skip_ips, scan_unit_ids=scan_unit_ids)
 
     # Auto-add: default True if no inverters configured (first-run), else require explicit request
     has_inverters = len(config.inverters) > 0
     auto_add = body.get("auto_add", not has_inverters)
 
-    log.info("user_action", action="scan_triggered", ports=ports, auto_add=auto_add)
-    asyncio.create_task(_run_scan(app, scan_config, auto_add=auto_add))
-    return web.json_response({"status": "started", "auto_add": auto_add})
+    log.info(
+        "user_action", action="scan_triggered",
+        ports=ports, subnet=subnet_override or "auto", auto_add=auto_add,
+    )
+    asyncio.create_task(
+        _run_scan(app, scan_config, auto_add=auto_add, subnet_override=subnet_override),
+    )
+    return web.json_response({
+        "status": "started",
+        "auto_add": auto_add,
+        "subnet": subnet_override or "auto",
+    })
 
 
 async def mqtt_discover_handler(request: web.Request) -> web.Response:

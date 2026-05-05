@@ -2329,6 +2329,19 @@ function showAddForm(formArea, actions, type, modal) {
             '<div class="ve-hint-card ve-add-probe-hint" style="display:none"></div>';
     }
 
+    // Optional remote-subnet override (per-scan; only for IP-based discover)
+    if (type === 'solaredge' || type === 'opendtu') {
+        formArea.innerHTML +=
+            '<div class="ve-form-group ve-add-subnet-row">' +
+            '  <label>Subnet (optional)</label>' +
+            '  <input type="text" class="ve-input ve-add-subnet"' +
+            '    placeholder="auto (lokal) — z.B. 192.168.11.0/24 für VPN-Netz">' +
+            '  <span class="ve-form-hint" style="font-size:0.75rem;color:var(--ve-text-dim);margin-top:4px;display:block">' +
+            '    Leer = lokales Subnetz. Eingabe-Formate: 192.168.11.0/24 · 192.168.11.x · 192.168.11.1' +
+            '  </span>' +
+            '</div>';
+    }
+
     // Discover area
     formArea.innerHTML += '<div class="ve-add-scan-area" style="display:none"><div class="ve-scan-progress" style="display:none"><div class="ve-scan-bar"><div class="ve-scan-bar-fill ve-add-scan-fill"></div></div><span class="ve-scan-status ve-add-scan-status"></span></div><div class="ve-add-scan-results"></div></div>';
 
@@ -2526,14 +2539,29 @@ function triggerAddModalScan(formArea) {
     status.textContent = 'Starting scan...';
     results.innerHTML = '';
 
+    var subnetInput = formArea.querySelector('.ve-add-subnet');
+    var subnetVal = subnetInput && subnetInput.value.trim();
+    var body = { ports: [502, 1502] };
+    if (subnetVal) {
+        body.subnet = subnetVal;
+        status.textContent = 'Scanning ' + subnetVal + '...';
+    }
+
     fetch('/api/scanner/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ports: [502, 1502] })
+        body: JSON.stringify(body)
     })
     .then(function(res) {
         if (res.status === 409) {
             showToast('Scan already running', 'warning');
+            return null;
+        }
+        return res.json();
+    })
+    .then(function(data) {
+        if (data && data.error) {
+            showToast(data.error, 'error');
         }
     })
     .catch(function(e) {
