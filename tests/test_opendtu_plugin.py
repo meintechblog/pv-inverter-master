@@ -512,3 +512,46 @@ class TestReconfigure:
         await plugin.reconfigure("192.168.3.99", 80, 1)
 
         session.close.assert_called_once()
+
+
+class TestConnectAuthDefaults:
+    """Empty user/password must fall back to OpenDTU factory defaults."""
+
+    @pytest.mark.asyncio
+    async def test_empty_creds_use_admin_openDTU42(self):
+        """Empty gateway_user/password -> BasicAuth('admin', 'openDTU42').
+
+        Regression for: user adds an OpenDTU via the webapp without typing
+        the default credentials, plugin sends empty Basic Auth, gateway
+        rejects requests on hardened installs.
+        """
+        gw = GatewayConfig(host="192.168.11.13", user="", password="")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="138290120330")
+
+        with patch("pv_inverter_proxy.plugins.opendtu.aiohttp.ClientSession") as mock_cls, \
+             patch("pv_inverter_proxy.plugins.opendtu.aiohttp.BasicAuth") as mock_auth:
+            await plugin.connect()
+            mock_auth.assert_called_once_with("admin", "openDTU42")
+            mock_cls.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_explicit_creds_take_precedence(self):
+        """Custom user/password are used as-is when set."""
+        gw = GatewayConfig(host="192.168.11.13", user="custom", password="secret")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="138290120330")
+
+        with patch("pv_inverter_proxy.plugins.opendtu.aiohttp.ClientSession"), \
+             patch("pv_inverter_proxy.plugins.opendtu.aiohttp.BasicAuth") as mock_auth:
+            await plugin.connect()
+            mock_auth.assert_called_once_with("custom", "secret")
+
+    @pytest.mark.asyncio
+    async def test_only_user_blank_falls_back(self):
+        """Empty user with set password -> 'admin' + custom password."""
+        gw = GatewayConfig(host="192.168.11.13", user="", password="my-pw")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="138290120330")
+
+        with patch("pv_inverter_proxy.plugins.opendtu.aiohttp.ClientSession"), \
+             patch("pv_inverter_proxy.plugins.opendtu.aiohttp.BasicAuth") as mock_auth:
+            await plugin.connect()
+            mock_auth.assert_called_once_with("admin", "my-pw")

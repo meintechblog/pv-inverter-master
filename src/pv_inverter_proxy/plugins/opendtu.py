@@ -56,8 +56,17 @@ class OpenDTUPlugin(InverterPlugin):
         self.dc_channels: list[dict] = []
 
     async def connect(self) -> None:
-        """Create aiohttp.ClientSession with Basic Auth for the gateway."""
-        auth = aiohttp.BasicAuth(self._gw.user, self._gw.password)
+        """Create aiohttp.ClientSession with Basic Auth for the gateway.
+
+        Empty user / password fall back to OpenDTU's factory defaults
+        ("admin" / "openDTU42"). This means the user can leave both
+        fields blank in the webapp and the plugin still authenticates
+        on stock OpenDTU installs — no need to type the defaults
+        themselves.
+        """
+        user = self._gw.user or "admin"
+        password = self._gw.password or "openDTU42"
+        auth = aiohttp.BasicAuth(user, password)
         self._session = aiohttp.ClientSession(auth=auth)
         log.info(
             "opendtu_plugin_connected",
