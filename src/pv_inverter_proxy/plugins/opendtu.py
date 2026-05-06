@@ -199,11 +199,35 @@ class OpenDTUPlugin(InverterPlugin):
         return PollResult(common_regs, inverter_regs, success=True)
 
     def _find_inverter(self, data: dict | None) -> dict | None:
-        """Find inverter by serial in the API response."""
+        """Find inverter by serial in the API response.
+
+        If self.serial is empty (user added the entry without specifying a
+        serial), and the gateway reports exactly one inverter, auto-adopt
+        that inverter's serial. This makes single-inverter OpenDTU
+        installs work with no manual serial entry — the common case.
+        Multi-inverter gateways still require an explicit serial because
+        we cannot guess which inverter the user intended.
+        """
         if not isinstance(data, dict):
             return None
-        for inv in data.get("inverters", []):
-            if isinstance(inv, dict) and str(inv.get("serial", "")) == str(self.serial):
+        inverters = [
+            inv for inv in data.get("inverters", [])
+            if isinstance(inv, dict)
+        ]
+        # Auto-adopt single-inverter gateway when serial is unset.
+        if not str(self.serial) and len(inverters) == 1:
+            adopted_serial = str(inverters[0].get("serial", ""))
+            if adopted_serial:
+                log.info(
+                    "opendtu_serial_auto_adopted",
+                    gateway=self._gw.host,
+                    serial=adopted_serial,
+                    name=inverters[0].get("name"),
+                )
+                self.serial = adopted_serial
+                return inverters[0]
+        for inv in inverters:
+            if str(inv.get("serial", "")) == str(self.serial):
                 return inv
         return None
 

@@ -287,6 +287,28 @@ async def _device_poll_loop(
                     if ac_power_w is not None:
                         distributor.on_poll(device_id, ac_power_w)
 
+                # Persist plugin-resolved fields back to the InverterEntry
+                # so they show up in the UI and survive restarts. Currently
+                # only OpenDTU does this (auto-adopting the gateway's only
+                # inverter when serial is empty). Best-effort — a save
+                # failure must not break polling.
+                try:
+                    plugin_serial = getattr(plugin, "serial", None)
+                    config = getattr(app_ctx, "config", None)
+                    if plugin_serial and config is not None:
+                        for entry in config.inverters:
+                            if entry.id == device_id and entry.serial != plugin_serial:
+                                entry.serial = plugin_serial
+                                from pv_inverter_proxy.config import save_config
+                                save_config(app_ctx.config_path, config)
+                                log.info(
+                                    "entry_serial_persisted",
+                                    serial=plugin_serial,
+                                )
+                                break
+                except Exception:
+                    log.debug("entry_serial_persist_failed", exc_info=True)
+
                 await on_success(device_id)
                 log.debug("poll_success")
             else:

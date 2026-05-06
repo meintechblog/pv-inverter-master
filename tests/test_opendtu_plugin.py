@@ -555,3 +555,61 @@ class TestConnectAuthDefaults:
              patch("pv_inverter_proxy.plugins.opendtu.aiohttp.BasicAuth") as mock_auth:
             await plugin.connect()
             mock_auth.assert_called_once_with("admin", "my-pw")
+
+
+class TestSerialAutoAdoption:
+    """Empty serial + single-inverter gateway -> plugin adopts the gateway's serial."""
+
+    def test_auto_adopts_when_serial_empty_and_one_inverter(self):
+        """Plugin with empty serial picks up the only inverter's serial."""
+        gw = GatewayConfig(host="192.168.11.13", user="admin", password="openDTU42")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="")
+
+        data = {
+            "inverters": [
+                {"serial": "138290120330", "name": "Garten", "reachable": True},
+            ],
+        }
+        match = plugin._find_inverter(data)
+        assert match is not None
+        assert match["serial"] == "138290120330"
+        # Adoption persists on the plugin so subsequent polls match by it
+        assert plugin.serial == "138290120330"
+
+    def test_no_auto_adopt_when_serial_set(self):
+        """Plugin with a specific serial does not adopt a different one."""
+        gw = GatewayConfig(host="192.168.11.13", user="admin", password="openDTU42")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="111111111111")
+
+        data = {
+            "inverters": [
+                {"serial": "138290120330", "name": "Garten", "reachable": True},
+            ],
+        }
+        match = plugin._find_inverter(data)
+        assert match is None
+        assert plugin.serial == "111111111111"  # unchanged
+
+    def test_no_auto_adopt_when_multiple_inverters(self):
+        """Multi-inverter gateway with empty serial returns None — user must pick."""
+        gw = GatewayConfig(host="192.168.11.13", user="admin", password="openDTU42")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="")
+
+        data = {
+            "inverters": [
+                {"serial": "138290120330", "name": "Garten", "reachable": True},
+                {"serial": "999999999999", "name": "Other", "reachable": True},
+            ],
+        }
+        match = plugin._find_inverter(data)
+        assert match is None
+        assert plugin.serial == ""  # unchanged
+
+    def test_no_auto_adopt_when_zero_inverters(self):
+        """Empty inverter list with empty serial returns None safely."""
+        gw = GatewayConfig(host="192.168.11.13", user="admin", password="openDTU42")
+        plugin = OpenDTUPlugin(gateway_config=gw, serial="")
+
+        match = plugin._find_inverter({"inverters": []})
+        assert match is None
+        assert plugin.serial == ""
